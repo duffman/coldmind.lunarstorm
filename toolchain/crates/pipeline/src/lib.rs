@@ -8,11 +8,15 @@
 //! package.json    the project's, copied; a change restarts the app (spec 6.1)
 //! ```
 //!
+//! [`command`] exports the pipeline as the `build` command of the `lunarstorm` command
+//! line (`lunarstorm-cli-contract`).
+//!
 //! Decision: the pipeline never writes a partial build. A project with a compile
 //! error produces diagnostics and leaves the output directory as it was, so the
 //! running app keeps its last good build (spec 6, "Compiler failures in dev").
 
 pub mod backend;
+pub mod command;
 pub mod frontend;
 pub mod host;
 pub mod types;

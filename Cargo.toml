@@ -1,11 +1,18 @@
 # Lunarstorm monorepo: the one Cargo workspace for every Rust crate in the repo.
 #
+#   apps/        product binaries that mount packages:
+#     lunarstorm      the `lunarstorm` command line: `run` (runtime) and `build` (pipeline),
+#                     one Cargo feature per package; see doc/cli.md
 #   crates/      reusable crates with no tie to one product; anything in the repo
 #                may depend on them:
 #     cliui           terminal UI: colors, help screens, error frames, progress bars
+#     cli-contract    what a package exports to the `lunarstorm` command line: command
+#                     trees, argument specs, invocations, contexts (no dependencies)
+#     cli-host        parses, documents and dispatches the commands of mounted packages
 #     http1           HTTP/1.1 request framing and response heads; no sockets, no JS
 #   runtime/     the Lunarstorm runtime, as the layers of spec section 5:
-#     hosts/cli       CLI app host: process, argv, stdio, exit code (binary `lunarstorm`)
+#     hosts/cli       CLI app host: process, argv, stdio, exit code; the `run` command
+#                     package mounted by apps/lunarstorm
 #     hosts/desktop   desktop app host: a desktop application's backend on the Runtime,
 #                     and the tao shell around it (binary `lunarstorm-desktop`)
 #     core            the Runtime: event loop, timers, modules, fs and net; generic
@@ -36,6 +43,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "apps/lunarstorm",
     "runtime/vm",
     "runtime/engines/quickjs",
     "runtime/engines/rquickjs",
@@ -55,6 +63,8 @@ members = [
     "platform/pack",
     "platform/web",
     "crates/cliui",
+    "crates/cli-contract",
+    "crates/cli-host",
     "crates/http1",
     "toolchain/crates/build-server",
     "toolchain/crates/model",

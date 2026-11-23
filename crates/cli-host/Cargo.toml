@@ -1,0 +1,15 @@
+# The `lunarstorm` command-line host: mounts packages described with
+# `lunarstorm-cli-contract`, parses the command line against their specs, renders help
+# screens, usage errors, a JSON description and shell completions, and dispatches to
+# the packages' handlers.
+[package]
+name = "lunarstorm-cli-host"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Command-line host: parses, documents and dispatches the commands of mounted packages"
+
+[dependencies]
+lunarstorm-cli-contract = { path = "../cli-contract" }
+lunarstorm-cliui = { path = "../cliui" }
+serde_json.workspace = true

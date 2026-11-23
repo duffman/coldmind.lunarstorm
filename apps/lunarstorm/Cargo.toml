@@ -1,0 +1,34 @@
+# The `lunarstorm` binary: the one command line for the Lunarstorm runtime and the
+# desktop build tools.
+#
+# The packages it mounts are chosen here, one Cargo feature each, so a build can
+# carry any subset: `cargo build -p lunarstorm --no-default-features --features build`
+# gives a CLI with only `build`. Mounting a new package = an optional dependency, a
+# feature, and one `.package(...)` line in `src/main.rs` (see doc/cli.md).
+[package]
+name = "lunarstorm"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Lunarstorm command line: the runtime (`run`) and the desktop build tools (`build`)"
+
+[[bin]]
+name = "lunarstorm"
+path = "src/main.rs"
+
+[features]
+default = ["runtime", "build"]
+# `run`: scripts on the Lunarstorm runtime (runtime/hosts/cli).
+runtime = ["dep:lunarstorm-host-cli"]
+# `build`: the desktop build pipeline (toolchain/crates/pipeline).
+build = ["dep:lunarstorm-pipeline"]
+
+[dependencies]
+lunarstorm-cli-host = { path = "../../crates/cli-host" }
+lunarstorm-host-cli = { path = "../../runtime/hosts/cli", optional = true }
+lunarstorm-pipeline = { path = "../../toolchain/crates/pipeline", optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
+# tests/ui.rs drives a pseudo-terminal through libc.
+libc = "0.2"

@@ -2941,9 +2941,23 @@ name = "lunarstorm"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "lunarstorm-cli-host",
+ "lunarstorm-host-cli",
+ "lunarstorm-pipeline",
+ "serde_json",
+]
+
+[[package]]
+name = "lunarstorm-cli-contract"
+version = "0.1.0"
+
+[[package]]
+name = "lunarstorm-cli-host"
+version = "0.1.0"
+dependencies = [
+ "lunarstorm-cli-contract",
  "lunarstorm-cliui",
- "lunarstorm-runtime",
- "lunarstorm-vm-quickjs",
+ "serde_json",
 ]
 
 [[package]]
@@ -2951,6 +2965,17 @@ name = "lunarstorm-cliui"
 version = "0.1.0"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "lunarstorm-host-cli"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "lunarstorm-cli-contract",
+ "lunarstorm-cliui",
+ "lunarstorm-runtime",
+ "lunarstorm-vm-quickjs",
 ]
 
 [[package]]
@@ -2997,6 +3022,7 @@ dependencies = [
 name = "lunarstorm-pipeline"
 version = "0.1.0"
 dependencies = [
+ "lunarstorm-cli-contract",
  "lunarstorm-model",
  "rolldown",
  "rolldown_common",
