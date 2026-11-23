@@ -2,8 +2,8 @@ import { afterEach, beforeEach, expect, test, vi, type MockInstance } from "vite
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
-import { ShellBoundary } from "@coldmind/devermind-shell/src/error-boundary.tsx";
-import { ShellErrors } from "@coldmind/devermind-shell/src/error-store.ts";
+import { ShellBoundary } from "@coldmind/devtools-shell/src/error-boundary.tsx";
+import { ShellErrors } from "@coldmind/devtools-shell/src/error-store.ts";
 
 let root: Root;
 let consoleError: MockInstance<typeof console.error>;

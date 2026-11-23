@@ -1,5 +1,5 @@
 [package]
-name = "devermind-cli"
+name = "devtools-cli"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
@@ -8,13 +8,13 @@ description = "jetbunny --serve, --build, --preview and --transpile: development
 autotests = false
 
 [lib]
-name = "devermind_cli"
+name = "devtools_cli"
 path = "src/lib.rs"
 
 [dependencies]
 anyhow.workspace = true
-devermind_core.workspace = true
-devermind_server.workspace = true
-devermind_bundler.workspace = true
+devtools_core.workspace = true
+devtools_server.workspace = true
+devtools_bundler.workspace = true
 axum = "0.8.9"
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "fs", "net", "signal"] }

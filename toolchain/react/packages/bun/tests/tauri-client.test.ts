@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { createTauriDevermind, type TauriInvoke, type TransformRequest, type TransformResult } from "../src/tauri-client.ts";
+import { createTauriDevtools, type TauriInvoke, type TransformRequest, type TransformResult } from "../src/tauri-client.ts";
 
 const result: TransformResult = {
   code: "export const mode = 1;",
@@ -24,8 +24,8 @@ describe("Tauri client", () => {
       filename: "input.ts",
       options: { define: { __MODE__: "1" } },
     };
-    expect(await createTauriDevermind(invoke).transform(request)).toBe(result);
-    expect(calls).toEqual([{ command: "plugin:devermind|transform", args: { request } }]);
+    expect(await createTauriDevtools(invoke).transform(request)).toBe(result);
+    expect(calls).toEqual([{ command: "plugin:devtools|transform", args: { request } }]);
   });
 
   test("leaves omitted options and filename to the Rust defaults", async () => {
@@ -35,13 +35,13 @@ describe("Tauri client", () => {
       return result as T;
     };
     const request: TransformRequest = { source: "export {};", loader: "js" };
-    await createTauriDevermind(invoke).transform(request);
+    await createTauriDevtools(invoke).transform(request);
     expect(args).toEqual({ request: { source: "export {};", loader: "js" } });
   });
 
   test("propagates command and permission failures without falling back to Bun", async () => {
     const error = new Error("transform command not allowed");
     const invoke: TauriInvoke = async () => { throw error; };
-    await expect(createTauriDevermind(invoke).transform({ source: "", loader: "tsx" })).rejects.toBe(error);
+    await expect(createTauriDevtools(invoke).transform({ source: "", loader: "tsx" })).rejects.toBe(error);
   });
 });

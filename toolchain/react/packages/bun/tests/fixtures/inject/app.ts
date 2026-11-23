@@ -1,5 +1,5 @@
 import { Container } from "@coldmind/inject";
-import { Clock, Logger } from "@coldmind/devermind/tests/fixtures/inject/services.ts";
+import { Clock, Logger } from "@coldmind/devtools/tests/fixtures/inject/services.ts";
 
 const wired = <T>(target: T, _context: ClassDecoratorContext): T => target;
 

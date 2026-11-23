@@ -14,6 +14,12 @@ fn framework() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../framework").canonicalize().expect("framework")
 }
 
+/// # Returns
+/// The desktop starter, under the repository's `templates` directory.
+fn starter() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../templates/starters/desktop").canonicalize().expect("starter")
+}
+
 /// Writes a project to a temporary directory.
 ///
 /// # Arguments
@@ -64,7 +70,7 @@ export default () =>\n\
 
 #[test]
 fn the_built_starter_frontend_loads_and_yields_its_element_tree() {
-    let starter = framework().join("templates/starters/desktop");
+    let starter = starter();
     let out = TempDir::new().expect("temp dir");
     build(&starter, out.path()).unwrap_or_else(|failure| panic!("build failed: {failure:?}"));
     let frontend = out.path().join("frontend");
@@ -123,7 +129,7 @@ fn a_rebuild_drops_the_module_of_a_removed_form() {
 #[test]
 fn the_prebuilt_runtime_components_create_elements() {
     let out = TempDir::new().expect("temp dir");
-    build(&framework().join("templates/starters/desktop"), out.path()).unwrap_or_else(|failure| panic!("build failed: {failure:?}"));
+    build(&starter(), out.path()).unwrap_or_else(|failure| panic!("build failed: {failure:?}"));
     let frontend = out.path().join("frontend");
     // `form` uses no hooks, so it can be called outside a renderer.
     let script = "const { C } = await import('./vcl.js');\nconst element = C.form({ name: 'Probe' });\nconsole.log(`${element.type} ${element.props['data-name']} ${element.props.className}`);\n";

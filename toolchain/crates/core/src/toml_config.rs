@@ -10,7 +10,7 @@ use crate::config::ProjectConfig;
 /// Missing files return `None`; read, parse, and schema errors retain the file path
 /// in their error chain and must not cause fallback.
 pub(crate) fn load(root: &Path) -> anyhow::Result<Option<ProjectConfig>> {
-    let file = root.join(".devermind/config.toml");
+    let file = root.join(".devtools/config.toml");
     if !file
         .try_exists()
         .with_context(|| format!("checking {}", file.display()))?

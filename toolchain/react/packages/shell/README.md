@@ -1,9 +1,9 @@
-# @coldmind/devermind-shell
+# @coldmind/devtools-shell
 
-The parent of an app on the devermind dev server (`crates/server` in the Devermind product). The shell owns the page:
+The parent of an app on the devtools dev server (`crates/server` in the Devtools product). The shell owns the page:
 
 - **One WebSocket.** HMR frames and app channels share it. The server detects the package and serves
-  its HMR runtime (`./hot`) as `/@devermind/client.js`, so the built-in client never opens a second
+  its HMR runtime (`./hot`) as `/@devtools/client.js`, so the built-in client never opens a second
   socket. Pages get only the React Refresh preamble.
 - **Error boundary.** The app renders inside it. A hot update re-mounts an app that failed to render.
 - **Overlay** in a shadow root (app CSS cannot reach it): build errors from the server, load failures,
@@ -24,14 +24,14 @@ The parent of an app on the devermind dev server (`crates/server` in the Devermi
 
 ```tsx
 // src/main.tsx
-import { startShell } from "@coldmind/devermind-shell";
+import { startShell } from "@coldmind/devtools-shell";
 
 startShell({ root: document.getElementById("root")!, load: () => import("./App.tsx") });
 ```
 
 ## Desktop apps
 
-During a desktop build, Devermind reads `shell` from `app.config.ts`, selects the shell module,
+During a desktop build, Devtools reads `shell` from `app.config.ts`, selects the shell module,
 and generates the React entry that wraps the default component exported from `src/main.tsx`.
 The selected module is compiled into that frontend build.
 
@@ -61,7 +61,7 @@ export default {
 | `app debug`, with or without `--dap` | `debug` |
 | `app build`, `app release` | `production` |
 
-Devermind selects the current mode's module, then `default`, then the built-in `@desktop/shell`.
+Devtools selects the current mode's module, then `default`, then the built-in `@desktop/shell`.
 A string such as `shell: './src/MyShell.tsx'` selects the same module for every mode.
 Relative module paths resolve from the application root. Package specifiers can select a shell
 provided by an installed dependency. Since `app.config.ts` is TypeScript, its exported shell
@@ -91,7 +91,7 @@ export default function ProductionShell(props: ShellWrapperProps) {
 
 The built-in wrapper opens one session over the WebView's native IPC bridge before loading the
 component. React Fast Refresh, CSS updates, and calls from `@desktop/api` and `@desktop/backend`
-share that session. Devermind passes the connection and wrapped app to the selected shell.
+share that session. Devtools passes the connection and wrapped app to the selected shell.
 
 Components can call `useDesktopShell()` from `@desktop/shell` to read the current React update
 generation and QuickJS backend epoch. For an older entry that mounts itself into `#root`, the
@@ -107,7 +107,7 @@ the shell's error boundary and context.
 - `useShellChannel<T>(name, onMessage?)` returns `send`. Messages travel as the custom event `app:<name>`.
 - `useShellStatus()` returns `"connecting" | "open" | "lost" | "closed"`.
 - `ShellTransport`, `ShellErrors` and `ShellBoundary` can be used on their own.
-- `@coldmind/devermind-shell/hot` exports `createHotContext`, `updateStyle`, `removeStyle` and
+- `@coldmind/devtools-shell/hot` exports `createHotContext`, `updateStyle`, `removeStyle` and
   `handleHotFrame`, which is the `import.meta.hot` runtime.
 
 On the server, a page's `app:<name>` message goes to every other page and to the host through
@@ -116,8 +116,8 @@ On the server, a page's `app:<name>` message goes to every other page and to the
 ## Example
 
 ```sh
-cd packages/tools/devermind
-PATH="$HOME/.cargo/bin:$PATH" cargo run -p devermind-cli -- dev examples/react-shell
+cd packages/tools/devtools
+PATH="$HOME/.cargo/bin:$PATH" cargo run -p devtools-cli -- dev examples/react-shell
 ```
 
 Edit `examples/react-shell/src/App.tsx` while the server runs: component state survives. Throw in render and
@@ -126,8 +126,8 @@ save, the overlay appears; fix and save, the app re-mounts without a reload.
 ## Tests
 
 ```sh
-bun run --filter @coldmind/devermind-shell typecheck
-bun run --filter @coldmind/devermind-shell test
+bun run --filter @coldmind/devtools-shell typecheck
+bun run --filter @coldmind/devtools-shell test
 ```
 
 ## Source organization

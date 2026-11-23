@@ -26,7 +26,7 @@ impl Fixture {
             .unwrap()
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("devermind-cli-{}-{stamp}-{id}", std::process::id()));
+            std::env::temp_dir().join(format!("devtools-cli-{}-{stamp}-{id}", std::process::id()));
         std::fs::create_dir_all(&path).unwrap();
         Self(path)
     }

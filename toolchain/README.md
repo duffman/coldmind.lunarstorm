@@ -1,13 +1,13 @@
 <p align="center">
-  <img src="res/logo.png" alt="Devermind logo" width="280" />
+  <img src="res/logo.png" alt="Devtools logo" width="280" />
 </p>
 
-# Devermind
+# Devtools
 
 **A Rust-first development server and frontend build tool—with a CLI, an embedded
 Tauri host, native Bun transforms, and an optional React development shell.**
 
-Devermind serves source modules during development, watches the dependency graph
+Devtools serves source modules during development, watches the dependency graph
 for changes, and produces bundled assets for production. Its Rust workspace owns
 the compiler integration, configuration, server, and bundler. The CLI and runtime
 adapters are ways to use the same product, not separate implementations.
@@ -23,7 +23,7 @@ Package names below identify source packages, not published registry releases.
   imports; serve HTML and assets; watch files and send hot updates.
 - **Build:** bundle application entries, emit content-hashed JavaScript/CSS/assets,
   and copy public files.
-- **Configure:** read `.devermind/config.toml` directly in Rust, without executing
+- **Configure:** read `.devtools/config.toml` directly in Rust, without executing
   a JavaScript configuration file.
 - **Embed:** mount the development frontend on an application's existing HTTP
   gateway instead of starting another listener.
@@ -41,13 +41,13 @@ From a checkout containing this source tree:
 
 ```sh
 cargo install --locked --path crates/cli
-devermind --help
+devtools --help
 ```
 
 Alternatively, run directly from the workspace:
 
 ```sh
-cargo run --locked -p devermind-cli -- dev /path/to/app
+cargo run --locked -p devtools-cli -- dev /path/to/app
 ```
 
 Your application root needs an `index.html` with a module entry, for example:
@@ -58,14 +58,14 @@ Your application root needs an `index.html` with a module entry, for example:
 ```
 
 Install the application's own dependencies with its usual package manager.
-Devermind does not install them for you.
+Devtools does not install them for you.
 
 ### Develop, build, preview
 
 ```sh
-devermind dev /path/to/app --port 5173
-devermind build /path/to/app
-devermind preview /path/to/app --port 4173
+devtools dev /path/to/app --port 5173
+devtools build /path/to/app
+devtools preview /path/to/app --port 4173
 ```
 
 | Command | Purpose |
@@ -75,8 +75,8 @@ devermind preview /path/to/app --port 4173
 | `preview [root]` | Serve an existing build on loopback, including SPA routes. It does not build first. |
 | `transpile <file\|->` | Compile one source module to JavaScript without bundling; write to stdout or `--out FILE`. |
 
-The root defaults to the current directory. `devermind [root]` is shorthand for
-`devermind dev [root]`. Development defaults to `127.0.0.1:5173`; preview defaults
+The root defaults to the current directory. `devtools [root]` is shorthand for
+`devtools dev [root]`. Development defaults to `127.0.0.1:5173`; preview defaults
 to `127.0.0.1:4173`.
 
 **Builds replace the selected output directory.** Keep output separate from source
@@ -87,16 +87,16 @@ files. Preview is a local verification server, not a production hosting service.
 Use the compiler without starting a server or bundling an application:
 
 ```sh
-devermind transpile src/main.ts
-devermind transpile src/App.tsx --out dist/App.js --sourcemap
-cat src/main.ts | devermind transpile - --loader ts
-devermind help transpile
+devtools transpile src/main.ts
+devtools transpile src/App.tsx --out dist/App.js --sourcemap
+cat src/main.ts | devtools transpile - --loader ts
+devtools help transpile
 ```
 
 The command handles TS, TSX, JSX, and JavaScript. File syntax is inferred from its
 extension; stdin defaults to TypeScript. Output is JavaScript, with imports and CommonJS module syntax preserved.
 There is no type-checking, declaration generation, dependency bundling, or loading
-of `.devermind/config.toml`/Vite configuration for this operation.
+of `.devtools/config.toml`/Vite configuration for this operation.
 
 Stdout contains JavaScript only. `--sourcemap` embeds a map on stdout, or writes
 `<output>.map` when `--out` selects a file. Input files are protected against
@@ -105,7 +105,7 @@ for flags, errors, and pipeline usage.
 
 ## Native configuration
 
-Create `.devermind/config.toml` in your project directory:
+Create `.devtools/config.toml` in your project directory:
 
 ```toml
 [server]
@@ -136,16 +136,16 @@ String definitions contain **JavaScript expressions**, which is why the string
 literal above includes its own quotes. See the [configuration reference](docs/configuration.md)
 for supported settings, validation, and precedence.
 
-## Ways to use Devermind
+## Ways to use Devtools
 
 ### Rust and Cargo
 
-`crates/cli` owns the single `devermind` executable. Rust applications can instead
-use `devermind_server` for development hosting, `devermind_bundler` for production
-builds, or `devermind-native` for source transforms. The transform crate defaults
+`crates/cli` owns the single `devtools` executable. Rust applications can instead
+use `devtools_server` for development hosting, `devtools_bundler` for production
+builds, or `devtools-native` for source transforms. The transform crate defaults
 to runtime-independent Rust; Bun bindings are an explicit feature.
 
-`devermind_core::{compile_source, compile_file}` with `CompileOptions::standalone()`
+`devtools_core::{compile_source, compile_file}` with `CompileOptions::standalone()`
 also expose the single-file transpiler directly to Rust callers, without the CLI
 or server.
 
@@ -155,7 +155,7 @@ See [architecture and ownership](docs/architecture.md).
 
 ### Tauri
 
-`tauri-plugin-devermind` combines permission-controlled source transforms with an
+`tauri-plugin-devtools` combines permission-controlled source transforms with an
 optional embedded development frontend. Enable `dev-server` and configure
 `Builder::development(frontend_root)` to prepare that frontend.
 
@@ -164,22 +164,22 @@ gateway. **The plugin does not start a second HTTP listener.** Production fronte
 building remains a separate CLI or bundler step; adding a Cargo dependency alone
 does not configure an application's build hooks.
 
-Transform IPC requires the webview capability `devermind:default` or
-`devermind:allow-transform`. The command transforms supplied source text, not
+Transform IPC requires the webview capability `devtools:default` or
+`devtools:allow-transform`. The command transforms supplied source text, not
 arbitrary filesystem paths. Its frontend client is exported from
-`@coldmind/devermind/tauri`; see the [adapter guide](packages/bun/README.md#tauri-frontend-api).
+`@coldmind/devtools/tauri`; see the [adapter guide](packages/bun/README.md#tauri-frontend-api).
 
 ### Bun
 
-`@coldmind/devermind` connects Bun's native `onBeforeParse` hook to the shared Rust
+`@coldmind/devtools` connects Bun's native `onBeforeParse` hook to the shared Rust
 transform engine:
 
 ```ts
-import { devermind } from "@coldmind/devermind";
+import { devtools } from "@coldmind/devtools";
 
 const result = await Bun.build({
   entrypoints: ["./src/main.ts"],
-  plugins: [devermind({ define: { __MODE__: JSON.stringify("production") } })],
+  plugins: [devtools({ define: { __MODE__: JSON.stringify("production") } })],
 });
 
 if (!result.success) throw new AggregateError(result.logs, "Build failed");
@@ -187,15 +187,15 @@ if (!result.success) throw new AggregateError(result.logs, "Build failed");
 
 Build the native adapter with `bun run build:native` after setting up the
 JavaScript workspace. Bun owns its bundler and server lifecycle; this plugin does
-**not** launch Devermind's Rust development server. See the [Bun adapter guide](packages/bun/README.md)
+**not** launch Devtools's Rust development server. See the [Bun adapter guide](packages/bun/README.md)
 for transform options and native-library requirements.
 
 ### React shell
 
-`@coldmind/devermind-shell` is an optional wrapper around your React application:
+`@coldmind/devtools-shell` is an optional wrapper around your React application:
 
 ```tsx
-import { startShell } from "@coldmind/devermind-shell";
+import { startShell } from "@coldmind/devtools-shell";
 
 startShell({
   root: document.getElementById("root")!,
@@ -223,7 +223,7 @@ See the [shell guide](packages/shell/README.md) and [React example](examples/rea
 
 For migration only, an absent native config permits discovery of supported
 `vite.config.*` files. That adapter executes trusted configuration through Bun;
-it is **not** Devermind's native format or a general Vite plugin runtime.
+it is **not** Devtools's native format or a general Vite plugin runtime.
 Vite plugin hooks, arbitrary plugin transforms, and automatic environment-file
 loading are not supported. See [compatibility details](docs/configuration.md#optional-vite-compatibility).
 
@@ -263,7 +263,7 @@ application backends need separate validation. See the [testing guide](docs/test
 | `crates/transform` | Shared transforms and optional Bun bindings |
 | `crates/server` | HTTP serving, module pipeline, watching, and HMR |
 | `crates/bundler` | Production frontend bundling |
-| `crates/cli` | The single `devermind` executable |
+| `crates/cli` | The single `devtools` executable |
 | `crates/tauri` | Tauri frontend hosting and transform IPC |
 | `packages/bun` | Bun plugin and Tauri frontend client |
 | `packages/shell` | React wrapper and hot runtime |
@@ -277,23 +277,23 @@ and avoid unrelated formatting changes. See [architecture](docs/architecture.md)
 
 ## Provenance and acknowledgements
 
-Devermind builds on existing open-source projects. It does not implement every
+Devtools builds on existing open-source projects. It does not implement every
 compiler, parser, or runtime from scratch. The distinction between vendored
-source, library dependencies, and Devermind's integration code is intentional:
+source, library dependencies, and Devtools's integration code is intentional:
 
 | Part | Origin and role |
 | --- | --- |
 | Per-file compiler, import resolver, environment helpers, and module graph | Adapted from [oj](https://github.com/lovablelabs/oj), by Raphael Amorim and Lovable Labs. These sources live in `vendor/oj_compiler`, `vendor/oj_resolver`, `vendor/oj_env`, and `vendor/oj_graph`, including local changes. |
 | JavaScript/TypeScript parsing, ASTs, scope analysis, and syntax transforms | [Oxc](https://github.com/oxc-project/oxc), used as Rust dependencies by the vendored compiler and shared transform engine. |
-| Production JavaScript bundling | [Rolldown](https://github.com/rolldown/rolldown), used by `crates/bundler`; Devermind supplies configuration, HTML entry handling, and stylesheet/asset integration. |
+| Production JavaScript bundling | [Rolldown](https://github.com/rolldown/rolldown), used by `crates/bundler`; Devtools supplies configuration, HTML entry handling, and stylesheet/asset integration. |
 | Browser React Refresh runtime | React Refresh code from [React](https://github.com/facebook/react), with the Meta Platforms copyright notice retained in `crates/server/assets/refresh-runtime.js`. |
-| Fallback browser HMR client and refresh preamble | oj-derived code in `crates/server/assets/client.js` and `refresh-preamble.js`, retaining Raphael Amorim's MIT/SPDX notices and adapted for Devermind. |
-| CSS and utility generation | The application's installed [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss) compiler and scanner; Devermind orchestrates compilation and dependency invalidation. |
-| Async HTTP/WebSocket serving and filesystem watching | Tokio, Axum, and `notify` library dependencies underneath Devermind's server lifecycle and module pipeline. |
+| Fallback browser HMR client and refresh preamble | oj-derived code in `crates/server/assets/client.js` and `refresh-preamble.js`, retaining Raphael Amorim's MIT/SPDX notices and adapted for Devtools. |
+| CSS and utility generation | The application's installed [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss) compiler and scanner; Devtools orchestrates compilation and dependency invalidation. |
+| Async HTTP/WebSocket serving and filesystem watching | Tokio, Axum, and `notify` library dependencies underneath Devtools's server lifecycle and module pipeline. |
 | Bun native interface | Bun's `onBeforeParse` hook through `bun-native-plugin` and Node-API bindings through the `napi`/`napi-derive` crates. |
-| Desktop and React hosting | Tauri supplies the desktop/plugin framework; React supplies rendering. Devermind supplies the host adapter, transform commands, development shell, overlay, and shared transport. |
+| Desktop and React hosting | Tauri supplies the desktop/plugin framework; React supplies rendering. Devtools supplies the host adapter, transform commands, development shell, overlay, and shared transport. |
 
-Devermind's project-specific work connects these pieces: native TOML
+Devtools's project-specific work connects these pieces: native TOML
 configuration, the unified CLI, embedded hosting, shared transform stages,
 production asset handling, the React shell, and cross-runtime regression tests.
 The checked-in `vendor/` sources are build inputs; `reference/oj` is an upstream

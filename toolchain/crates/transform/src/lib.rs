@@ -1,6 +1,6 @@
-//! Shared Devermind source transformations, with optional Bun native bindings.
+//! Shared Devtools source transformations, with optional Bun native bindings.
 //!
-//! `devermind_transform` is a C-ABI symbol Bun calls on any bundler thread, concurrently. Its
+//! `devtools_transform` is a C-ABI symbol Bun calls on any bundler thread, concurrently. Its
 //! configuration, counters and warnings live in a tagged napi external created by `createState`
 //! and passed as the `external` of `build.onBeforeParse(...)`.
 //!
@@ -33,4 +33,4 @@ pub use transformer::{
 };
 
 #[cfg(feature = "bun")]
-define_bun_plugin!("devermind");
+define_bun_plugin!("devtools");

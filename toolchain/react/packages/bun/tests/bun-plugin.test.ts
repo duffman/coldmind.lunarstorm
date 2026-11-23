@@ -2,16 +2,16 @@ import { afterAll, describe, expect, test } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { devermind, loadNative, nativeFileName, type NativeState } from "@coldmind/devermind";
+import { devtools, loadNative, nativeFileName, type NativeState } from "@coldmind/devtools";
 
 const fixtures = join(import.meta.dir, "fixtures");
-const scratch = mkdtempSync(join(tmpdir(), "devermind-"));
+const scratch = mkdtempSync(join(tmpdir(), "devtools-"));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
 const zero = { files: 0, changed: 0, parsed: 0, replaced: 0, defined: 0, injected: 0 };
 
 /** Builds `entry` for Bun into the scratch directory and imports the bundle. */
-async function buildAndImport(entry: string, plugin: ReturnType<typeof devermind>, name: string) {
+async function buildAndImport(entry: string, plugin: ReturnType<typeof devtools>, name: string) {
   const result = await Bun.build({ entrypoints: [entry], outdir: join(scratch, name), target: "bun", plugins: [plugin] });
   expect(result.success).toBe(true);
   return import(result.outputs[0]!.path);
@@ -19,14 +19,14 @@ async function buildAndImport(entry: string, plugin: ReturnType<typeof devermind
 
 describe("native library", () => {
   test("names the library per platform", () => {
-    expect(nativeFileName("darwin", "arm64")).toBe("devermind.darwin-arm64.node");
-    expect(nativeFileName()).toBe(`devermind.${process.platform}-${process.arch}.node`);
+    expect(nativeFileName("darwin", "arm64")).toBe("devtools.darwin-arm64.node");
+    expect(nativeFileName()).toBe(`devtools.${process.platform}-${process.arch}.node`);
   });
 
   test("rejects invalid configuration", () => {
-    expect(() => devermind({ replace: [{ from: "", to: "x" }] })).toThrow("must not be empty");
-    expect(() => devermind({ define: { "a-b": "1" } })).toThrow("dotted identifier path");
-    expect(() => devermind({ define: { a: "1 +" } })).toThrow("not a JS expression");
+    expect(() => devtools({ replace: [{ from: "", to: "x" }] })).toThrow("must not be empty");
+    expect(() => devtools({ define: { "a-b": "1" } })).toThrow("dotted identifier path");
+    expect(() => devtools({ define: { a: "1 +" } })).toThrow("not a JS expression");
   });
 
   test("rejects values that are not its own state", () => {
@@ -44,7 +44,7 @@ describe("native library", () => {
       plugins: [{
         name: "no-state",
         setup(build) {
-          build.onBeforeParse({ filter: /\.ts$/ }, { napiModule, symbol: "devermind_transform" });
+          build.onBeforeParse({ filter: /\.ts$/ }, { napiModule, symbol: "devtools_transform" });
         },
       }],
     });
@@ -55,7 +55,7 @@ describe("native library", () => {
 
 describe("replace", () => {
   test("runs on every module without parsing and keeps the TS loader", async () => {
-    const plugin = devermind({ replace: [{ from: "__MODE__", to: JSON.stringify("dev") }] });
+    const plugin = devtools({ replace: [{ from: "__MODE__", to: JSON.stringify("dev") }] });
     const result = await Bun.build({ entrypoints: [join(fixtures, "build/entry.ts")], plugins: [plugin] });
     expect(result.success).toBe(true);
     const code = await result.outputs[0]!.text();
@@ -71,7 +71,7 @@ describe("replace", () => {
       Bun.write(join(directory, `m${index}.ts`), `export const v${index}: string = __MODE__;\n`)));
     const imports = Array.from({ length: count }, (_, index) => `export * from "./m${index}.ts";`);
     await Bun.write(join(directory, "index.ts"), `${imports.join("\n")}\n`);
-    const plugin = devermind({ define: { __MODE__: JSON.stringify("dev") } });
+    const plugin = devtools({ define: { __MODE__: JSON.stringify("dev") } });
     const result = await Bun.build({ entrypoints: [join(directory, "index.ts")], plugins: [plugin] });
     expect(result.success).toBe(true);
     expect(await result.outputs[0]!.text()).not.toContain("__MODE__");
@@ -81,7 +81,7 @@ describe("replace", () => {
 
 describe("define", () => {
   test("replaces only real global references", async () => {
-    const plugin = devermind({
+    const plugin = devtools({
       define: { __MODE__: JSON.stringify("dev"), "process.env.NODE_ENV": JSON.stringify("production") },
     });
     const { result } = await buildAndImport(join(fixtures, "define/entry.ts"), plugin, "define");
@@ -96,7 +96,7 @@ describe("define", () => {
   });
 
   test("does not parse files that cannot match", async () => {
-    const plugin = devermind({ define: { __ABSENT__: "1" } });
+    const plugin = devtools({ define: { __ABSENT__: "1" } });
     const result = await Bun.build({ entrypoints: [join(fixtures, "build/leaf.ts")], plugins: [plugin] });
     expect(result.success).toBe(true);
     expect(plugin.stats()).toEqual({ ...zero, files: 1 });
@@ -105,7 +105,7 @@ describe("define", () => {
 
 describe("inject", () => {
   test("wires cminject constructor dependencies from parameter types", async () => {
-    const plugin = devermind({ inject: true });
+    const plugin = devtools({ inject: true });
     const { run } = await buildAndImport(join(fixtures, "inject/app.ts"), plugin, "inject");
     const outcome = await run();
     expect(outcome.greeting).toBe("late@42");
@@ -117,12 +117,12 @@ describe("inject", () => {
 
   test("leaves classes it cannot resolve and reports the parameter at build end", async () => {
     const warnings: string[] = [];
-    const plugin = devermind({ inject: true, onWarning: message => warnings.push(message) });
+    const plugin = devtools({ inject: true, onWarning: message => warnings.push(message) });
     const result = await Bun.build({ entrypoints: [join(fixtures, "inject/unresolved.ts")], plugins: [plugin] });
     expect(result.success).toBe(true);
     expect(await result.outputs[0]!.text()).not.toContain("$inject");
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("unresolved.ts: devermind inject: Typed not wired");
+    expect(warnings[0]).toContain("unresolved.ts: devtools inject: Typed not wired");
     expect(warnings[0]).toContain("`clock`");
     expect(warnings[0]).toContain("type-only import");
     expect(plugin.takeWarnings()).toEqual([]);
@@ -139,7 +139,7 @@ describe("stages together", () => {
       "export const mode = __NAME__;",
       "",
     ].join("\n"));
-    const plugin = devermind({
+    const plugin = devtools({
       replace: [{ from: "__NAME__", to: "__MODE__" }],
       define: { __MODE__: JSON.stringify("chained") },
       inject: { all: true },
@@ -187,7 +187,7 @@ async function readUrl(stream: ReadableStream<Uint8Array>): Promise<string> {
 
 
 test("legacy plugin source export resolves to the canonical implementation", async () => {
-  const legacy = await import("@coldmind/devermind/src/devermind.plugin.ts");
-  const canonical = await import("@coldmind/devermind");
-  expect(legacy.devermind).toBe(canonical.devermind);
+  const legacy = await import("@coldmind/devtools/src/devtools.plugin.ts");
+  const canonical = await import("@coldmind/devtools");
+  expect(legacy.devtools).toBe(canonical.devtools);
 });

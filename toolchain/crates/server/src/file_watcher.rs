@@ -17,7 +17,7 @@ pub fn start(state: Arc<State>, dir: &Path) -> notify::Result<Box<dyn Watcher + 
                 .any(|component| IGNORED.iter().any(|name| component.as_os_str() == *name))
         })?;
     std::thread::Builder::new()
-        .name("devermind-watch".into())
+        .name("devtools-watch".into())
         .spawn(move || {
             while let Ok(change) = changes.recv() {
                 match change {

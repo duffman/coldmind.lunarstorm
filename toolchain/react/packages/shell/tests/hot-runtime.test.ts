@@ -8,8 +8,8 @@ import {
   resetHotRuntime,
   updateStyle,
   type HotHost,
-} from "@coldmind/devermind-shell/hot";
-import type { HmrUpdate, ServerErrorPayload } from "@coldmind/devermind-shell/src/protocol.ts";
+} from "@coldmind/devtools-shell/hot";
+import type { HmrUpdate, ServerErrorPayload } from "@coldmind/devtools-shell/src/protocol.ts";
 
 afterEach(() => resetHotRuntime());
 
@@ -185,7 +185,7 @@ test("prune runs dispose and prune callbacks", async () => {
 test("updateStyle writes one style tag per id", () => {
   updateStyle("/src/a.css", "a{}");
   updateStyle("/src/a.css", "b{}");
-  const tags = document.querySelectorAll('style[data-devermind-id="/src/a.css"]');
+  const tags = document.querySelectorAll('style[data-devtools-id="/src/a.css"]');
   expect(tags.length).toBe(1);
   expect(tags[0]?.textContent).toBe("b{}");
 });

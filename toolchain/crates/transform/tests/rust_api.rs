@@ -1,6 +1,6 @@
 //! Public API contract shared by direct Rust, Bun and Tauri adapters.
 
-use devermind_native::{DefinePair, Loader, ReplacePair, TransformOptions, Transformer};
+use devtools_native::{DefinePair, Loader, ReplacePair, TransformOptions, Transformer};
 
 #[test]
 fn transforms_all_stages_through_the_public_api() {
@@ -84,7 +84,7 @@ fn returns_per_input_warnings_and_a_drainable_queue() {
         Loader::Ts,
     );
     assert_eq!(result.warnings.len(), 1);
-    assert!(result.warnings[0].starts_with("app.ts: devermind inject: A not wired"));
+    assert!(result.warnings[0].starts_with("app.ts: devtools inject: A not wired"));
     assert_eq!(engine.take_warnings(), result.warnings);
     assert!(engine.take_warnings().is_empty());
 }

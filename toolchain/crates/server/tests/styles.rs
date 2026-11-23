@@ -1,14 +1,14 @@
 //! Real Tailwind HTTP and HMR integration; dependencies are supplied by the integration runner.
 #[cfg(unix)]
 #[tokio::test]
-#[ignore = "requires DEVERMIND_TAILWIND_NODE_MODULES pointing at installed Tailwind packages"]
+#[ignore = "requires DEVTOOLS_TAILWIND_NODE_MODULES pointing at installed Tailwind packages"]
 async fn discovers_new_tailwind_utility_through_stylesheet_hmr() {
     assert_stylesheet_watch(StylesheetEdit::SourceUtility).await;
 }
 
 #[cfg(unix)]
 #[tokio::test]
-#[ignore = "requires DEVERMIND_TAILWIND_NODE_MODULES pointing at installed Tailwind packages"]
+#[ignore = "requires DEVTOOLS_TAILWIND_NODE_MODULES pointing at installed Tailwind packages"]
 async fn invalidates_cached_stylesheet_after_imported_css_edit() {
     assert_stylesheet_watch(StylesheetEdit::ImportedCss).await;
 }
@@ -25,8 +25,8 @@ async fn assert_stylesheet_watch(edit: StylesheetEdit) {
     use futures_util::StreamExt;
     use std::{fs, time::Duration};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let modules = std::env::var("DEVERMIND_TAILWIND_NODE_MODULES")
-        .expect("set DEVERMIND_TAILWIND_NODE_MODULES to a project node_modules containing @tailwindcss/node and @tailwindcss/oxide");
+    let modules = std::env::var("DEVTOOLS_TAILWIND_NODE_MODULES")
+        .expect("set DEVTOOLS_TAILWIND_NODE_MODULES to a project node_modules containing @tailwindcss/node and @tailwindcss/oxide");
     let modules = std::path::PathBuf::from(modules)
         .canonicalize()
         .expect("Tailwind dependency directory exists");
@@ -62,10 +62,10 @@ async fn assert_stylesheet_watch(edit: StylesheetEdit) {
         "export const value = 'initial'; import.meta.hot.accept();",
     )
     .unwrap();
-    let mut config = devermind_server::Config::new(dir.path());
+    let mut config = devtools_server::Config::new(dir.path());
     config.port = 0;
     config.watch = true;
-    let server = devermind_server::DevServer::start(config).unwrap();
+    let server = devtools_server::DevServer::start(config).unwrap();
 
     /// Every network operation is bounded, so a missing response cannot hang the suite.
     async fn get(addr: std::net::SocketAddr, path: &str) -> String {
@@ -91,7 +91,7 @@ async fn assert_stylesheet_watch(edit: StylesheetEdit) {
         tokio_tungstenite::connect_async(format!(
             "ws://{}{}",
             server.addr(),
-            devermind_server::HMR_PATH
+            devtools_server::HMR_PATH
         )),
     )
     .await

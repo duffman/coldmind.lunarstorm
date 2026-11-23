@@ -28,7 +28,7 @@ impl Builder {
     /// Setup errors fail plugin initialization; no separate listener or runtime is created here.
     pub fn build<R: Runtime>(self) -> TauriPlugin<R> {
         let root = self.root;
-        tauri::plugin::Builder::new("devermind")
+        tauri::plugin::Builder::new("devtools")
             .invoke_handler(tauri::generate_handler![
                 crate::transform_commands::transform
             ])
@@ -52,7 +52,7 @@ impl Builder {
 }
 
 #[cfg(feature = "dev-server")]
-type Server = devermind_server::Embedded;
+type Server = devtools_server::Embedded;
 #[cfg(not(feature = "dev-server"))]
 type Server = std::convert::Infallible;
 
@@ -60,16 +60,16 @@ struct Frontend(Mutex<Option<Server>>);
 
 #[cfg(feature = "dev-server")]
 fn start(root: PathBuf) -> Result<Option<Server>, Box<dyn std::error::Error>> {
-    let config = devermind_server::Config::new(&root);
-    let server = devermind_server::Embedded::start(&config)
-        .map_err(|e| format!("devermind cannot serve {}: {e}", root.display()))?;
-    eprintln!("[devermind] serving {}", server.state().root.display());
+    let config = devtools_server::Config::new(&root);
+    let server = devtools_server::Embedded::start(&config)
+        .map_err(|e| format!("devtools cannot serve {}: {e}", root.display()))?;
+    eprintln!("[devtools] serving {}", server.state().root.display());
     Ok(Some(server))
 }
 
 #[cfg(not(feature = "dev-server"))]
 fn start(_root: PathBuf) -> Result<Option<Server>, Box<dyn std::error::Error>> {
-    eprintln!("[devermind] built without `dev-server`; development root ignored");
+    eprintln!("[devtools] built without `dev-server`; development root ignored");
     Ok(None)
 }
 

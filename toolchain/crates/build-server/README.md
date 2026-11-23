@@ -9,7 +9,7 @@ cargo run -p ls-build-server -- serve /path/to/project --port 5173
 cargo run -p ls-build-server -- bundle /path/to/project --out dist
 ```
 
-A project supplies `index.html` with a module entry and its own dependencies. The same `.devermind/config.toml` and optional Vite configuration support as the existing toolchain applies. `serve` runs until Ctrl-C; `--no-watch` disables watching. `bundle` accepts `--no-minify`. Run `--help` for usage.
+A project supplies `index.html` with a module entry and its own dependencies. The same `.devtools/config.toml` and optional Vite configuration support as the existing toolchain applies. `serve` runs until Ctrl-C; `--no-watch` disables watching. `bundle` accepts `--no-minify`. Run `--help` for usage.
 
 The library exposes `BuildServer::new`, `start`, `stop`, `development`, and asynchronous `bundle`. The development handle exposes the existing module graph, invalidation and application channels. Dropping the build server stops the development listener and watcher.
 

@@ -17,7 +17,7 @@ pub struct ProjectConfig {
     pub build_minify: Option<bool>,
 }
 
-/// Loads `.devermind/config.toml`, or the optional Vite adapter only when it is absent.
+/// Loads `.devtools/config.toml`, or the optional Vite adapter only when it is absent.
 ///
 /// Native configuration never executes JavaScript. A present but invalid file is an
 /// error, not permission to fall back. Callers own explicit CLI/host override policy.
@@ -56,14 +56,14 @@ mod tests {
     #[test]
     fn native_toml_precedes_vite_and_uses_project_root() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::create_dir(dir.path().join(".devermind")).unwrap();
+        std::fs::create_dir(dir.path().join(".devtools")).unwrap();
         std::fs::write(
             dir.path().join("vite.config.js"),
             "throw Error('Vite config must not execute')",
         )
         .unwrap();
         std::fs::write(
-            dir.path().join(".devermind/config.toml"),
+            dir.path().join(".devtools/config.toml"),
             r#"
 root = "client"
 [server]
@@ -116,7 +116,7 @@ __ENABLED__ = true
     #[test]
     fn empty_custom_directory_falls_back_but_invalid_toml_does_not() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::create_dir(dir.path().join(".devermind")).unwrap();
+        std::fs::create_dir(dir.path().join(".devtools")).unwrap();
         assert!(load(dir.path(), "serve", "development").unwrap().is_none());
         std::fs::write(
             dir.path().join("vite.config.js"),
@@ -130,7 +130,7 @@ __ENABLED__ = true
                 .server_port,
             Some(8123)
         );
-        let file = dir.path().join(".devermind/config.toml");
+        let file = dir.path().join(".devtools/config.toml");
         for source in [
             "[server",
             "[server]\nport = -1",
@@ -145,21 +145,21 @@ __ENABLED__ = true
             let error = load(dir.path(), "serve", "development")
                 .unwrap_err()
                 .to_string();
-            assert!(error.contains(".devermind/config.toml"), "{error}");
+            assert!(error.contains(".devtools/config.toml"), "{error}");
         }
     }
 
     #[test]
     fn native_toml_does_not_need_javascript_runtime() {
         let dir = tempfile::tempdir().unwrap();
-        if std::env::var_os("DEVERMIND_NO_RUNTIME_TEST_CHILD").is_none() {
+        if std::env::var_os("DEVTOOLS_NO_RUNTIME_TEST_CHILD").is_none() {
             let output = std::process::Command::new(std::env::current_exe().unwrap())
                 .args([
                     "--exact",
                     "config::tests::native_toml_does_not_need_javascript_runtime",
                 ])
                 .env("PATH", dir.path())
-                .env("DEVERMIND_NO_RUNTIME_TEST_CHILD", "1")
+                .env("DEVTOOLS_NO_RUNTIME_TEST_CHILD", "1")
                 .output()
                 .unwrap();
             assert!(
@@ -170,9 +170,9 @@ __ENABLED__ = true
             );
             return;
         }
-        std::fs::create_dir(dir.path().join(".devermind")).unwrap();
+        std::fs::create_dir(dir.path().join(".devtools")).unwrap();
         std::fs::write(
-            dir.path().join(".devermind/config.toml"),
+            dir.path().join(".devtools/config.toml"),
             "[server]\nport = 0",
         )
         .unwrap();

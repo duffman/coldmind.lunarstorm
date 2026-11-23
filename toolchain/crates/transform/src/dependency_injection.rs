@@ -171,7 +171,7 @@ impl InjectVisitor<'_> {
         let skip = |reason: String, visitor: &mut Self| {
             if marked {
                 visitor.warnings.push(format!(
-                    "devermind inject: {class_name} not wired: {reason}; declare `static $inject`"
+                    "devtools inject: {class_name} not wired: {reason}; declare `static $inject`"
                 ));
             }
         };

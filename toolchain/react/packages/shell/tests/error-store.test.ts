@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { ShellErrors, toShellError } from "@coldmind/devermind-shell/src/error-store.ts";
+import { ShellErrors, toShellError } from "@coldmind/devtools-shell/src/error-store.ts";
 
 test("reports, notifies and keeps a stable snapshot between changes", () => {
   const errors = new ShellErrors();

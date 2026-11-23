@@ -1,4 +1,4 @@
-/** @module @coldmind/devermind-shell/overlay — error panel and connection badge, rendered in a shadow root. */
+/** @module @coldmind/devtools-shell/overlay — error panel and connection badge, rendered in a shadow root. */
 
 import { useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
 
@@ -60,7 +60,7 @@ export function ShellOverlay({ errors, subscribeStatus, getStatus }: ShellOverla
         <div role="dialog" aria-label="Dev errors" style={styles.backdrop} onClick={(e) => e.target === e.currentTarget && hide()}>
           <div style={styles.card}>
             <div style={styles.bar}>
-              <span style={styles.brand}>devermind</span>
+              <span style={styles.brand}>devtools</span>
               <span style={styles.count}>{list.length === 1 ? "1 error" : `${list.length} errors`}</span>
               <button type="button" style={styles.button} onClick={() => errors.clear()}>
                 Clear

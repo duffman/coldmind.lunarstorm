@@ -186,9 +186,17 @@ impl WorkDir {
     /// # Errors
     /// The directory cannot be created.
     fn new() -> std::io::Result<Self> {
+        // Fix: the name was the process id and the clock alone. Two builds on
+        // different threads of one process could read the same clock value, get
+        // the same directory, and one then bundled the other project's entry.
+        // Decision: a process-wide sequence number makes the name unique within
+        // the process, and `create_dir` (not `create_dir_all`) turns any name
+        // that already exists into an error instead of a shared directory.
+        static SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let sequence = SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let unique = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |time| time.as_nanos());
-        let path = std::env::temp_dir().join(format!("lunarstorm-backend-{}-{unique}", std::process::id()));
-        fs::create_dir_all(&path)?;
+        let path = std::env::temp_dir().join(format!("lunarstorm-backend-{}-{unique}-{sequence}", std::process::id()));
+        fs::create_dir(&path)?;
         Ok(Self(path))
     }
 }

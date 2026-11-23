@@ -1,8 +1,0 @@
-{
-  "version": "4.10.0",
-  "gitHead": "e033769d97cfb6cc4a8569e2b50eb32015453302",
-  "repository": {
-    "url": "git+https://github.com/Microsoft/tsyringe.git",
-    "type": "git"
-  }
-}

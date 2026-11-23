@@ -1,4 +1,4 @@
-use devermind_server::{Config, DevServer};
+use devtools_server::{Config, DevServer};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 async fn get(server: &DevServer, path: &str) -> (u16, String) {

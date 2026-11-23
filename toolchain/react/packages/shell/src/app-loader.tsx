@@ -1,4 +1,4 @@
-/** @module @coldmind/devermind-shell/app — loads the app entry and renders it inside the boundary. */
+/** @module @coldmind/devtools-shell/app — loads the app entry and renders it inside the boundary. */
 
 import { useEffect, useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
 

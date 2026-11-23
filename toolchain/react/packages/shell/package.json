@@ -1,9 +1,9 @@
 {
-  "name": "@coldmind/devermind-shell",
+  "name": "@coldmind/devtools-shell",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Dev shell for apps on the devermind server: one HMR/app WebSocket, error boundary and overlay",
+  "description": "Dev shell for apps on the devtools server: one HMR/app WebSocket, error boundary and overlay",
   "exports": {
     ".": "./src/start-shell.tsx",
     "./hot": "./src/hot-runtime.ts",

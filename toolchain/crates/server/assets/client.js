@@ -70,7 +70,7 @@ export function createHotContext(ownerId) {
       const firstInvalidatedBy = currentFirstInvalidatedBy ?? id;
       const data = { path: id, message, firstInvalidatedBy };
       emit("vite:invalidate", data);
-      console.warn(`[devermind] ${id} invalidated${message ? ": " + message : ""}`);
+      console.warn(`[devtools] ${id} invalidated${message ? ": " + message : ""}`);
       if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: "custom", event: "vite:invalidate", data }));
       } else {
@@ -142,13 +142,13 @@ async function applyUpdate(update) {
     // The module is in the server's graph but this page never loaded it (a
     // lazy route, a component behind a condition). Nothing to swap; like Vite,
     // ignore it instead of reloading a page that does not run that code.
-    console.debug(`[devermind] ${cleanPath} is not loaded here, ignoring update`);
+    console.debug(`[devtools] ${cleanPath} is not loaded here, ignoring update`);
     return;
   }
   const isSelf = acceptedPath === cleanPath;
   const accepts = mod.acceptCallbacks.filter((cb) => cb.deps.includes(acceptedPath));
   if (accepts.length === 0) {
-    console.log(`[devermind] ${cleanPath} has no accept handler for ${acceptedPath}, reloading`);
+    console.log(`[devtools] ${cleanPath} has no accept handler for ${acceptedPath}, reloading`);
     location.reload();
     return;
   }
@@ -167,7 +167,7 @@ async function applyUpdate(update) {
         // Vite: an accepted module inside an import loop cannot recover its
         // execution order; reload the page to reset it instead of an overlay.
         console.info(
-          `[devermind] ${acceptedPath} failed to apply HMR as it's within a circular import. Reloading page to reset the execution order.`,
+          `[devtools] ${acceptedPath} failed to apply HMR as it's within a circular import. Reloading page to reset the execution order.`,
         );
         location.reload();
         return;
@@ -185,7 +185,7 @@ async function applyUpdate(update) {
     }
     clearOverlay();
     emit("vite:afterUpdate", { type: "update", updates: [update] });
-    console.log(`[devermind] hot updated ${update.path}`);
+    console.log(`[devtools] hot updated ${update.path}`);
   } catch (err) {
     // Like Vite's warnFailedUpdate: log, but do not raise an overlay of our own.
     // A compile error behind the failed fetch already arrived as the server's
@@ -195,7 +195,7 @@ async function applyUpdate(update) {
     reportHmrFailure(update.path, err);
     if (!(err instanceof Error) || !err.message.includes("fetch")) console.error(err);
     console.error(
-      `[devermind] Failed to reload ${update.path}. This could be due to syntax errors or importing non-existent modules. (see errors above)`,
+      `[devtools] Failed to reload ${update.path}. This could be due to syntax errors or importing non-existent modules. (see errors above)`,
     );
   }
 }
@@ -331,7 +331,7 @@ function swapCss(update) {
     next.href = update.path + "?t=" + update.timestamp;
     next.addEventListener("load", () => link.remove());
     link.after(next);
-    console.log(`[devermind] css updated ${update.path}`);
+    console.log(`[devtools] css updated ${update.path}`);
     return;
   }
   // A stylesheet imported from JS (`import "./index.css"`) lives in a <style> tag
@@ -341,15 +341,15 @@ function swapCss(update) {
   // component state on every edit in a Tailwind app.
   if (styleTags.has(update.path)) {
     import(update.path + "?import&t=" + update.timestamp)
-      .then(() => console.log(`[devermind] css updated ${update.path}`))
+      .then(() => console.log(`[devtools] css updated ${update.path}`))
       .catch((err) => {
-        console.log(`[devermind] css re-import failed for ${update.path}, reloading`, err);
+        console.log(`[devtools] css re-import failed for ${update.path}, reloading`, err);
         reportHmrFailure(update.path, err);
         location.reload();
       });
     return;
   }
-  console.log(`[devermind] no <link> or <style> for ${update.path}, reloading`);
+  console.log(`[devtools] no <link> or <style> for ${update.path}, reloading`);
   location.reload();
 }
 
@@ -478,7 +478,7 @@ function reportHmrFailure(path, error) {
 }
 
 // The dev `base` this client is served under (Vite's __BASE__).
-const base = new URL(import.meta.url).pathname.replace(/@devermind\/client\.js$/, "");
+const base = new URL(import.meta.url).pathname.replace(/@devtools\/client\.js$/, "");
 
 // Where the socket lives (Vite's client): `server.hmr.{protocol,host,clientPort,
 // path}` override the page's own origin, and the per-process token lets the
@@ -525,11 +525,11 @@ function socketUrl() {
           msg.path !== "/index.html" &&
           !(pagePath.endsWith("/") && pagePath + "index.html" === payloadPath)
         ) {
-          console.log(`[devermind] ${msg.path} changed, not this page`);
+          console.log(`[devtools] ${msg.path} changed, not this page`);
           return;
         }
       }
-      console.log("[devermind] full reload:", msg.reason || msg.path || "");
+      console.log("[devtools] full reload:", msg.reason || msg.path || "");
       location.reload();
     } else if (msg.type === "prune") {
       emit("vite:beforePrune", msg);
@@ -539,7 +539,7 @@ function socketUrl() {
       const err = msg.err || { message: msg.message };
       emit("vite:error", { err });
       if (enableOverlay) showOverlay(err);
-      else console.error(`[devermind] Internal Server Error\n${err.message}\n${err.stack || ""}`);
+      else console.error(`[devtools] Internal Server Error\n${err.message}\n${err.stack || ""}`);
     } else if (msg.type === "custom") {
       emit(msg.event, msg.data);
     }
@@ -548,7 +548,7 @@ function socketUrl() {
     hadConnection = true;
     emit("vite:ws:connect", { webSocket: ws });
     for (const frame of forwardQueue.splice(0)) ws.send(frame);
-    console.log("[devermind] dev server connected");
+    console.log("[devtools] dev server connected");
   });
   ws.addEventListener("close", async () => {
     emit("vite:ws:disconnect", { webSocket: ws });
@@ -557,13 +557,13 @@ function socketUrl() {
       // graph, defines, caches and socket token are new, so the page's modules
       // are stale. Like Vite's client, poll until it answers again, then reload
       // (the fresh page loads a client carrying the new token).
-      console.log("[devermind] dev server connection lost, polling for restart...");
+      console.log("[devtools] dev server connection lost, polling for restart...");
       await waitForSuccessfulPing();
-      console.log("[devermind] dev server restarted, reloading");
+      console.log("[devtools] dev server restarted, reloading");
       location.reload();
       return;
     }
-    console.log("[devermind] dev server disconnected, retrying in 1s…");
+    console.log("[devtools] dev server disconnected, retrying in 1s…");
     setTimeout(connect, 1000);
   });
 })();

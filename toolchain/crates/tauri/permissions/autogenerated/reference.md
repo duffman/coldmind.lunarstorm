@@ -18,7 +18,7 @@ Transform source text supplied by the webview. No filesystem, network, or execut
 <tr>
 <td>
 
-`devermind:allow-transform`
+`devtools:allow-transform`
 
 </td>
 <td>
@@ -31,7 +31,7 @@ Enables the transform command without any pre-configured scope.
 <tr>
 <td>
 
-`devermind:deny-transform`
+`devtools:deny-transform`
 
 </td>
 <td>

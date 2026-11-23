@@ -11,7 +11,7 @@ use tempfile::TempDir;
 /// # Returns
 /// The starter project's directory.
 fn starter() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../framework/templates/starters/desktop")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../templates/starters/desktop")
 }
 
 /// Builds a project and reads its host configuration back from disk.

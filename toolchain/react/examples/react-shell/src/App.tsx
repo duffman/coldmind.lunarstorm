@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { useShellChannel, useShellStatus } from "@coldmind/devermind-shell";
+import { useShellChannel, useShellStatus } from "@coldmind/devtools-shell";
 
 /** Edit this file while the server runs: state survives, and a thrown render error recovers on save. */
 export default function App() {
@@ -11,7 +11,7 @@ export default function App() {
 
   return (
     <main>
-      <h1>devermind shell</h1>
+      <h1>devtools shell</h1>
       <p>socket: {status}</p>
       <button type="button" onClick={() => setCount((n) => n + 1)}>
         clicked {count}

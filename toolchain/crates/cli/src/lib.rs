@@ -57,12 +57,12 @@ async fn execute(command: Command) -> anyhow::Result<()> {
     match command {
         Command::Help(topic) => write_stdout(format!("{}\n", arguments::help(topic)).as_bytes())?,
         Command::Version => {
-            write_stdout(format!("devermind {}\n", env!("CARGO_PKG_VERSION")).as_bytes())?
+            write_stdout(format!("devtools {}\n", env!("CARGO_PKG_VERSION")).as_bytes())?
         }
         Command::Dev(config) => development::run(config).await?,
         Command::Build(options) => {
             let started = std::time::Instant::now();
-            let report = devermind_bundler::build(&options).await?;
+            let report = devtools_bundler::build(&options).await?;
             for (source, file) in &report.entries {
                 write_stdout(format!("  {source} -> {file}\n").as_bytes())?;
             }
@@ -71,7 +71,7 @@ async fn execute(command: Command) -> anyhow::Result<()> {
             }
             write_stdout(
                 format!(
-                    "devermind built {} chunk(s) into {} in {:.2?}\n",
+                    "devtools built {} chunk(s) into {} in {:.2?}\n",
                     report.chunks,
                     report.out.display(),
                     started.elapsed()

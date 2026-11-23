@@ -1,12 +1,12 @@
 /**
- * @module @coldmind/devermind — a Rust `onBeforeParse` plugin for Bun's bundler and dev server.
+ * @module @coldmind/devtools — a Rust `onBeforeParse` plugin for Bun's bundler and dev server.
  *
  * The transform runs natively on Bun's bundler threads. Bun keeps resolution, the module graph,
  * HMR and production bundling; this module loads the native library and registers its hook.
  * Edits are spliced into the original source, so untouched code keeps its position.
  *
  * Bun runs one `onBeforeParse` hook per file, so every stage is configured on one plugin:
- * register a single `devermind(...)` per build.
+ * register a single `devtools(...)` per build.
  */
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -20,7 +20,7 @@ export interface ReplacePair {
 }
 
 /** Counters since the plugin was created. */
-export interface DevermindStats {
+export interface DevtoolsStats {
   /** Files the hook was called for. */
   files: number;
   /** Files whose source changed. */
@@ -36,21 +36,21 @@ export interface DevermindStats {
 }
 
 /** Opaque native state owned by one plugin instance; freed when garbage collected. */
-export type NativeState = { readonly __devermindState: unique symbol };
+export type NativeState = { readonly __devtoolsState: unique symbol };
 
 /** Surface of the compiled `.node` library. */
-export interface DevermindNative {
+export interface DevtoolsNative {
   createState(options: {
     replace?: ReplacePair[];
     define?: { key: string; value: string }[];
     injectAll?: boolean;
   }): NativeState;
-  stats(state: NativeState): DevermindStats;
+  stats(state: NativeState): DevtoolsStats;
   takeWarnings(state: NativeState): string[];
 }
 
-/** Options for {@link devermind}. Stages left out are off. */
-export interface DevermindOptions {
+/** Options for {@link devtools}. Stages left out are off. */
+export interface DevtoolsOptions {
   /**
    * Literal substitutions on the raw text, before parsing; also rewrites strings and comments.
    * `from` must be non-empty. Where matches overlap, the earlier pair wins.
@@ -81,26 +81,26 @@ export interface DevermindOptions {
 }
 
 /** A Bun plugin that also exposes its native counters and pending warnings. */
-export interface DevermindPlugin extends BunPlugin {
+export interface DevtoolsPlugin extends BunPlugin {
   /** Counters for this plugin instance, read from native memory. */
-  stats(): DevermindStats;
+  stats(): DevtoolsStats;
   /** Removes and returns warnings not yet reported (the dev server has no build end). */
   takeWarnings(): string[];
 }
 
 const nativeDirectory = join(import.meta.dir, "../native");
 const defaultFilter = /\.[cm]?[jt]sx?$/;
-let cached: DevermindNative | undefined;
+let cached: DevtoolsNative | undefined;
 
 /**
  * File name of the native library for a platform, as written by `bun run build:native`.
  * @param platform - Defaults to the current platform.
  * @param arch - Defaults to the current architecture.
  * @example
- * nativeFileName("darwin", "arm64"); // "devermind.darwin-arm64.node"
+ * nativeFileName("darwin", "arm64"); // "devtools.darwin-arm64.node"
  */
 export function nativeFileName(platform: string = process.platform, arch: string = process.arch): string {
-  return `devermind.${platform}-${arch}.node`;
+  return `devtools.${platform}-${arch}.node`;
 }
 
 /**
@@ -108,32 +108,32 @@ export function nativeFileName(platform: string = process.platform, arch: string
  * @returns The library, also used as the `napiModule` Bun calls into.
  * @throws {Error} When the library for this platform has not been built.
  */
-export function loadNative(): DevermindNative {
+export function loadNative(): DevtoolsNative {
   if (cached) return cached;
   const path = join(nativeDirectory, nativeFileName());
   if (!existsSync(path)) {
-    throw new Error(`devermind native library missing: ${path}. Run \`bun run --filter @coldmind/devermind build:native\`.`);
+    throw new Error(`devtools native library missing: ${path}. Run \`bun run --filter @coldmind/devtools build:native\`.`);
   }
-  cached = createRequire(import.meta.url)(path) as DevermindNative;
+  cached = createRequire(import.meta.url)(path) as DevtoolsNative;
   return cached;
 }
 
 /**
- * Creates the devermind Bun plugin. Usable in `Bun.build({ plugins })` and, exported as a
+ * Creates the devtools Bun plugin. Usable in `Bun.build({ plugins })` and, exported as a
  * module's default, as a `bunfig.toml` `[serve.static] plugins` entry for the dev server.
  * @param options - Stages to run and files to run them on.
  * @returns A plugin with its own native state, counters and warnings.
  * @throws {Error} When the native library is missing, a replace `from` is empty, a define key is
  *   not a dotted identifier path, or a define value is not a JS expression.
  * @example
- * const plugin = devermind({
+ * const plugin = devtools({
  *   define: { "import.meta.env.MODE": JSON.stringify("production") },
  *   inject: true,
  * });
  * await Bun.build({ entrypoints: ["./src/app.ts"], plugins: [plugin] });
  * plugin.stats(); // { files, changed, parsed, replaced, defined, injected }
  */
-export function devermind(options: DevermindOptions = {}): DevermindPlugin {
+export function devtools(options: DevtoolsOptions = {}): DevtoolsPlugin {
   const napiModule = loadNative();
   const inject = options.inject;
   const external = napiModule.createState({
@@ -145,11 +145,11 @@ export function devermind(options: DevermindOptions = {}): DevermindPlugin {
   });
   const onWarning = options.onWarning ?? ((message: string) => console.warn(message));
   return {
-    name: "devermind",
+    name: "devtools",
     setup(build) {
       build.onBeforeParse(
         { filter: options.filter ?? defaultFilter, namespace: options.namespace ?? "file" },
-        { napiModule, symbol: "devermind_transform", external },
+        { napiModule, symbol: "devtools_transform", external },
       );
       if (typeof build.onEnd === "function") {
         build.onEnd(() => {

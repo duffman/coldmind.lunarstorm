@@ -1,8 +1,0 @@
-{
-  "extends": "../../tsconfig.json",
-  "include": [
-    "typed-factory.facade.ts",
-    "typed-factory.test-d.ts",
-    "typed-factory.dialects.test-d.ts"
-  ]
-}

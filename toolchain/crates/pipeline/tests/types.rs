@@ -8,9 +8,9 @@ use std::process::Command;
 use lunarstorm_pipeline::types;
 
 /// # Returns
-/// The repository's `framework` directory.
-fn framework() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../framework").canonicalize().expect("framework")
+/// The repository's `templates` directory (starters and `zebra.framework`).
+fn templates() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../templates").canonicalize().expect("templates")
 }
 
 /// Runs `tsc` on the starter with one file replaced.
@@ -22,7 +22,7 @@ fn framework() -> PathBuf {
 /// # Returns
 /// Whether `tsc` passed, and its output.
 fn tsc(replace: Option<(&str, &str, &str)>) -> (bool, String) {
-    let starter = framework().join("templates/starters/desktop");
+    let starter = templates().join("starters/desktop");
     let project = tempfile::TempDir::new().expect("temp dir");
     for file in ["tsconfig.json", "src/desktop.d.ts", "src/app.tsx", "src/forms/main-form.view.tsx", "src/forms/main-form.ts", "src/models/project-store.ts"] {
         let target = project.path().join(file);
@@ -34,15 +34,15 @@ fn tsc(replace: Option<(&str, &str, &str)>) -> (bool, String) {
         }
         fs::write(target, text).expect("write");
     }
-    let compiler = framework().join("zebra.framework/node_modules/.bin/tsc");
+    let compiler = templates().join("zebra.framework/node_modules/.bin/tsc");
     let output = Command::new(compiler).args(["--noEmit", "-p", "."]).current_dir(project.path()).output().expect("tsc runs");
     (output.status.success(), String::from_utf8_lossy(&output.stdout).into_owned() + &String::from_utf8_lossy(&output.stderr))
 }
 
 #[test]
 fn the_starter_carries_the_current_declarations() {
-    let carried = fs::read_to_string(framework().join("templates/starters/desktop/src/desktop.d.ts")).expect("desktop.d.ts");
-    assert!(carried == types::declarations(), "run `lunarstorm-build --types framework/templates/starters/desktop`");
+    let carried = fs::read_to_string(templates().join("starters/desktop/src/desktop.d.ts")).expect("desktop.d.ts");
+    assert!(carried == types::declarations(), "run `lunarstorm-build --types templates/starters/desktop`");
 }
 
 #[test]

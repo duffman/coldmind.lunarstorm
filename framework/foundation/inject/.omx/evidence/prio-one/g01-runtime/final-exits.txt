@@ -1,2 +1,0 @@
-Node final exit: 0
-Bun final exit: 0

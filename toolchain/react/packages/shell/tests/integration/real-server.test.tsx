@@ -11,8 +11,8 @@ import { startShell, useShellChannel, type ShellHandle } from "../../src/start-s
 import { createHotContext, resetHotRuntime } from "../../src/hot-runtime.ts";
 import { realWebSocket, realFetch } from "./setup.ts";
 
-const cli = process.env.DEVERMIND_TEST_CLI;
-if (!cli) throw new Error("DEVERMIND_TEST_CLI must name a freshly built devermind executable; run the product integration runner");
+const cli = process.env.DEVTOOLS_TEST_CLI;
+if (!cli) throw new Error("DEVTOOLS_TEST_CLI must name a freshly built devtools executable; run the product integration runner");
 let shell: ShellHandle | undefined;
 let host: Host | undefined;
 const peers: WebSocket[] = [];
@@ -46,7 +46,7 @@ class Host {
       child.stderr!.on("data", (chunk) => { output += chunk.toString(); });
       child.stdout!.on("data", (chunk) => {
         output += chunk.toString();
-        const match = output.match(/devermind ready at (http:\/\/[^\s]+)/);
+        const match = output.match(/devtools ready at (http:\/\/[^\s]+)/);
         if (match) { this.url = match[1]!; finish(); }
       });
     });
@@ -64,12 +64,12 @@ class Host {
 beforeEach(async () => {
   resetHotRuntime(); document.body.innerHTML = ""; localStorage.clear();
   document.body.style.paddingBottom = "7px";
-  const root = await mkdtemp(join(tmpdir(), "devermind-shell-wire-"));
+  const root = await mkdtemp(join(tmpdir(), "devtools-shell-wire-"));
   host = new Host(root);
-  await mkdir(join(root, "src")); await mkdir(join(root, ".devermind"));
+  await mkdir(join(root, "src")); await mkdir(join(root, ".devtools"));
   await writeFile(join(root, "package.json"), '{"type":"module"}');
   await symlink(resolve(import.meta.dirname, "../../../../node_modules"), join(root, "node_modules"), "dir");
-  await writeFile(join(root, ".devermind/config.toml"), "[server]\nport = 0\n");
+  await writeFile(join(root, ".devtools/config.toml"), "[server]\nport = 0\n");
   await writeFile(join(root, "index.html"), '<div id="root"></div><script type="module" src="/src/App.tsx"></script>');
   await writeFile(join(root, "src/App.tsx"), 'export function App() { return <p>initial</p>; }');
   await host.start();
@@ -83,10 +83,10 @@ afterEach(async () => {
 });
 
 async function peer(): Promise<WebSocket> {
-  const socket = new realWebSocket(host!.url.replace(/^http/, "ws") + "__devermind_hmr");
+  const socket = new realWebSocket(host!.url.replace(/^http/, "ws") + "__devtools_hmr");
   peers.push(socket); await until(() => socket.readyState === 1, "peer connection"); return socket;
 }
-const shadow = () => document.querySelector("[data-devermind-shell]")!.shadowRoot!;
+const shadow = () => document.querySelector("[data-devtools-shell]")!.shadowRoot!;
 
 async function mount(App: () => React.ReactNode, options: Partial<Parameters<typeof startShell>[0]> = {}) {
   const root = document.createElement("div"); document.body.appendChild(root);
@@ -94,7 +94,7 @@ async function mount(App: () => React.ReactNode, options: Partial<Parameters<typ
   const CountedSocket = class extends realWebSocket { constructor(url: string) { super(url); connections++; } };
   await act(async () => {
     shell = startShell({ root, load: async () => ({ default: App }), transport: {
-      url: host!.url.replace(/^http/, "ws") + "__devermind_hmr", WebSocket: CountedSocket,
+      url: host!.url.replace(/^http/, "ws") + "__devtools_hmr", WebSocket: CountedSocket,
       fetch: realFetch, retryMs: 30, reload: () => {},
     }, ...options });
   });
@@ -116,8 +116,8 @@ test("real server relays bidirectional app messages on the shell's single socket
   await until(() => messages.some((message) => message.includes("from-shell")), "shell message received by peer");
   expect(connections()).toBe(1);
   const page = await (await realFetch(host!.url)).text();
-  expect(page).toContain("refresh-preamble.js"); expect(page).not.toContain('src="/@devermind/client.js"');
-  const client = await (await realFetch(host!.url + "@devermind/client.js")).text();
+  expect(page).toContain("refresh-preamble.js"); expect(page).not.toContain('src="/@devtools/client.js"');
+  const client = await (await realFetch(host!.url + "@devtools/client.js")).text();
   expect(client).toContain("hot-runtime.ts");
   const runtime = client.match(/export \* from "([^"]+)"/);
   expect(runtime, client).not.toBeNull();
@@ -170,13 +170,13 @@ test("terminal uses the real app channel and restores layout on close and teardo
   expect(document.body.style.paddingBottom).not.toBe("7px");
   await act(async () => { shell!.stop(); }); shell = undefined;
   expect(document.body.style.paddingBottom).toBe("7px");
-  expect(document.documentElement.style.getPropertyValue("--devermind-terminal-height")).toBe("");
+  expect(document.documentElement.style.getPropertyValue("--devtools-terminal-height")).toBe("");
 });
 
 test("server loss reaches lost status and a real restart triggers the reload callback", async () => {
   let reloads = 0;
   await mount(() => <p>app</p>, { transport: {
-    url: host!.url.replace(/^http/, "ws") + "__devermind_hmr", WebSocket: realWebSocket,
+    url: host!.url.replace(/^http/, "ws") + "__devtools_hmr", WebSocket: realWebSocket,
     fetch: realFetch, retryMs: 30, reload: () => { reloads++; },
   } });
   const port = Number(new URL(host!.url).port);

@@ -1,5 +1,0 @@
-{
-  "extends": "../../../../tsconfig.json",
-  "compilerOptions": { "types": ["node", "bun"], "noEmit": true },
-  "include": ["cminject.token.proposed.ts", "../../../prepared-tests/qualification.runtime.test.ts", "../../../prepared-tests/qualification.types.ts"]
-}

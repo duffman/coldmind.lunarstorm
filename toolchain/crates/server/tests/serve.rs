@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use devermind_server::{AppMessage, Config, DevServer, HMR_PATH};
+use devtools_server::{AppMessage, Config, DevServer, HMR_PATH};
 use futures_util::StreamExt;
 use serde_json::Value;
 
@@ -122,8 +122,8 @@ async fn serves_page_and_compiled_modules() {
 
     let (status, html) = get(&server, "/").await;
     assert_eq!(status, 200);
-    assert!(html.contains("/@devermind/client.js"), "{html}");
-    assert!(html.contains("/@devermind/refresh-preamble.js"), "{html}");
+    assert!(html.contains("/@devtools/client.js"), "{html}");
+    assert!(html.contains("/@devtools/refresh-preamble.js"), "{html}");
 
     let (status, main) = get(&server, "/src/main.tsx").await;
     assert_eq!(status, 200, "{main}");
@@ -243,13 +243,13 @@ async fn edits_become_hmr_frames() {
     assert_eq!(frame["path"], "/index.html", "{frame}");
 }
 
-/// The fixture app with a stand-in `@coldmind/devermind-shell` installed.
+/// The fixture app with a stand-in `@coldmind/devtools-shell` installed.
 fn shell_app() -> tempfile::TempDir {
     let dir = app();
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     copy_dir(
         &fixtures.join("shell"),
-        &dir.path().join("node_modules/@coldmind/devermind-shell"),
+        &dir.path().join("node_modules/@coldmind/devtools-shell"),
     );
     dir
 }
@@ -260,23 +260,23 @@ async fn shell_apps_get_the_shell_runtime_as_client() {
     let server = start(dir.path(), false);
 
     let (_, html) = get(&server, "/").await;
-    assert!(html.contains("/@devermind/refresh-preamble.js"), "{html}");
+    assert!(html.contains("/@devtools/refresh-preamble.js"), "{html}");
     assert!(
-        !html.contains("/@devermind/client.js"),
+        !html.contains("/@devtools/client.js"),
         "the shell opens the socket: {html}"
     );
 
-    let (status, client) = get(&server, "/@devermind/client.js").await;
+    let (status, client) = get(&server, "/@devtools/client.js").await;
     assert_eq!(status, 200);
     assert_eq!(
         client.trim(),
-        "export * from \"/node_modules/@coldmind/devermind-shell/hot.js\";"
+        "export * from \"/node_modules/@coldmind/devtools-shell/hot.js\";"
     );
 
     // Apps without the shell keep the built-in client.
     let plain = app();
     let plain_server = start(plain.path(), false);
-    let (_, builtin) = get(&plain_server, "/@devermind/client.js").await;
+    let (_, builtin) = get(&plain_server, "/@devtools/client.js").await;
     assert!(builtin.contains("new WebSocket"), "built-in client");
 }
 
@@ -384,7 +384,7 @@ async fn invalid_vite_config_prevents_server_start() {
 #[tokio::test]
 async fn native_toml_config_is_applied_before_vite_config() {
     let dir = app();
-    std::fs::create_dir(dir.path().join(".devermind")).unwrap();
+    std::fs::create_dir(dir.path().join(".devtools")).unwrap();
     std::fs::create_dir(dir.path().join("client")).unwrap();
     std::fs::write(
         dir.path().join("client/index.html"),
@@ -407,7 +407,7 @@ async fn native_toml_config_is_applied_before_vite_config() {
     )
     .unwrap();
     std::fs::write(
-        dir.path().join(".devermind/config.toml"),
+        dir.path().join(".devtools/config.toml"),
         r#"
 root = "client"
 [server]

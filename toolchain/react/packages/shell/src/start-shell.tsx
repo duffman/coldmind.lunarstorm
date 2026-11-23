@@ -1,10 +1,10 @@
 /**
- * @module @coldmind/devermind-shell — the parent of an app on the devermind dev server.
+ * @module @coldmind/devtools-shell — the parent of an app on the devtools dev server.
  *
  * The shell owns the page: the one WebSocket to the server (HMR frames and app channels), the
  * React root with an error boundary around the app, and an overlay in a shadow root that shows
  * build, load, render, runtime and hot-update errors. The server detects the package and serves
- * its HMR runtime as `/@devermind/client.js`, so no second socket is opened.
+ * its HMR runtime as `/@devtools/client.js`, so no second socket is opened.
  */
 
 import { useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
@@ -12,7 +12,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 import { ShellApp, type AppModule } from "./app-loader.tsx";
 import { ShellErrors, toShellError } from "./error-store.ts";
-import { attachHotHost, handleHotFrame } from "@coldmind/devermind-shell/hot";
+import { attachHotHost, handleHotFrame } from "@coldmind/devtools-shell/hot";
 import { ShellOverlay } from "./error-overlay.tsx";
 import { ShellTerminal } from "./terminal.tsx";
 import { ShellTransport, type ConnectionStatus, type ShellChannel, type TransportOptions } from "./transport.ts";
@@ -134,7 +134,7 @@ export function startShell(options: ShellOptions): ShellHandle {
   let overlayHost: HTMLElement | null = null;
   if (options.overlay ?? true) {
     overlayHost = document.createElement("div");
-    overlayHost.setAttribute("data-devermind-shell", "");
+    overlayHost.setAttribute("data-devtools-shell", "");
     document.body.appendChild(overlayHost);
     overlayRoot = createRoot(overlayHost.attachShadow({ mode: "open" }));
     overlayRoot.render(
@@ -169,7 +169,7 @@ export function startShell(options: ShellOptions): ShellHandle {
  * @throws {Error} When {@link startShell} has not been called on this page.
  */
 export function getShell(): ShellHandle {
-  if (!current) throw new Error("devermind shell is not running; call startShell() first");
+  if (!current) throw new Error("devtools shell is not running; call startShell() first");
   return current;
 }
 

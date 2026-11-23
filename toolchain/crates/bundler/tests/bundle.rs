@@ -1,8 +1,8 @@
-use devermind_bundler::{build, BuildOptions};
+use devtools_bundler::{build, BuildOptions};
 
 #[tokio::test]
 async fn builds_typescript_styles_and_public_assets() {
-    let root = std::env::temp_dir().join(format!("devermind-bundle-test-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("devtools-bundle-test-{}", std::process::id()));
     std::fs::create_dir_all(root.join("src")).unwrap();
     std::fs::create_dir_all(root.join("public")).unwrap();
     std::fs::write(root.join("index.html"), "<html><head></head><body><script type=\"module\" src=\"/src/main.ts\"></script></body></html>").unwrap();
@@ -30,7 +30,7 @@ async fn builds_typescript_styles_and_public_assets() {
 
 #[tokio::test]
 async fn discovers_vite_config_and_applies_build_options() {
-    let dir = std::env::temp_dir().join(format!("devermind-vite-build-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("devtools-vite-build-{}", std::process::id()));
     let root = dir.join("frontend");
     std::fs::create_dir_all(root.join("src")).unwrap();
     std::fs::write(
@@ -84,7 +84,7 @@ export default async ({ command, mode }) => ({
 #[tokio::test]
 async fn configured_output_cannot_replace_project_or_app_root() {
     let project = std::env::temp_dir().join(format!(
-        "devermind-vite-output-safety-{}",
+        "devtools-vite-output-safety-{}",
         std::process::id()
     ));
     std::fs::create_dir_all(project.join("app/child")).unwrap();
@@ -132,7 +132,7 @@ async fn configured_output_cannot_replace_project_or_app_root() {
 #[tokio::test]
 async fn linked_source_resolves_peer_dependencies_from_application() {
     let fixture =
-        std::env::temp_dir().join(format!("devermind-linked-peer-{}", std::process::id()));
+        std::env::temp_dir().join(format!("devtools-linked-peer-{}", std::process::id()));
     let root = fixture.join("app");
     let external = fixture.join("external-source");
     std::fs::create_dir_all(root.join("node_modules/app-peer")).unwrap();
@@ -178,7 +178,7 @@ async fn linked_source_resolves_peer_dependencies_from_application() {
 #[tokio::test]
 async fn missing_browser_dependency_fails_instead_of_emitting_bare_import() {
     let root = std::env::temp_dir().join(format!(
-        "devermind-missing-browser-dep-{}",
+        "devtools-missing-browser-dep-{}",
         std::process::id()
     ));
     std::fs::create_dir_all(&root).unwrap();
@@ -189,26 +189,26 @@ async fn missing_browser_dependency_fails_instead_of_emitting_bare_import() {
     .unwrap();
     std::fs::write(
         root.join("main.js"),
-        "import {missing} from 'does-not-exist-devermind-test'; console.log(missing)",
+        "import {missing} from 'does-not-exist-devtools-test'; console.log(missing)",
     )
     .unwrap();
     let error = build(&BuildOptions::new(&root))
         .await
         .unwrap_err()
         .to_string();
-    assert!(error.contains("does-not-exist-devermind-test"), "{error}");
+    assert!(error.contains("does-not-exist-devtools-test"), "{error}");
     std::fs::remove_dir_all(root).unwrap();
 }
 
 #[tokio::test]
 async fn native_toml_config_controls_build_and_preserves_explicit_overrides() {
     let project = std::env::temp_dir().join(format!(
-        "devermind-native-toml-build-{}",
+        "devtools-native-toml-build-{}",
         std::process::id()
     ));
     let root = project.join("client");
     std::fs::create_dir_all(root.join("src")).unwrap();
-    std::fs::create_dir_all(project.join(".devermind")).unwrap();
+    std::fs::create_dir_all(project.join(".devtools")).unwrap();
     std::fs::write(
         root.join("index.html"),
         "<script type=\"module\" src=\"/src/main.ts\"></script>",
@@ -230,7 +230,7 @@ async fn native_toml_config_controls_build_and_preserves_explicit_overrides() {
     )
     .unwrap();
     std::fs::write(
-        project.join(".devermind/config.toml"),
+        project.join(".devtools/config.toml"),
         r#"
 root = "client"
 [build]
@@ -269,7 +269,7 @@ __NATIVE__ = '"native-define-applied"'
 #[tokio::test]
 async fn plain_stylesheet_assets_resolve_from_each_source_directory() {
     let root = std::env::temp_dir().join(format!(
-        "devermind-css-relative-assets-{}",
+        "devtools-css-relative-assets-{}",
         std::process::id()
     ));
     for directory in ["one", "two"] {

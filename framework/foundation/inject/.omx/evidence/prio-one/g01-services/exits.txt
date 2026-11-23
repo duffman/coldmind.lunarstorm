@@ -1,5 +1,0 @@
-Node initial exit: 1
-Bun initial exit: 1
-Source typecheck exit: 0
-Focused strict tests typecheck exit: 0
-Focused whitespace check exit: 0

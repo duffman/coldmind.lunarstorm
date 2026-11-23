@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use devermind_core::{build_file, compile_file, Mode};
+use devtools_core::{build_file, compile_file, Mode};
 
 fn fixture(name: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -57,7 +57,7 @@ fn built_entry_runs_in_bun() {
     );
     assert_eq!(
         stdout.trim(),
-        r#"{"type":"function","props":{"name":"devermind"}}"#
+        r#"{"type":"function","props":{"name":"devtools"}}"#
     );
 }
 

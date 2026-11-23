@@ -1,4 +1,4 @@
-/** @module @coldmind/devermind-shell/errors — the errors the shell shows, from every layer. */
+/** @module @coldmind/devtools-shell/errors — the errors the shell shows, from every layer. */
 
 /**
  * Where an error came from.

@@ -1,4 +1,4 @@
-//! devermind dev server: serves a web app in development from inside the host process.
+//! devtools dev server: serves a web app in development from inside the host process.
 //!
 //! Requests compile on demand through `oj_compiler` (vendored from lovablelabs/oj, MIT),
 //! imports resolve through `oj_resolver`, and every compiled module registers in `oj_graph`.
@@ -43,11 +43,11 @@ const REFRESH_RUNTIME_JS: &str = include_str!("../assets/refresh-runtime.js");
 const REFRESH_PREAMBLE_JS: &str = include_str!("../assets/refresh-preamble.js");
 
 /// Path of the HMR WebSocket.
-pub const HMR_PATH: &str = "/__devermind_hmr";
+pub const HMR_PATH: &str = "/__devtools_hmr";
 
-/// The shell's HMR runtime. When it resolves from the app root, `/@devermind/client.js` re-exports
+/// The shell's HMR runtime. When it resolves from the app root, `/@devtools/client.js` re-exports
 /// it and pages get no client script: the shell owns the page's one socket.
-pub const SHELL_HOT: &str = "@coldmind/devermind-shell/hot";
+pub const SHELL_HOT: &str = "@coldmind/devtools-shell/hot";
 
 /// A message on an app channel: pages send it as the `custom` event `app:<channel>`.
 #[derive(Debug, Clone, PartialEq)]
@@ -59,7 +59,11 @@ pub struct AppMessage {
 
 /// Host validation runs on existing change batches before HMR compilation.
 #[derive(Clone)]
-struct ValidationHook(Arc<dyn Fn(&[PathBuf]) -> Result<bool, String> + Send + Sync>);
+struct ValidationHook(Arc<Validate>);
+
+/// The host's validation function: given the changed paths, it returns whether
+/// the batch may be compiled, or the reason validation itself failed.
+type Validate = dyn Fn(&[PathBuf]) -> Result<bool, String> + Send + Sync;
 impl std::fmt::Debug for ValidationHook {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("ValidationHook")
@@ -84,7 +88,7 @@ pub struct Config {
     pub alias: Vec<(String, String)>,
     port_explicit: bool,
     host_explicit: bool,
-    project_config: Option<devermind_core::config::ProjectConfig>,
+    project_config: Option<devtools_core::config::ProjectConfig>,
     validation: Option<ValidationHook>,
 }
 
@@ -116,7 +120,7 @@ impl Config {
     }
 
     /// Inject native host configuration and disable compatibility discovery.
-    pub fn with_project_config(mut self, config: devermind_core::config::ProjectConfig) -> Self {
+    pub fn with_project_config(mut self, config: devtools_core::config::ProjectConfig) -> Self {
         self.project_config = Some(config);
         self
     }
@@ -133,7 +137,7 @@ impl Config {
     fn with_vite(mut self) -> anyhow::Result<Self> {
         let config = match self.project_config.take() {
             Some(config) => Some(config),
-            None => devermind_core::config::load(&self.root, "serve", "development")?,
+            None => devtools_core::config::load(&self.root, "serve", "development")?,
         };
         if let Some(vite) = config {
             if let Some(root) = vite.root {
@@ -277,7 +281,7 @@ impl State {
         Some(resolved)
     }
 
-    /// URL of the shell's HMR runtime when the app depends on `@coldmind/devermind-shell`.
+    /// URL of the shell's HMR runtime when the app depends on `@coldmind/devtools-shell`.
     /// Registers the resolved file before emitting its URL, so linked packages outside
     /// the workspace can load this runtime without granting access to their directory.
     pub fn shell_hot_url(&self) -> Option<String> {
@@ -285,7 +289,7 @@ impl State {
             .map(|file| module_urls::url_of(&self.root, &file))
     }
 
-    /// `/@devermind/client.js`: the shell's runtime re-exported (one module instance, one socket),
+    /// `/@devtools/client.js`: the shell's runtime re-exported (one module instance, one socket),
     /// else the built-in client.
     fn client_module(&self) -> String {
         match self.shell_hot_url() {
@@ -310,7 +314,7 @@ impl DevServer {
         let state = Arc::new(State::new(&config)?);
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
-            .thread_name("devermind")
+            .thread_name("devtools")
             .thread_stack_size(oj_compiler::COMPILE_STACK_SIZE)
             .build()?;
         // Bound with std so `start` works from inside another async runtime (tests, the napi host).
@@ -330,7 +334,7 @@ impl DevServer {
         let (shutdown, stopped) = oneshot::channel::<()>();
         let app = router(state.clone());
         let thread = std::thread::Builder::new()
-            .name("devermind-server".into())
+            .name("devtools-server".into())
             .spawn(move || {
                 let _watcher = watcher;
                 runtime.block_on(async move {
@@ -433,7 +437,7 @@ impl Embedded {
         })
     }
 
-    /// Serves pages, modules, the HMR socket and the devermind runtime assets.
+    /// Serves pages, modules, the HMR socket and the devtools runtime assets.
     pub fn router(&self) -> Router {
         router(self.state.clone())
     }
@@ -462,15 +466,15 @@ impl Embedded {
 fn router(state: Arc<State>) -> Router {
     Router::new()
         .route(
-            "/@devermind/client.js",
+            "/@devtools/client.js",
             get(|AxumState(s): AxumState<Arc<State>>| async move { js(s.client_module()) }),
         )
         .route(
-            "/@devermind/refresh-runtime.js",
+            "/@devtools/refresh-runtime.js",
             get(|| async { js(REFRESH_RUNTIME_JS.to_string()) }),
         )
         .route(
-            "/@devermind/refresh-preamble.js",
+            "/@devtools/refresh-preamble.js",
             get(|| async { js(REFRESH_PREAMBLE_JS.to_string()) }),
         )
         .route(
@@ -486,7 +490,7 @@ fn router(state: Arc<State>) -> Router {
                         Ok(ws) => ws
                             .on_upgrade(move |socket| hot_reload::socket(s, socket))
                             .into_response(),
-                        Err(_) => (StatusCode::OK, "devermind").into_response(),
+                        Err(_) => (StatusCode::OK, "devtools").into_response(),
                     }
                 },
             ),
@@ -505,7 +509,7 @@ async fn serve(AxumState(state): AxumState<Arc<State>>, request: Request<Body>) 
     // default stack size, which deep module ASTs overflow.
     let (tx, rx) = oneshot::channel();
     let spawned = std::thread::Builder::new()
-        .name("devermind-compile".into())
+        .name("devtools-compile".into())
         .stack_size(oj_compiler::COMPILE_STACK_SIZE)
         .spawn(move || {
             let _ = tx.send(respond(&worker, &path, &query));

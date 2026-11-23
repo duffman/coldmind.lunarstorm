@@ -1,7 +1,7 @@
 //! Standalone module transpilation: native compilation without a project host.
 
 use anyhow::{ensure, Context};
-use devermind_core::{compile_source, map_json_to_data_url, CompileOptions};
+use devtools_core::{compile_source, map_json_to_data_url, CompileOptions};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -191,7 +191,7 @@ impl PendingOutput {
             .with_context(|| format!("cannot create output directory {}", parent.display()))?;
         let (temporary, mut file): (PathBuf, File) = loop {
             let id = NEXT_OUTPUT.fetch_add(1, Ordering::Relaxed);
-            let temporary = parent.join(format!(".devermind-{}-{id}.tmp", std::process::id()));
+            let temporary = parent.join(format!(".devtools-{}-{id}.tmp", std::process::id()));
             if temporary.file_name() == destination.file_name() {
                 continue;
             }

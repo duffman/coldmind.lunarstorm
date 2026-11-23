@@ -1,13 +1,13 @@
-//! Tauri v2 adapter for Devermind's shared Rust transformation engine.
+//! Tauri v2 adapter for Devtools's shared Rust transformation engine.
 //!
-//! Register [`crate::init`] and grant `devermind:default` in the window's capability.
-//! The `plugin:devermind|transform` command accepts source text, transforms it
+//! Register [`crate::init`] and grant `devtools:default` in the window's capability.
+//! The `plugin:devtools|transform` command accepts source text, transforms it
 //! on a blocking worker, and returns source text. It never reads files, starts
 //! a server, executes code, or transpiles TypeScript/JSX into JavaScript.
 
 use std::collections::BTreeMap;
 
-use devermind_native::{DefinePair, Loader, ReplacePair, TransformOptions, Transformer};
+use devtools_native::{DefinePair, Loader, ReplacePair, TransformOptions, Transformer};
 use serde::{Deserialize, Serialize};
 
 /// Parser syntax for supplied source text. This does not select an emitter.
@@ -91,7 +91,7 @@ impl From<Options> for TransformOptions {
     }
 }
 
-/// Input to `plugin:devermind|transform`. `filename` labels warnings; it is never opened.
+/// Input to `plugin:devtools|transform`. `filename` labels warnings; it is never opened.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TransformRequest {
@@ -139,7 +139,7 @@ pub fn transform_source(request: TransformRequest) -> Result<TransformResult, St
 pub(crate) async fn transform(request: TransformRequest) -> Result<TransformResult, String> {
     tauri::async_runtime::spawn_blocking(move || transform_source(request))
         .await
-        .map_err(|error| format!("devermind transform worker failed: {error}"))?
+        .map_err(|error| format!("devtools transform worker failed: {error}"))?
 }
 
 #[cfg(test)]
@@ -154,7 +154,7 @@ mod tests {
 
     fn ipc_request(body: Value) -> tauri::webview::InvokeRequest {
         tauri::webview::InvokeRequest {
-            cmd: "plugin:devermind|transform".into(),
+            cmd: "plugin:devtools|transform".into(),
             callback: tauri::ipc::CallbackFn(0),
             error: tauri::ipc::CallbackFn(1),
             url: "tauri://localhost".parse().unwrap(),
@@ -168,7 +168,7 @@ mod tests {
         let mut context = tauri::test::mock_context(tauri::test::noop_assets());
         if allow_transform {
             context.runtime_authority_mut().__allow_command(
-                "plugin:devermind|transform".into(),
+                "plugin:devtools|transform".into(),
                 tauri::utils::acl::ExecutionContext::Local,
             );
         }
@@ -274,14 +274,14 @@ mod tests {
     fn configured_plugin_serves_real_http_and_permission_controlled_ipc() {
         let mut context = tauri::test::mock_context(tauri::test::noop_assets());
         context.runtime_authority_mut().__allow_command(
-            "plugin:devermind|transform".into(),
+            "plugin:devtools|transform".into(),
             tauri::utils::acl::ExecutionContext::Local,
         );
         let root = tempfile::tempdir().unwrap();
-        std::fs::create_dir(root.path().join(".devermind")).unwrap();
+        std::fs::create_dir(root.path().join(".devtools")).unwrap();
         std::fs::create_dir(root.path().join("client")).unwrap();
         std::fs::write(
-            root.path().join(".devermind/config.toml"),
+            root.path().join(".devtools/config.toml"),
             "root = 'client'\n[define]\n__HOST__ = '\"tauri-http\"'\n",
         )
         .unwrap();
@@ -311,7 +311,7 @@ mod tests {
         let page = host.get("/");
         assert!(page.starts_with("HTTP/1.1 200"), "{page}");
         assert!(
-            page.contains("embedded frontend") && page.contains("/@devermind/refresh-preamble.js"),
+            page.contains("embedded frontend") && page.contains("/@devtools/refresh-preamble.js"),
             "{page}"
         );
         let module = host.get("/main.ts");
@@ -359,9 +359,9 @@ mod tests {
     #[test]
     fn invalid_native_config_fails_plugin_initialization() {
         let root = tempfile::tempdir().unwrap();
-        std::fs::create_dir(root.path().join(".devermind")).unwrap();
+        std::fs::create_dir(root.path().join(".devtools")).unwrap();
         std::fs::write(
-            root.path().join(".devermind/config.toml"),
+            root.path().join(".devtools/config.toml"),
             "[server]\nport = -1",
         )
         .unwrap();
@@ -543,7 +543,7 @@ mod tests {
         .unwrap();
         assert!(!result.changed);
         assert_eq!(result.warnings.len(), 1);
-        assert!(result.warnings[0].starts_with("input.ts: devermind inject: A not wired"));
+        assert!(result.warnings[0].starts_with("input.ts: devtools inject: A not wired"));
     }
 
     #[test]

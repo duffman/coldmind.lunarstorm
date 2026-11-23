@@ -637,7 +637,7 @@ impl App {
                 if !self.loaded {
                     return;
                 }
-                if !self.send_backend(envelope) {
+                if !self.send_backend(*envelope) {
                     self.post(form, &Envelope::new(Kind::Error, form, self.epoch, "event", json!({ "message": "backend queue is full" })));
                 }
             }

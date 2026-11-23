@@ -12,4 +12,4 @@ class Report {
 }
 
 const mode: string = __MODE__;
-console.log(`devermind example: ${mode}`, Report, Clock);
+console.log(`devtools example: ${mode}`, Report, Clock);

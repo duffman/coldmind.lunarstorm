@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 /// Resolves native configuration (or the compatibility fallback) before binding.
 /// An explicit output directory wins; preview deliberately binds loopback only.
 pub async fn run(root: PathBuf, out: Option<PathBuf>, port: u16) -> anyhow::Result<()> {
-    let config = devermind_core::config::load_preview(&root, "production")?;
+    let config = devtools_core::config::load_preview(&root, "production")?;
     let root = config
         .as_ref()
         .and_then(|config| config.root.clone())
@@ -29,7 +29,7 @@ pub async fn run(root: PathBuf, out: Option<PathBuf>, port: u16) -> anyhow::Resu
     })?;
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
     println!(
-        "devermind preview of {} at http://{}/",
+        "devtools preview of {} at http://{}/",
         dir.display(),
         listener.local_addr()?
     );

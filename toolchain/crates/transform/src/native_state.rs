@@ -86,7 +86,7 @@ impl<T: PluginState> ToNapiValue for Owned<T> {
         if status != sys::Status::napi_ok {
             drop(Box::from_raw(data as *mut Tagged<T>));
         }
-        check_status!(status, "failed to create devermind plugin state")?;
+        check_status!(status, "failed to create devtools plugin state")?;
         Ok(external)
     }
 }
@@ -107,13 +107,13 @@ impl<T: PluginState> FromNapiValue for Shared<T> {
         let mut data = ptr::null_mut();
         check_status!(
             sys::napi_get_value_external(env, value, &mut data),
-            "expected a devermind plugin state"
+            "expected a devtools plugin state"
         )?;
         match from_raw::<T>(data) {
             Some(state) => Ok(Self(state)),
             None => Err(napi::Error::new(
                 Status::InvalidArg,
-                "external is not a devermind plugin state",
+                "external is not a devtools plugin state",
             )),
         }
     }

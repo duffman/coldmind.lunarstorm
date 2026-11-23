@@ -1,4 +1,4 @@
-/** @module @coldmind/devermind-shell/protocol — frames on the devermind socket (Vite's HMR protocol). */
+/** @module @coldmind/devtools-shell/protocol — frames on the devtools socket (Vite's HMR protocol). */
 
 /** One `js-update` / `css-update` entry of an `update` frame. */
 export interface HmrUpdate {
@@ -35,8 +35,8 @@ export type ServerFrame =
 /** Event prefix of app channel messages: channel `chat` travels as event `app:chat`. */
 export const APP_EVENT_PREFIX = "app:";
 
-/** Path of the devermind HMR socket (`HMR_PATH` in the server). */
-export const HMR_PATH = "/__devermind_hmr";
+/** Path of the devtools HMR socket (`HMR_PATH` in the server). */
+export const HMR_PATH = "/__devtools_hmr";
 
 /**
  * Parses one socket message into a frame.

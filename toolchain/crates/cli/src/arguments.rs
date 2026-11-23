@@ -1,7 +1,7 @@
 //! Dependency-free command parsing and discoverable, command-specific help.
 use anyhow::{bail, Context};
-use devermind_bundler::BuildOptions;
-use devermind_server::Config;
+use devtools_bundler::BuildOptions;
+use devtools_server::Config;
 use std::{iter::Peekable, path::PathBuf, vec::IntoIter};
 
 use crate::transpile;

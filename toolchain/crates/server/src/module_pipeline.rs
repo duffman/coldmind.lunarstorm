@@ -142,7 +142,7 @@ fn app_module(
 
     let uses_hot = out.is_refresh_boundary || out.hot_accept.is_some();
     let banner = if uses_hot {
-        format!("import {{ createHotContext as __dm_createHotContext }} from \"/@devermind/client.js\";\nimport.meta.hot = __dm_createHotContext({path:?});\n")
+        format!("import {{ createHotContext as __dm_createHotContext }} from \"/@devtools/client.js\";\nimport.meta.hot = __dm_createHotContext({path:?});\n")
     } else {
         String::new()
     };
@@ -214,7 +214,7 @@ fn css_module(state: &State, path: &str, file: &Path, source: &str) -> Result<St
         .collect::<Vec<_>>();
     graph.set_imports(Path::new(path), &imports);
     Ok(format!(
-        "import {{ createHotContext as __dm_createHotContext, updateStyle as __dm_updateStyle, removeStyle as __dm_removeStyle }} from \"/@devermind/client.js\";\n\
+        "import {{ createHotContext as __dm_createHotContext, updateStyle as __dm_updateStyle, removeStyle as __dm_removeStyle }} from \"/@devtools/client.js\";\n\
          import.meta.hot = __dm_createHotContext({id:?});\n\
          const __dm_css = {css};\n\
          __dm_updateStyle({path:?}, __dm_css);\n\
@@ -231,7 +231,7 @@ fn register(state: &State, path: &str, out: &oj_compiler::CompileOutput, self_ac
     let key = Path::new(path);
     let module_url = |spec: &String| -> Option<PathBuf> {
         let (base, _) = split_query(spec);
-        (base.starts_with('/') && !base.starts_with("/@devermind/")).then(|| PathBuf::from(base))
+        (base.starts_with('/') && !base.starts_with("/@devtools/")).then(|| PathBuf::from(base))
     };
     let imports: Vec<PathBuf> = out
         .imports
@@ -270,7 +270,7 @@ pub(crate) fn rewrite_specifier(
     spec: &str,
     stamp: bool,
 ) -> Option<String> {
-    if spec.contains("://") || spec.starts_with("data:") || spec.starts_with("/@devermind/") {
+    if spec.contains("://") || spec.starts_with("data:") || spec.starts_with("/@devtools/") {
         return None;
     }
     let (base, query) = split_query(spec);
@@ -346,11 +346,11 @@ fn is_cjs_file(state: &State, path: &Path) -> bool {
 fn refresh_glue(id: &str, self_url: &str) -> String {
     format!(
         r#"
-import * as __dm_RefreshRuntime from "/@devermind/refresh-runtime.js";
+import * as __dm_RefreshRuntime from "/@devtools/refresh-runtime.js";
 import * as __dm_currentExports from {self_url:?};
 if (import.meta.hot) {{
-  if (!window.__devermind_refresh_installed__) {{
-    throw new Error("devermind: Fast Refresh preamble missing; was index.html served by devermind?");
+  if (!window.__devtools_refresh_installed__) {{
+    throw new Error("devtools: Fast Refresh preamble missing; was index.html served by devtools?");
   }}
   __dm_RefreshRuntime.registerExportsForReactRefresh({id:?}, __dm_currentExports);
   import.meta.hot.accept((nextExports) => {{

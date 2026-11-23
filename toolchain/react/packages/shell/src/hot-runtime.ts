@@ -1,7 +1,7 @@
 /**
- * @module @coldmind/devermind-shell/hot — the HMR runtime behind `import.meta.hot`.
+ * @module @coldmind/devtools-shell/hot — the HMR runtime behind `import.meta.hot`.
  *
- * The devermind server serves `/@devermind/client.js` as a re-export of this module when the app
+ * The devtools server serves `/@devtools/client.js` as a re-export of this module when the app
  * depends on the shell, so the hot contexts the server injects into modules and the shell share
  * one registry. This module never opens a socket: the shell attaches a {@link HotHost} that owns
  * the connection and the page's error UI.
@@ -140,7 +140,7 @@ export function createHotContext(ownerId: string): HotContext {
       // that came back around and reload instead of ping-ponging updates.
       const data = { path: id, message, firstInvalidatedBy: currentFirstInvalidatedBy ?? id };
       emitHotEvent("vite:invalidate", data);
-      console.warn(`[devermind] ${id} invalidated${message ? ": " + message : ""}`);
+      console.warn(`[devtools] ${id} invalidated${message ? ": " + message : ""}`);
       if (!host?.send("vite:invalidate", data)) reload();
     },
     on(event, callback) {
@@ -163,7 +163,7 @@ export function updateStyle(id: string, css: string): void {
   let tag = styleTags.get(id);
   if (!tag) {
     tag = document.createElement("style");
-    tag.setAttribute("data-devermind-id", id);
+    tag.setAttribute("data-devtools-id", id);
     document.head.appendChild(tag);
     styleTags.set(id, tag);
   }
@@ -197,10 +197,10 @@ export function handleHotFrame(frame: ServerFrame): Promise<void> {
     case "full-reload":
       emitHotEvent("vite:beforeFullReload", frame);
       if (!reloadsThisPage(frame.path)) {
-        console.log(`[devermind] ${frame.path} changed, not this page`);
+        console.log(`[devtools] ${frame.path} changed, not this page`);
         return Promise.resolve();
       }
-      console.log("[devermind] full reload:", frame.reason ?? frame.path ?? "");
+      console.log("[devtools] full reload:", frame.reason ?? frame.path ?? "");
       reload();
       return Promise.resolve();
     case "prune":
@@ -265,13 +265,13 @@ async function applyUpdate(update: HmrUpdate): Promise<void> {
   const mod = hotModules.get(boundary);
   if (!mod) {
     // In the server's graph, but this page never loaded it (a lazy route): nothing to swap.
-    console.debug(`[devermind] ${boundary} is not loaded here, ignoring update`);
+    console.debug(`[devtools] ${boundary} is not loaded here, ignoring update`);
     return;
   }
   const isSelf = accepted === boundary;
   const accepts = mod.acceptCallbacks.filter((cb) => cb.deps.includes(accepted));
   if (accepts.length === 0) {
-    console.log(`[devermind] ${boundary} has no accept handler for ${accepted}, reloading`);
+    console.log(`[devtools] ${boundary} has no accept handler for ${accepted}, reloading`);
     reload();
     return;
   }
@@ -287,7 +287,7 @@ async function applyUpdate(update: HmrUpdate): Promise<void> {
     } catch (error) {
       if (update.isWithinCircularImport) {
         // An accepted module inside an import loop cannot recover its execution order.
-        console.info(`[devermind] ${accepted} failed to apply HMR within a circular import, reloading`);
+        console.info(`[devtools] ${accepted} failed to apply HMR within a circular import, reloading`);
         reload();
         return;
       }
@@ -304,7 +304,7 @@ async function applyUpdate(update: HmrUpdate): Promise<void> {
     }
     emitHotEvent("vite:afterUpdate", { type: "update", updates: [update] });
     host?.updated(update);
-    console.log(`[devermind] hot updated ${update.path}`);
+    console.log(`[devtools] hot updated ${update.path}`);
   } catch (error) {
     emitHotEvent("vite:error", { err: { message: String(error) } });
     host?.updateFailed(update.path, error);

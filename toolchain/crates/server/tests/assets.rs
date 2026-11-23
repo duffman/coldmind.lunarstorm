@@ -1,5 +1,5 @@
 //! Binary asset imports return URL modules without decoding the asset as UTF-8.
-use devermind_server::{Config, DevServer};
+use devtools_server::{Config, DevServer};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[tokio::test]

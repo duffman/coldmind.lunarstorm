@@ -5,7 +5,7 @@ use support::{Cli, Fixture, assert_success, get, project_arg};
 fn native_project() -> Fixture {
     let project = Fixture::new();
     project.write(
-        ".devermind/config.toml",
+        ".devtools/config.toml",
         r#"root = "client"
 [server]
 port = 0
@@ -196,7 +196,7 @@ fn cli_build_then_preview_serves_generated_javascript_styles_assets_and_spa_rout
 #[test]
 fn explicit_build_and_preview_output_overrides_native_directory() {
     let project = native_project();
-    let config = project.0.join(".devermind/config.toml");
+    let config = project.0.join(".devtools/config.toml");
     std::fs::write(
         &config,
         std::fs::read_to_string(&config)
@@ -248,7 +248,7 @@ fn explicit_build_and_preview_output_overrides_native_directory() {
 #[test]
 fn invalid_native_config_fails_all_commands_without_falling_back_or_clearing_output() {
     let project = native_project();
-    project.write(".devermind/config.toml", "[server]\nport = 'invalid'\n");
+    project.write(".devtools/config.toml", "[server]\nport = 'invalid'\n");
     project.write("client/native-output/sentinel", "keep");
     for command in ["--serve", "--build", "--preview"] {
         let output = Cli::spawn(&[command, project_arg(&project.0)], true).finish();
@@ -304,7 +304,7 @@ fn build_reports_source_and_dependency_failures_as_nonzero_exit() {
         );
         assert!(output.stderr.contains(expected), "{}", output.stderr);
         assert!(
-            !output.stdout.contains("devermind built"),
+            !output.stdout.contains("devtools built"),
             "{}",
             output.stdout
         );
@@ -334,6 +334,6 @@ fn unsafe_output_override_fails_before_deleting_project_sources() {
             std::fs::read(project.0.join("client/src/main.ts")).unwrap(),
             original
         );
-        assert!(project.0.join(".devermind/config.toml").is_file());
+        assert!(project.0.join(".devtools/config.toml").is_file());
     }
 }

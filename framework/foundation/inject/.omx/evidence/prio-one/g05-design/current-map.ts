@@ -1,3 +1,0 @@
-import ts from 'typescript';
-const path='src/core/cminject.container.ts'; const text=await Bun.file(path).text();const source=ts.createSourceFile(path,text,ts.ScriptTarget.Latest,true);
-for(const n of source.statements){const range=source.getLineAndCharacterOfPosition(n.getStart(source)).line+1;const end=source.getLineAndCharacterOfPosition(n.end).line+1;console.log(`${range}-${end} ${ts.SyntaxKind[n.kind]} ${'name'in n?n.name?.getText(source):''}`);if(ts.isClassDeclaration(n)&&n.name?.text==='Container')for(const m of n.members){const a=source.getLineAndCharacterOfPosition(m.getStart(source)).line+1;const b=source.getLineAndCharacterOfPosition(m.end).line+1;console.log(`  ${a}-${b} ${m.name?.getText(source)??'constructor'}`)}}

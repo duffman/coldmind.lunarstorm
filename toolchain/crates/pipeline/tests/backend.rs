@@ -12,7 +12,7 @@ use tempfile::TempDir;
 /// # Returns
 /// The starter project's directory.
 fn starter() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../framework/templates/starters/desktop").canonicalize().expect("starter")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../templates/starters/desktop").canonicalize().expect("starter")
 }
 
 /// Writes a project to a temporary directory.
@@ -173,4 +173,39 @@ fn the_cli_builds_a_project_given_by_a_relative_path() {
         .expect("lunarstorm-build runs");
     assert!(output.status.success(), "lunarstorm-build failed:\n{}", String::from_utf8_lossy(&output.stderr));
     assert!(out.path().join("backend.js").is_file());
+}
+
+/// Builds in several threads of one process each bundle their own project: the
+/// backend generator's work directory is not shared between them.
+#[test]
+fn concurrent_builds_each_bundle_their_own_project() {
+    /// Builds started at the same instant, per round.
+    const THREADS: usize = 16;
+    /// Rounds, so one lucky schedule does not pass.
+    const ROUNDS: usize = 12;
+    for round in 0..ROUNDS {
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(THREADS));
+        let builds: Vec<_> = (0..THREADS)
+            .map(|index| {
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    let marker = format!("marker-{round}-{index}");
+                    let class = format!("import {{ Form }} from '@desktop/forms';\nexport class Main extends Form {{ mark() {{ return '{marker}'; }} }}\n");
+                    let directory = project(&[
+                        ("src/app.tsx", "export default (<application id=\"a\" mainForm=\"Main\" />);\n"),
+                        ("src/forms/main.view.tsx", "export default (<form name=\"Main\" />);\n"),
+                        ("src/forms/main.ts", &class),
+                    ]);
+                    let model = extract(directory.path()).project.expect("the project extracts");
+                    barrier.wait();
+                    (marker, backend::generate(&model, directory.path()))
+                })
+            })
+            .collect();
+        for build in builds {
+            let (marker, bundle) = build.join().expect("build thread");
+            let bundle = bundle.unwrap_or_else(|diagnostics| panic!("{marker} did not bundle: {diagnostics}"));
+            assert!(bundle.contains(&marker), "the bundle of {marker} holds another project's code");
+        }
+    }
 }

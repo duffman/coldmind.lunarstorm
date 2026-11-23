@@ -1,4 +1,4 @@
-import { startShell } from "@coldmind/devermind-shell";
+import { startShell } from "@coldmind/devtools-shell";
 
 startShell({
   root: document.getElementById("root")!,

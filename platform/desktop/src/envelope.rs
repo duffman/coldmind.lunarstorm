@@ -161,7 +161,10 @@ pub enum Inbound {
         /// Changed property values.
         props: Map<String, Value>,
         /// The envelope to forward to the backend.
-        envelope: Envelope,
+        ///
+        /// Decision: boxed (clippy `large_enum_variant`), so `Inbound::Hello` does not
+        /// carry the envelope's size; it is moved once, to the backend.
+        envelope: Box<Envelope>,
     },
 }
 
@@ -216,7 +219,7 @@ pub fn validate_inbound(text: &str, form: &FormConfig, epoch: u64) -> Result<Inb
                 return Err(Reject::Property(format!("{control}.{bad}")));
             }
             let (control, event) = (control.to_owned(), event.to_owned());
-            Ok(Inbound::Event { control, event, props, envelope })
+            Ok(Inbound::Event { control, event, props, envelope: Box::new(envelope) })
         }
         other => Err(Reject::Kind(other)),
     }

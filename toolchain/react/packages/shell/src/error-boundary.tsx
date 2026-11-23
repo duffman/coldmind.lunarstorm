@@ -1,4 +1,4 @@
-/** @module @coldmind/devermind-shell/boundary — the error boundary around the app. */
+/** @module @coldmind/devtools-shell/boundary — the error boundary around the app. */
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
 

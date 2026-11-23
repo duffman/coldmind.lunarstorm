@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
 
-import { ShellTransport, defaultSocketUrl } from "@coldmind/devermind-shell/src/transport.ts";
+import { ShellTransport, defaultSocketUrl } from "@coldmind/devtools-shell/src/transport.ts";
 import { FakeSocket, fakeWebSocket, tick } from "./fake-socket.ts";
 
 let transport: ShellTransport;
@@ -14,7 +14,7 @@ afterEach(() => transport?.close());
 
 function make(fetch: () => Promise<unknown> = () => Promise.resolve()) {
   transport = new ShellTransport({
-    url: "ws://localhost:5173/__devermind_hmr",
+    url: "ws://localhost:5173/__devtools_hmr",
     WebSocket: fakeWebSocket,
     fetch,
     reload: () => reloads.push(1),
@@ -25,8 +25,8 @@ function make(fetch: () => Promise<unknown> = () => Promise.resolve()) {
 }
 
 test("default URL follows the page protocol and host", () => {
-  expect(defaultSocketUrl({ protocol: "http:", host: "a:1" })).toBe("ws://a:1/__devermind_hmr");
-  expect(defaultSocketUrl({ protocol: "https:", host: "b" })).toBe("wss://b/__devermind_hmr");
+  expect(defaultSocketUrl({ protocol: "http:", host: "a:1" })).toBe("ws://a:1/__devtools_hmr");
+  expect(defaultSocketUrl({ protocol: "https:", host: "b" })).toBe("wss://b/__devtools_hmr");
 });
 
 test("queues sends until open, then flushes in order", () => {

@@ -46,7 +46,7 @@ fn inline_map(code: &str) -> String {
 #[test]
 fn file_transpilation_emits_only_javascript_without_loading_project_configuration() {
     let fixture = Fixture::new();
-    fixture.write(".devermind/config.toml", "not valid TOML = [");
+    fixture.write(".devtools/config.toml", "not valid TOML = [");
     fixture.write(
         "vite.config.js",
         "throw Error('configuration must not execute');",
@@ -68,7 +68,7 @@ fn file_transpilation_emits_only_javascript_without_loading_project_configuratio
         "sourceMappingURL",
         "$RefreshReg$",
         "import.meta.hot",
-        "devermind built",
+        "devtools built",
         "ready at",
     ] {
         assert!(

@@ -22,7 +22,7 @@
 //! - Events are not emitted into the page. A component reports every event of
 //!   its kind through the bridge; the host checks them against the bridge table
 //!   (spec 4d) and the backend runs the handlers.
-//! - `vcl.js` is the build product of `framework/zebra.framework` (`bun run
+//! - `vcl.js` is the build product of `templates/zebra.framework` (`bun run
 //!   build`), embedded here so a project build needs no JavaScript toolchain.
 
 use lunarstorm_model::{Element, Project, Value};
@@ -31,7 +31,7 @@ use serde_json::{Map, Value as Json};
 use crate::host::literal;
 
 /// The prebuilt WebView runtime: React, the React VCL and `mount`.
-const VCL: &str = include_str!("../../../../framework/zebra.framework/dist/vcl.js");
+const VCL: &str = include_str!("../../../../templates/zebra.framework/dist/vcl.js");
 
 /// The stylesheet of the React VCL.
 const STYLE: &str = include_str!("../../../../framework/vcl/react/src/vcl.css");

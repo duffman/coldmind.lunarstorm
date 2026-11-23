@@ -1,4 +1,4 @@
-//! Shared Devermind configuration and single-file compilation utilities.
+//! Shared Devtools configuration and single-file compilation utilities.
 //!
 //! Development serving and production bundling use the same native configuration
 //! contract; their host-specific pipelines live in the server and bundler crates.

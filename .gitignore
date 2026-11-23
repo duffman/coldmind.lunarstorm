@@ -1,38 +1,100 @@
-# Rust
+
+# Lunarstorm monorepo: the one ignore file for the whole repo.
+#
+# Decision: every repo-wide rule lives here; nested .gitignore files exist only where
+# they ship with their payload (templates/*, scaffolded into new projects) or hold rules
+# specific to one tree (the quickjs-ng C source in runtime/engines/rquickjs/sys/quickjs,
+# toolchain/jetpack, toolchain/react/packages/bun). Unanchored patterns
+# (`target/`, `node_modules/`) match at any depth.
+#
+# Not ignored on purpose:
+#   Cargo.lock, pnpm-lock.yaml   lockfiles are committed (apps and binaries in the repo)
+#   platform/examples/           generated platform projects, committed as source
+#   .cargo/config.toml, .npmrc   shared build config
+
+# ── Rust / Cargo ────────────────────────────────────────────────────────────────
+# Builds normally go to the shared ~/.cargo-target; this catches local target dirs.
 target/
 **/*.rs.bk
 *.pdb
+# C debugging state of the QuickJS engine source (ccls index, gdb history).
+.ccls-cache/
+.gdb_history
+# Coverage and profiling output (cargo-llvm-cov, perf, cargo-flamegraph).
+*.profraw
+*.profdata
+perf.data*
+flamegraph*.svg
+# cargo-mutants output.
+mutants.out/
+mutants.out.old/
 
-# Node / TypeScript
+# ── Repo build output ───────────────────────────────────────────────────────────
+# Release binaries copied out of the Cargo target (lunarstorm, lunarstorm-desktop).
+/_build/
+
+# ── Node / TypeScript / Bun ─────────────────────────────────────────────────────
 node_modules/
 dist/
+dist-ssr/
 build/
 out/
 *.tsbuildinfo
 .turbo/
 .cache/
+.vite/
+.eslintcache
 coverage/
+.nyc_output/
+lcov.info
+test-results/
+playwright-report/
+# Node-API addons are build products of the napi crates.
+*.node
+# `pnpm pack` / `npm pack` tarballs.
+*.tgz
+# Toolchain compiler cache.
+.oj-cache/
+
+# Decision: pnpm is the only package manager, so lockfiles of the others are never
+# committed. Already-tracked ones (vendored code) stay tracked; ignore rules do not
+# untrack files.
+package-lock.json
+yarn.lock
+bun.lock
+bun.lockb
 
 # Package manager logs and caches
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 .pnpm-store/
 .yarn/cache/
 .yarn/install-state.gz
 
-# Environment and secrets
+# Resolver test fixtures ship their own node_modules and dist trees.
+!toolchain/vendor/oj_resolver/fixtures/**/node_modules/
+!toolchain/vendor/oj_resolver/fixtures/**/dist/
+# Test input sources (entry.ts, leaf.ts), not build output; the generic `build/` rule
+# above had kept them out of git, so a fresh clone lacked them.
+!toolchain/react/packages/bun/tests/fixtures/build/
+
+# ── Environment and secrets ─────────────────────────────────────────────────────
 .env
 .env.*
 !.env.example
+*.local
 
-# Logs and temp files
+# ── Logs and temp files ─────────────────────────────────────────────────────────
 *.log
 *.tmp
 tmp/
+.tmp-*/
+.scratch/
 
-# Editors and OS
+# ── Editors and OS ──────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 .idea/
@@ -40,8 +102,12 @@ Thumbs.db
 !.vscode/settings.json
 !.vscode/extensions.json
 *.swp
+*.sw?
 
-# Agent and tool state
+# ── Agent and tool state ────────────────────────────────────────────────────────
 .claude/settings.local.json
 .omc/
+.omx/
 .remember/
+.playwright-mcp/
+.archive/

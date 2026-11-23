@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import { devermind } from "@coldmind/devermind";
+import { devtools } from "@coldmind/devtools";
 
-const plugin = devermind({
+const plugin = devtools({
   define: { __MODE__: JSON.stringify("example") },
   inject: true,
 });

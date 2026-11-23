@@ -163,7 +163,7 @@ pub fn on_invalidate(state: &State, data: &Value) {
 
 /// An error overlay frame for every connected page, or the next one to connect.
 pub fn send_error(state: &State, message: &str) {
-    send(state, json!({ "type": "error", "err": { "message": message, "stack": "", "plugin": "devermind" } }).to_string());
+    send(state, json!({ "type": "error", "err": { "message": message, "stack": "", "plugin": "devtools" } }).to_string());
 }
 
 /// Broadcasts `frame`, or holds it for the next client when none is connected.

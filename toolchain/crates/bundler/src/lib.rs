@@ -76,7 +76,7 @@ pub struct BuildReport {
 /// is cleared before compilation: a later compilation error can leave partial output and is not
 /// a transaction. Missing browser dependencies fail rather than becoming unresolved imports.
 pub async fn build(options: &BuildOptions) -> anyhow::Result<BuildReport> {
-    let config = devermind_core::config::load(
+    let config = devtools_core::config::load(
         &options.root,
         "build",
         if options.production {
@@ -91,7 +91,7 @@ pub async fn build(options: &BuildOptions) -> anyhow::Result<BuildReport> {
 /// Build using an explicitly supplied native configuration; never discovers JS config.
 pub async fn build_with_config(
     options: &BuildOptions,
-    config: Option<devermind_core::config::ProjectConfig>,
+    config: Option<devtools_core::config::ProjectConfig>,
 ) -> anyhow::Result<BuildReport> {
     let app_root = config
         .as_ref()
@@ -361,7 +361,7 @@ struct AppFiles {
 
 impl Plugin for AppFiles {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("devermind:app-files")
+        Cow::Borrowed("devtools:app-files")
     }
 
     async fn load(&self, _ctx: SharedLoadPluginContext, args: &HookLoadArgs<'_>) -> HookLoadReturn {
@@ -631,7 +631,7 @@ mod tests {
 
     #[test]
     fn rebases_only_local_urls() {
-        let dir = std::env::temp_dir().join(format!("devermind-rebase-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("devtools-rebase-{}", std::process::id()));
         let assets = dir.join("out");
         std::fs::create_dir_all(dir.join("src")).unwrap();
         std::fs::create_dir_all(&assets).unwrap();

@@ -15,8 +15,8 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
-devermind_server = { path = "../server" }
-devermind_bundler = { path = "../bundler" }
+devtools_server = { path = "../server" }
+devtools_bundler = { path = "../bundler" }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync", "signal"] }
 
 [dev-dependencies]

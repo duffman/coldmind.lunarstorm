@@ -1,16 +1,16 @@
 //! Generic project development and bundling through the existing toolchain.
 //!
 //! A [`BuildServer`] owns one project root. Development uses the compiler, module
-//! resolver, watcher and HMR in `devermind_server`; bundles use `devermind_bundler`.
+//! resolver, watcher and HMR in `devtools_server`; bundles use `devtools_bundler`.
 //! Builds on the same instance are serialized because the bundler replaces output.
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use devermind_bundler::BuildOptions;
-pub use devermind_bundler::BuildReport;
-use devermind_server::{Config, DevServer};
+use devtools_bundler::BuildOptions;
+pub use devtools_bundler::BuildReport;
+use devtools_server::{Config, DevServer};
 use tokio::sync::Mutex;
 
 /// Development listener settings. Omitted port preserves project configuration.
@@ -103,6 +103,6 @@ impl BuildServer {
         let mut build = BuildOptions::new(&self.root);
         build.out = options.out;
         build.minify = options.minify;
-        devermind_bundler::build(&build).await
+        devtools_bundler::build(&build).await
     }
 }

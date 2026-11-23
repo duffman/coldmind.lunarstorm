@@ -2,13 +2,13 @@
 
 /// React Refresh preamble: installs the global hook before React loads.
 pub const PREAMBLE_SCRIPT: &str =
-    "<script type=\"module\" src=\"/@devermind/refresh-preamble.js\"></script>";
+    "<script type=\"module\" src=\"/@devtools/refresh-preamble.js\"></script>";
 
 /// The built-in HMR client, which opens the socket.
-pub const CLIENT_SCRIPT: &str = "<script type=\"module\" src=\"/@devermind/client.js\"></script>";
+pub const CLIENT_SCRIPT: &str = "<script type=\"module\" src=\"/@devtools/client.js\"></script>";
 
 /// Inserts the head scripts right after `<head ...>`, else after `<html ...>`, else at the top.
-/// With `shell`, the app's `@coldmind/devermind-shell` owns the socket, so only the preamble goes in.
+/// With `shell`, the app's `@coldmind/devtools-shell` owns the socket, so only the preamble goes in.
 pub fn transform(html: &str, shell: bool) -> String {
     let lower = html.to_ascii_lowercase();
     let at = open_tag_end(&lower, "<head")

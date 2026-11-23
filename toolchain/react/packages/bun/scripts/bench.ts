@@ -1,7 +1,7 @@
 /**
- * Benchmark: Bun.build time with and without devermind, plus dev-server edit-to-served latency.
+ * Benchmark: Bun.build time with and without devtools, plus dev-server edit-to-served latency.
  *
- *   bun packages/tools/devermind/packages/bun/scripts/bench.ts [--modules 2000] [--runs 5] [--skip-serve]
+ *   bun packages/tools/devtools/packages/bun/scripts/bench.ts [--modules 2000] [--runs 5] [--skip-serve]
  *
  * The fixture is generated once per module count into `bench/fixture-<modules>/` and reused.
  * Results print as a table and are written to `bench/results-<modules>.json`.
@@ -10,7 +10,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { BunPlugin } from "bun";
-import { devermind } from "@coldmind/devermind";
+import { devtools } from "@coldmind/devtools";
 
 const { values } = parseArgs({
   options: {
@@ -40,8 +40,8 @@ function ensureFixture(): void {
     "",
   ].join("\n"));
   writeFileSync(join(fixture, "bench.plugin.ts"), [
-    `import { devermind } from ${JSON.stringify(resolve(import.meta.dir, "../src/bun-plugin.ts"))};`,
-    `export default devermind({ define: ${JSON.stringify(define)}, inject: true });`,
+    `import { devtools } from ${JSON.stringify(resolve(import.meta.dir, "../src/bun-plugin.ts"))};`,
+    `export default devtools({ define: ${JSON.stringify(define)}, inject: true });`,
     "",
   ].join("\n"));
   writeFileSync(join(fixture, "bunfig.toml"), '[serve.static]\nplugins = ["./bench.plugin.ts"]\n');
@@ -90,8 +90,8 @@ interface Variant {
 
 const variants: Variant[] = [
   { name: "bun (define option, no plugin)", plugins: () => [], define },
-  { name: "devermind define", plugins: () => [devermind({ define })] },
-  { name: "devermind define + inject", plugins: () => [devermind({ define, inject: true })] },
+  { name: "devtools define", plugins: () => [devtools({ define })] },
+  { name: "devtools define + inject", plugins: () => [devtools({ define, inject: true })] },
   { name: "js onLoad replace", plugins: () => [jsReplace] },
 ];
 
@@ -178,7 +178,7 @@ console.log(`Bun ${Bun.version}, ${process.platform}-${process.arch}, ${modules}
 const builds = await benchBuilds();
 console.table(builds);
 const serve = values["skip-serve"] ? undefined : await benchServe();
-if (serve) console.log("dev server (devermind define + inject):", serve);
+if (serve) console.log("dev server (devtools define + inject):", serve);
 const report = { bun: Bun.version, platform: `${process.platform}-${process.arch}`, modules, runs, builds, serve };
 writeFileSync(join(benchRoot, `results-${modules}.json`), `${JSON.stringify(report, null, 2)}\n`);
 console.log(`results: ${join(benchRoot, `results-${modules}.json`)}`);

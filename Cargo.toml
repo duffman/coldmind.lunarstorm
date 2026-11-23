@@ -12,28 +12,42 @@
 #                     over the VM and the host
 #     vm              the VM interface, callbacks, capabilities and conformance suite
 #     engines/quickjs   VM adapter wrapping QuickJS
-#     engines/rquickjs  the vendored engine binding (excluded, see below)
+#     engines/rquickjs  the engine binding (rquickjs + quickjs-ng C source), adopted
+#                       from upstream 0.14.0 and owned here: core, macro, sys, examples
 #   platform/    the Lunarstorm platform, spec section 6 (the product):
 #     desktop         native desktop process: lib + `lunarstorm-debug`, `lunarstorm-release`
 #     pack            `lunarstorm-pack`: archive, attach, package and sign per OS
 #     web             `lunarstorm-web`: the app in a browser tab, backend in a Worker
 #     examples/app    a complete generated project (not a crate)
-#   toolchain/   the build toolchain (devermind crates and the vendored oj_* compiler)
+#   toolchain/   the build toolchain (devtools crates and the vendored oj_* compiler)
 #
 # Decision: one workspace at the repo root instead of the former `runtime/` and
 # `toolchain/` workspaces, so one lock file and one `cargo build` cover everything.
 # The JS/TS side is the pnpm workspace in `pnpm-workspace.yaml`.
 #
-# Excluded (each builds on its own, with its own lock file):
-#   runtime/engines/rquickjs   vendored engine binding; its own workspace. It is a path
-#                      dependency of engines/quickjs and would otherwise be auto-joined.
-#   toolchain/jetpack  standalone npm package-manager crate
+# Decision: rquickjs and jetpack are first-party members, not vendored or standalone.
+# Each had its own workspace or lock file; their crates now build, test and lint with
+# the rest, and rquickjs's former `[workspace.dependencies]` live below.
+#
+# Excluded:
+#   runtime/engines/rquickjs/wasm-test   builds only for wasm32-unknown-unknown and is
+#                      driven by its runner.ts; its own workspace by design
 #   _trash, .archive   parked code, never built
 [workspace]
 resolver = "2"
 members = [
     "runtime/vm",
     "runtime/engines/quickjs",
+    "runtime/engines/rquickjs",
+    "runtime/engines/rquickjs/core",
+    "runtime/engines/rquickjs/macro",
+    "runtime/engines/rquickjs/sys",
+    "runtime/engines/rquickjs/examples/native-module",
+    "runtime/engines/rquickjs/examples/module-loader",
+    "runtime/engines/rquickjs/examples/import-attributes",
+    "runtime/engines/rquickjs/examples/rquickjs-cli",
+    "runtime/engines/rquickjs/examples/class-methods",
+    "runtime/engines/rquickjs/examples/exotic",
     "runtime/core",
     "runtime/hosts/cli",
     "runtime/hosts/desktop",
@@ -51,12 +65,13 @@ members = [
     "toolchain/crates/bundler",
     "toolchain/crates/cli",
     "toolchain/crates/tauri",
+    "toolchain/jetpack",
     "toolchain/vendor/oj_compiler",
     "toolchain/vendor/oj_env",
     "toolchain/vendor/oj_graph",
     "toolchain/vendor/oj_resolver",
 ]
-exclude = ["runtime/engines/rquickjs", "toolchain/jetpack", "_trash", ".archive"]
+exclude = ["runtime/engines/rquickjs/wasm-test", "_trash", ".archive"]
 
 # Inherited by the toolchain crates (`version.workspace = true` etc.); the runtime
 # crates set their own package fields.
@@ -73,9 +88,14 @@ oj_compiler = { path = "toolchain/vendor/oj_compiler" }
 oj_env = { path = "toolchain/vendor/oj_env" }
 oj_graph = { path = "toolchain/vendor/oj_graph" }
 oj_resolver = { path = "toolchain/vendor/oj_resolver" }
-devermind_core = { path = "toolchain/crates/core" }
-devermind_server = { path = "toolchain/crates/server" }
-devermind_bundler = { path = "toolchain/crates/bundler" }
+# The engine binding's crates, inherited by rquickjs, rquickjs-core and rquickjs-macro
+# (moved from the former rquickjs workspace; features stay opt-in per dependent).
+rquickjs-core = { version = "0.14.0", path = "runtime/engines/rquickjs/core", default-features = false }
+rquickjs-macro = { version = "0.14.0", path = "runtime/engines/rquickjs/macro", default-features = false }
+rquickjs-sys = { version = "0.14.0", path = "runtime/engines/rquickjs/sys", default-features = false }
+devtools_core = { path = "toolchain/crates/core" }
+devtools_server = { path = "toolchain/crates/server" }
+devtools_bundler = { path = "toolchain/crates/bundler" }
 
 oxc_allocator = "=0.157.0"
 oxc_parser = "=0.157.0"
@@ -119,10 +139,10 @@ oj_compiler = { opt-level = 3 }
 oj_graph = { opt-level = 3 }
 oj_resolver = { opt-level = 3 }
 
-[profile.release.package.devermind-native]
+[profile.release.package.devtools-native]
 codegen-units = 1
 
-# Release build for Node-API addons (`devermind-native`, built with
+# Release build for Node-API addons (`devtools-native`, built with
 # `--profile release-node`). Decision: `panic` cannot be overridden per package, and
 # under the runtime's `panic = "abort"` a panic inside the addon would kill the
 # host Node/Bun process instead of surfacing as a JS exception (napi-rs relies on

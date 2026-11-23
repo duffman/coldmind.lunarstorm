@@ -1,4 +1,4 @@
-//! `devermind_transform`: the one `onBeforeParse` hook.
+//! `devtools_transform`: the one `onBeforeParse` hook.
 //!
 //! Bun runs a single `onBeforeParse` hook per file (the first registered that matches), so every
 //! stage lives behind this one symbol. Order per file:
@@ -256,7 +256,7 @@ impl TransformState {
     }
 }
 
-/// Creates the state for the `devermind_transform` hook.
+/// Creates the state for the `devtools_transform` hook.
 #[cfg(feature = "bun")]
 #[napi]
 pub fn create_state(options: TransformOptions) -> napi::Result<Owned<TransformState>> {
@@ -282,11 +282,11 @@ pub fn take_warnings(state: Shared<TransformState>) -> Vec<String> {
 
 #[cfg(feature = "bun")]
 #[bun]
-pub fn devermind_transform(handle: &mut OnBeforeParse) -> Result<()> {
+pub fn devtools_transform(handle: &mut OnBeforeParse) -> Result<()> {
     // SAFETY: `from_raw` only accepts pointers carrying `TransformState`'s tag.
     let state: &TransformState = unsafe { handle.external(from_raw::<TransformState>)? }
         .ok_or_else(|| {
-            anyhow::anyhow!("devermind_transform needs the `external` from createState()")
+            anyhow::anyhow!("devtools_transform needs the `external` from createState()")
         })?;
     // SAFETY: `default_loader` is a `BunLoader` value written by Bun.
     let loader: BunLoader =
@@ -372,7 +372,7 @@ mod tests {
         let warnings = state.warnings.lock().unwrap();
         assert_eq!(warnings.len(), 1);
         assert!(
-            warnings[0].starts_with("/src/a.ts: devermind inject: A not wired"),
+            warnings[0].starts_with("/src/a.ts: devtools inject: A not wired"),
             "{}",
             warnings[0]
         );

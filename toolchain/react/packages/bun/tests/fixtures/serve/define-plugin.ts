@@ -1,3 +1,3 @@
-import { devermind } from "@coldmind/devermind";
+import { devtools } from "@coldmind/devtools";
 
-export default devermind({ define: { __MODE__: JSON.stringify("served") } });
+export default devtools({ define: { __MODE__: JSON.stringify("served") } });

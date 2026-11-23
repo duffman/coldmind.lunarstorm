@@ -1,5 +1,5 @@
 {
-  "name": "@coldmind/devermind",
+  "name": "@coldmind/devtools",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,11 +8,11 @@
     ".": "./src/bun-plugin.ts",
     "./tauri": "./src/tauri-client.ts",
     "./*": "./*",
-    "./src/devermind.plugin.ts": "./src/bun-plugin.ts",
-    "./src/devermind.tauri.ts": "./src/tauri-client.ts",
+    "./src/devtools.plugin.ts": "./src/bun-plugin.ts",
+    "./src/devtools.tauri.ts": "./src/tauri-client.ts",
     "./scripts/build.native.ts": "./scripts/build-native.ts",
-    "./tests/devermind.plugin.test.ts": "./tests/bun-plugin.test.ts",
-    "./tests/devermind.tauri.test.ts": "./tests/tauri-client.test.ts",
+    "./tests/devtools.plugin.test.ts": "./tests/bun-plugin.test.ts",
+    "./tests/devtools.tauri.test.ts": "./tests/tauri-client.test.ts",
     "./tests/fixtures/serve/define.plugin.ts": "./tests/fixtures/serve/define-plugin.ts"
   },
   "scripts": {

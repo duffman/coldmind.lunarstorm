@@ -188,7 +188,7 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)?
             .as_nanos();
         let directory =
-            std::env::temp_dir().join(format!("devermind-shell-{}-{nonce}", std::process::id()));
+            std::env::temp_dir().join(format!("devtools-shell-{}-{nonce}", std::process::id()));
         let generated = directory.join("build/generated");
         let config =
             json!({"shell": {"debug": "./shells/debug.tsx", "production": "@example/prod"}});

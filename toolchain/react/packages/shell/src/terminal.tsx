@@ -1,4 +1,4 @@
-/** @module @coldmind/devermind-shell/terminal — connection launcher and a full-width terminal docked at the bottom, rendered in the overlay's shadow root. */
+/** @module @coldmind/devtools-shell/terminal — connection launcher and a full-width terminal docked at the bottom, rendered in the overlay's shadow root. */
 
 import {
   useCallback,
@@ -49,9 +49,9 @@ const CLOSE_MS = 200;
 const OPEN_EASE = "cubic-bezier(.2,.8,.2,1)";
 const CLOSE_EASE = "cubic-bezier(.4,0,1,1)";
 const MAX_LINES = 500;
-const HEIGHT_KEY = "devermind.shell.terminal.height";
+const HEIGHT_KEY = "devtools.shell.terminal.height";
 /** CSS variable on `<html>` holding the open terminal's height, for layouts sized to the viewport. */
-const HEIGHT_VAR = "--devermind-terminal-height";
+const HEIGHT_VAR = "--devtools-terminal-height";
 const GREEN: Rgb = [31, 157, 85];
 const RED: Rgb = [229, 72, 77];
 
@@ -62,7 +62,7 @@ const makeLine = (kind: LineKind, text: string): Line => ({ id: nextLine++, time
  * Round launcher in the bottom-right corner with a pulsing ripple: green while the dev server
  * socket is open, red otherwise. It toggles a full-width terminal docked at the bottom that slides
  * up and pushes the page: `body` gets bottom padding equal to the terminal height, and `<html>`
- * gets `--devermind-terminal-height` for layouts sized to the viewport. The launcher rides on the
+ * gets `--devtools-terminal-height` for layouts sized to the viewport. The launcher rides on the
  * terminal's top edge. Drag the top edge to resize (ArrowUp/ArrowDown when it has focus).
  *
  * The terminal prints socket status changes, HMR frames and shell errors, and the prompt sends
@@ -299,7 +299,7 @@ export function ShellTerminal({ transport, errors, channel: channelName = "termi
           ref={panelRef}
           id={panelId}
           role="dialog"
-          aria-label="devermind terminal"
+          aria-label="devtools terminal"
           style={{ ...styles.panel, height, userSelect: resizing ? "none" : undefined }}
         >
           <div
@@ -323,7 +323,7 @@ export function ShellTerminal({ transport, errors, channel: channelName = "termi
           </div>
           <div style={styles.bar}>
             <span style={{ ...styles.dot, background: color, boxShadow: `0 0 0 3px rgba(${rgb},.22)` }} />
-            <span style={styles.brand}>devermind</span>
+            <span style={styles.brand}>devtools</span>
             <span style={styles.state}>{resizing ? `${height}px` : status}</span>
             <button type="button" style={styles.button} onClick={() => setLines([])}>
               Clear

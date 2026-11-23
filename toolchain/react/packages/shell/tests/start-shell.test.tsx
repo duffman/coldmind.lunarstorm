@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, expect, test, vi, type MockInstance } from "vitest";
 import { act, useState } from "react";
 
-import { createHotContext, resetHotRuntime } from "@coldmind/devermind-shell/hot";
-import { startShell, useShellChannel, useShellStatus, type AppModule, type ShellHandle } from "@coldmind/devermind-shell";
+import { createHotContext, resetHotRuntime } from "@coldmind/devtools-shell/hot";
+import { startShell, useShellChannel, useShellStatus, type AppModule, type ShellHandle } from "@coldmind/devtools-shell";
 import { FakeSocket, fakeWebSocket, tick } from "./fake-socket.ts";
 
 let shell: ShellHandle | null = null;
@@ -31,7 +31,7 @@ async function start(load: () => Promise<AppModule>, modules: Record<string, unk
       root,
       load,
       transport: {
-        url: "ws://localhost:5173/__devermind_hmr",
+        url: "ws://localhost:5173/__devtools_hmr",
         WebSocket: fakeWebSocket,
         fetch: () => new Promise(() => {}),
         reload: () => reloads++,
@@ -45,7 +45,7 @@ async function start(load: () => Promise<AppModule>, modules: Record<string, unk
   return { root, socket };
 }
 
-const overlayText = () => document.querySelector("[data-devermind-shell]")?.shadowRoot?.textContent ?? "";
+const overlayText = () => document.querySelector("[data-devtools-shell]")?.shadowRoot?.textContent ?? "";
 const frame = async (socket: FakeSocket, value: unknown) => {
   await act(async () => {
     socket.frame(value);
@@ -131,7 +131,7 @@ test("uncaught errors are listed without replacing the app", async () => {
   });
   expect(root.textContent).toBe("app");
   expect(overlayText()).toBe("1 error");
-  await act(async () => (document.querySelector("[data-devermind-shell]")!.shadowRoot!.querySelector("button") as HTMLButtonElement).click());
+  await act(async () => (document.querySelector("[data-devtools-shell]")!.shadowRoot!.querySelector("button") as HTMLButtonElement).click());
   expect(overlayText()).toContain("late failure");
 });
 
@@ -146,14 +146,14 @@ test("stop unmounts the app and the overlay and closes the socket", async () => 
   await act(async () => shell!.stop());
   shell = null;
   expect(root.textContent).toBe("");
-  expect(document.querySelector("[data-devermind-shell]")).toBeNull();
+  expect(document.querySelector("[data-devtools-shell]")).toBeNull();
   expect(socket.closed).toBe(true);
 });
 
 
 test("legacy source exports share the canonical shell and hot runtime", async () => {
-  const legacyShell = await import("@coldmind/devermind-shell/src/shell.tsx");
-  const legacyHot = await import("@coldmind/devermind-shell/src/shell.hot.ts");
+  const legacyShell = await import("@coldmind/devtools-shell/src/shell.tsx");
+  const legacyHot = await import("@coldmind/devtools-shell/src/shell.hot.ts");
   expect(legacyShell.startShell).toBe(startShell);
   expect(legacyHot.createHotContext).toBe(createHotContext);
 });

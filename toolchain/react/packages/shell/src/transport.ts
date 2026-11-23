@@ -1,4 +1,4 @@
-/** @module @coldmind/devermind-shell/transport — the page's single WebSocket to the devermind server. */
+/** @module @coldmind/devtools-shell/transport — the page's single WebSocket to the devtools server. */
 
 import { APP_EVENT_PREFIX, HMR_PATH, parseFrame, type ServerFrame } from "./protocol.ts";
 
@@ -26,7 +26,7 @@ export interface ShellChannel<T = unknown> {
 
 /** Collaborators the transport needs from the browser; tests replace them. */
 export interface TransportOptions {
-  /** Socket URL; defaults to `ws(s)://<page host>/__devermind_hmr`. */
+  /** Socket URL; defaults to `ws(s)://<page host>/__devtools_hmr`. */
   url?: string;
   /** WebSocket constructor; defaults to the global one. */
   WebSocket?: new (url: string) => WebSocket;

@@ -13,13 +13,12 @@ packages:
   - framework/foundation/*
   - framework/reactive/*
   - framework/net/*
-  - framework/build-server
   - framework/desktop
-  - framework/zebra.framework
+  - templates/zebra.framework
   - framework/vcl/*
   - framework/vcl/contract/*
-  - framework/templates/lsapp
-  - framework/templates/starters/*
+  - templates/lsapp
+  - templates/starters/*
   - toolchain/react
   - toolchain/react/packages/*
 allowBuilds:

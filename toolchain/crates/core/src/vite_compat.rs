@@ -12,9 +12,9 @@ if (typeof config === 'function') config = await config({command, mode, isSsrBui
 config = await config;
 if (!config || typeof config !== 'object' || Array.isArray(config)) throw Error('Vite config must export an object or a function returning an object');
 const supported = new Set(['root','define','resolve','server','build']);
-for (const key of Object.keys(config)) if (!supported.has(key)) console.error(`[devermind] Vite option ${key} is not supported; ${key === 'plugins' ? 'Vite plugin hooks are not executed' : 'option ignored'}`);
+for (const key of Object.keys(config)) if (!supported.has(key)) console.error(`[devtools] Vite option ${key} is not supported; ${key === 'plugins' ? 'Vite plugin hooks are not executed' : 'option ignored'}`);
 for (const [key, keys] of Object.entries({resolve:['alias'],server:['port','host'],build:['outDir','minify']})) {
-  for (const field of Object.keys(config[key] ?? {})) if (!keys.includes(field)) console.error(`[devermind] Vite option ${key}.${field} is not supported; option ignored`);
+  for (const field of Object.keys(config[key] ?? {})) if (!keys.includes(field)) console.error(`[devtools] Vite option ${key}.${field} is not supported; option ignored`);
 }
 const alias = Array.isArray(config.resolve?.alias) ? config.resolve.alias : Object.entries(config.resolve?.alias ?? {}).map(([find,replacement])=>({find,replacement}));
 for (const entry of alias) if (typeof entry.find !== 'string' || typeof entry.replacement !== 'string') throw Error('Only string Vite resolve.alias entries are supported');
@@ -26,9 +26,9 @@ if (port !== undefined && (!Number.isInteger(port) || port < 0 || port > 65535))
 const host = config.server?.host;
 if (host !== undefined && typeof host !== 'string' && typeof host !== 'boolean') throw Error('server.host must be a string or boolean');
 const minify = config.build?.minify;
-if (typeof minify === 'string') console.error('[devermind] build.minify selects enable/disable only; requested JavaScript minifier backend is not used');
+if (typeof minify === 'string') console.error('[devtools] build.minify selects enable/disable only; requested JavaScript minifier backend is not used');
 if (minify !== undefined && ![true,false,'esbuild','terser','oxc'].includes(minify)) throw Error('Unsupported build.minify value');
-console.log('__DEVERMIND_CONFIG__' + JSON.stringify({root:config.root,define,alias:alias.map(a=>[a.find,a.replacement]),server_port:port,server_host:host === true ? '0.0.0.0' : host === false ? '127.0.0.1' : host,build_out_dir:config.build?.outDir,build_minify:minify === undefined ? undefined : minify !== false}));
+console.log('__DEVTOOLS_CONFIG__' + JSON.stringify({root:config.root,define,alias:alias.map(a=>[a.find,a.replacement]),server_port:port,server_host:host === true ? '0.0.0.0' : host === false ? '127.0.0.1' : host,build_out_dir:config.build?.outDir,build_minify:minify === undefined ? undefined : minify !== false}));
 "#;
 
 /// Evaluates only the selected fallback file, with Bun isolated from automatic env loading.
@@ -65,7 +65,7 @@ pub(crate) fn load(
     let json = stdout
         .lines()
         .rev()
-        .find_map(|s| s.strip_prefix("__DEVERMIND_CONFIG__"))
+        .find_map(|s| s.strip_prefix("__DEVTOOLS_CONFIG__"))
         .context("Vite config loader returned no configuration")?;
     let value: Value = serde_json::from_str(json)?;
     let path = |key: &str| value[key].as_str().map(PathBuf::from);

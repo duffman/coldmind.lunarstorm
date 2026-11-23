@@ -5,7 +5,7 @@ use std::sync::{
 };
 use std::time::Duration;
 
-use devermind_server::{Config, DevServer, HMR_PATH};
+use devtools_server::{Config, DevServer, HMR_PATH};
 use futures_util::StreamExt;
 use serde_json::Value;
 
