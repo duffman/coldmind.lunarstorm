@@ -1,0 +1,1037 @@
+{
+  "cases": [
+    {
+      "file": "tests/react/adapter.test.ts",
+      "title": "useService retains failures and retries only after reset (StrictMode: %s, sync: %s)",
+      "text": "test.each([[false, false], [true, false], [false, true], [true, true]])('useService retains failures and retries only after reset (StrictMode: %s, sync: %s)', async (strict, sync) => {\n  const container = new Container();\n  const Data = createToken<string>('failing-data');\n  let built = 0;\n  let failure: unknown;\n  const result = () => { if (built === 1) throw new Error('service failed'); return 'recovered'; };\n  container.singleton(Data, sync ? () => { built++; return result(); } : async () => { built++; await settle(5); return result(); });\n  const View = () => createElement('p', null, useService(Data));\n  const tree = (key: number) => createElement(strict ? StrictMode : Suspense, null,\n    createElement(ContainerProvider, { container }, createElement(ServiceBoundary, { key, onError: error => { failure = error; } },\n      createElement(Suspense, { fallback: 'loading' }, createElement(View)))));\n  await mount(tree(0));\n  await act(async () => { await settle(30); });\n  expect(host!.textContent).toBe('failed');\n  expect(failure).toBeInstanceOf(Error);\n  expect(built).toBe(1);\n  await act(async () => root!.render(tree(1)));\n  expect(host!.textContent).toBe('failed');\n  expect(built).toBe(1);\n  resetService(container, Data);\n  await act(async () => root!.render(tree(2)));\n  await act(async () => { await settle(30); });\n  expect(host!.textContent).toBe('recovered');\n  expect(built).toBe(2);\n  await container.dispose();\n})",
+      "count": 4,
+      "failed": false
+    },
+    {
+      "file": "tests/react/adapter.test.ts",
+      "title": "useService retains a falsy rejection (%s)",
+      "text": "test.each([undefined, null, 0, ''])('useService retains a falsy rejection (%s)', async reason => {\n  const container = new Container();\n  const Data = createToken<string>('falsy-failure');\n  let built = 0;\n  const failures: unknown[] = [];\n  container.singleton(Data, async () => { built++; await settle(5); throw reason; });\n  const View = () => createElement('p', null, useService(Data));\n  await mount(createElement(ContainerProvider, { container },\n    createElement(ServiceBoundary, { onError: error => { failures.push(error); } },\n      createElement(Suspense, { fallback: 'loading' }, createElement(View)))));\n  await act(async () => { await settle(30); });\n  expect(host!.textContent).toBe('failed');\n  expect(failures).toEqual([reason]);\n  expect(built).toBe(1);\n  await container.dispose();\n})",
+      "count": 4,
+      "failed": false
+    },
+    {
+      "file": "tests/react/adapter.test.ts",
+      "title": "resetService preserves a pending shared build",
+      "text": "test('resetService preserves a pending shared build', async () => {\n  const container = new Container();\n  const Data = createToken<string>('pending-reset');\n  let built = 0;\n  let finish!: (value: string) => void;\n  container.singleton(Data, () => { built++; return new Promise<string>(resolve => { finish = resolve; }); });\n  const View = () => createElement('p', null, useService(Data));\n  const tree = (key: number) => createElement(ContainerProvider, { container },\n    createElement(Suspense, { fallback: 'loading' }, createElement(View, { key })));\n  await mount(tree(0));\n  resetService(container, Data);\n  await act(async () => root!.render(tree(1)));\n  expect(built).toBe(1);\n  await act(async () => { finish('loaded'); await settle(); });\n  expect(host!.textContent).toBe('loaded');\n  expect(built).toBe(1);\n  await container.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/react/adapter.test.ts",
+      "title": "a failed service does not poison another scope or token",
+      "text": "test('a failed service does not poison another scope or token', async () => {\n  const first = new Container();\n  const second = new Container();\n  const Data = createToken<string>('isolated-failure');\n  const Other = createToken<string>('unaffected');\n  let built = 0;\n  first.singleton(Data, async () => { built++; await settle(5); throw new Error('first failed'); });\n  first.singleton(Other, () => 'other');\n  second.singleton(Data, () => 'second');\n  const View = ({ token }: { token: typeof Data }) => createElement('p', null, useService(token));\n  const tree = (container: Container, token: typeof Data, key: number) => createElement(ContainerProvider, { container },\n    createElement(ServiceBoundary, { key, onError: () => {} },\n      createElement(Suspense, { fallback: 'loading' }, createElement(View, { token }))));\n  await mount(tree(first, Data, 0));\n  await act(async () => { await settle(30); });\n  expect(host!.textContent).toBe('failed');\n  resetService(second, Data);\n  await act(async () => root!.render(tree(second, Data, 1)));\n  expect(host!.textContent).toBe('second');\n  await act(async () => root!.render(tree(first, Other, 2)));\n  expect(host!.textContent).toBe('other');\n  await act(async () => root!.render(tree(first, Data, 3)));\n  expect(host!.textContent).toBe('failed');\n  expect(built).toBe(1);\n  await first.dispose();\n  await second.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/react/adapter.test.ts",
+      "title": "useService reads a built singleton under a provider",
+      "text": "test('useService reads a built singleton under a provider', async () => {\n  const container = new Container();\n  const Name = createToken<string>('name');\n  container.singleton(Name, () => 'zinject');\n  await container.resolve(Name);\n  const View = () => createElement('p', null, useService(Name));\n  await mount(createElement(ContainerProvider, { container }, createElement(View)));\n  expect(host!.textContent).toBe('zinject');\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/react/adapter.test.ts",
+      "title": "useService suspends until an async singleton is built",
+      "text": "test('useService suspends until an async singleton is built', async () => {\n  const container = new Container();\n  const Data = createToken<string>('data');\n  container.singleton(Data, async () => { await settle(10); return 'loaded'; });\n  const View = () => createElement('p', null, useService(Data));\n  await mount(createElement(ContainerProvider, { container },\n    createElement(Suspense, { fallback: createElement('span', null, 'loading') }, createElement(View))));\n  expect(host!.textContent).toBe('loading');\n  await act(async () => { await settle(30); });\n  expect(host!.textContent).toBe('loaded');\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/react/adapter.test.ts",
+      "title": "StrictMode keeps a mounted scope alive and disposes it on unmount",
+      "text": "test('StrictMode keeps a mounted scope alive and disposes it on unmount', async () => {\n  const container = new Container();\n  const Session = createToken<{ id: number }>('session');\n  let disposed = 0;\n  let scopesCreated = 0;\n  const createScope = container.createScope.bind(container);\n  container.createScope = () => { scopesCreated++; return createScope(); };\n  container.scoped(Session, { factory: () => ({ id: 1 }), onDispose: () => { disposed++; } });\n  const View = () => createElement('p', null, String(useService(Session).id));\n  await mount(createElement(StrictMode, null,\n    createElement(ContainerProvider, { container }, createElement(ScopeProvider, null, createElement(View)))));\n  await act(async () => { await settle(); });\n  expect(host!.textContent).toBe('1');\n  expect(disposed).toBe(0);\n  expect(scopesCreated).toBe(1);\n  await act(async () => root!.unmount());\n  root = undefined;\n  await settle();\n  expect(disposed).toBe(1);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/react/adapter.test.ts",
+      "title": "server render uses one request scope per render",
+      "text": "test('server render uses one request scope per render', async () => {\n  const container = new Container();\n  const Id = createToken<number>('id');\n  let built = 0;\n  container.request(Id, () => ++built);\n  const View = () => createElement('p', null, String(useService(Id)));\n  const scope = createRequestScope(container);\n  await scope.resolve(Id);\n  const html = renderToString(createElement(ContainerProvider, { container: scope }, createElement(View)));\n  expect(html).toBe('<p>1</p>');\n  expect(built).toBe(1);\n  await scope.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/react/adapter.test.ts",
+      "title": "ScopeProvider isolates independent server renders using the same container",
+      "text": "test('ScopeProvider isolates independent server renders using the same container', async () => {\n  const container = new Container();\n  const Id = createToken<number>('render-id');\n  let built = 0;\n  container.request(Id, () => ++built);\n  const View = () => createElement('p', null, String(useService(Id)));\n  const tree = createElement(ContainerProvider, { container },\n    createElement(ScopeProvider, { kind: 'request' }, createElement(View)));\n  expect(renderToString(tree)).toContain('<p>1</p>');\n  expect(renderToString(tree)).toContain('<p>2</p>');\n  await container.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/react/adapter.test.ts",
+      "title": "nested ScopeProviders inherit the enclosing scope registrations",
+      "text": "test('nested ScopeProviders inherit the enclosing scope registrations', async () => {\n  const container = new Container();\n  const Name = createToken<string>('outer-name');\n  const Outer = () => {\n    const scope = useScope();\n    if (!scope.isRegistered(Name)) scope.registerInstance(Name, 'outer');\n    return createElement(ScopeProvider, null, createElement(Inner));\n  };\n  const Inner = () => createElement('p', null, useService(Name));\n  await mount(createElement(ContainerProvider, { container },\n    createElement(ScopeProvider, null, createElement(Outer))));\n  expect(host!.textContent).toBe('outer');\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/react/adapter.test.ts",
+      "title": "an async scoped service survives StrictMode and Suspense retries",
+      "text": "test('an async scoped service survives StrictMode and Suspense retries', async () => {\n  const container = new Container();\n  const Data = createToken<string>('scoped-data');\n  let built = 0;\n  let disposed = 0;\n  container.scoped(Data, {\n    factory: async () => { built++; await settle(10); return 'loaded'; },\n    onDispose: () => { disposed++; },\n  });\n  const View = () => createElement('p', null, useService(Data));\n  await mount(createElement(StrictMode, null, createElement(ContainerProvider, { container },\n    createElement(ScopeProvider, { fallback: 'loading' }, createElement(View)))));\n  await act(async () => { await settle(30); });\n  expect(host!.textContent).toBe('loaded');\n  expect(built).toBe(1);\n  expect(disposed).toBe(0);\n  await act(async () => root!.unmount());\n  root = undefined;\n  await settle();\n  expect(disposed).toBe(1);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/react/adapter.test.ts",
+      "title": "changing the parent container replaces and disposes the previous scope",
+      "text": "test('changing the parent container replaces and disposes the previous scope', async () => {\n  const first = new Container();\n  const second = new Container();\n  const Name = createToken<string>('parent-name');\n  let disposed = 0;\n  first.scoped(Name, { factory: () => 'first', onDispose: () => { disposed++; } });\n  second.scoped(Name, () => 'second');\n  const View = () => createElement('p', null, useService(Name));\n  const tree = (container: Container) => createElement(ContainerProvider, { container },\n    createElement(ScopeProvider, null, createElement(View)));\n  await mount(tree(first));\n  expect(host!.textContent).toBe('first');\n  await act(async () => root!.render(tree(second)));\n  await settle();\n  expect(host!.textContent).toBe('second');\n  expect(disposed).toBe(1);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/class-token.test.ts",
+      "title": "singleton(Class) builds the class once and resolves synchronously",
+      "text": "test('singleton(Class) builds the class once and resolves synchronously', () => {\n    const root = new Container();\n    root.singleton(Clock);\n    const clock = root.resolveSync(Clock);\n    expect(clock).toBeInstanceOf(Clock);\n    expect(clock.now()).toBe(42);\n    expect(root.get(Clock)).toBe(clock);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/class-token.test.ts",
+      "title": "transient(Class) builds a new instance per resolve",
+      "text": "test('transient(Class) builds a new instance per resolve', () => {\n    const root = new Container();\n    root.transient(Clock);\n    expect(root.resolveSync(Clock)).not.toBe(root.resolveSync(Clock));\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/class-token.test.ts",
+      "title": "scoped(Class) builds one instance per scope",
+      "text": "test('scoped(Class) builds one instance per scope', () => {\n    const root = new Container();\n    root.scoped(Clock);\n    const a = root.createScope(); const b = root.createScope();\n    expect(a.resolveSync(Clock)).toBe(a.resolveSync(Clock));\n    expect(a.resolveSync(Clock)).not.toBe(b.resolveSync(Clock));\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/class-token.test.ts",
+      "title": "options.deps are passed as constructor arguments and declared in the graph",
+      "text": "test('options.deps are passed as constructor arguments and declared in the graph', async () => {\n    const root = new Container();\n    root.singleton(Clock);\n    root.singleton(Greeter, { deps: [Clock] });\n    root.validate();\n    const greeter = await root.resolve(Greeter);\n    expect(greeter.greet()).toBe('hi@42');\n    expect(greeter.clock).toBe(await root.resolve(Clock));\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/class-token.test.ts",
+      "title": "a class whose dependencies are synchronous resolves through resolveSync",
+      "text": "test('a class whose dependencies are synchronous resolves through resolveSync', () => {\n    const root = new Container();\n    root.singleton(Clock);\n    root.singleton(Greeter, { deps: [Clock] });\n    const greeter = root.resolveSync(Greeter);\n    expect(greeter.greet()).toBe('hi@42');\n    expect(greeter.clock).toBe(root.resolveSync(Clock));\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/class-token.test.ts",
+      "title": "a class with an asynchronous dependency does not resolve through resolveSync",
+      "text": "test('a class with an asynchronous dependency does not resolve through resolveSync', () => {\n    const root = new Container();\n    root.singleton(Clock, async () => new Clock());\n    root.singleton(Greeter, { deps: [Clock] });\n    expect(() => root.resolveSync(Greeter)).toThrow(LifecycleError);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/class-token.test.ts",
+      "title": "a missing constructor dependency is a graph issue",
+      "text": "test('a missing constructor dependency is a graph issue', () => {\n    const root = new Container();\n    root.singleton(Greeter, { deps: [Clock] });\n    expect(() => root.validate()).toThrow(DiGraphError);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/class-token.test.ts",
+      "title": "static $inject supplies constructor arguments without a registration decorator",
+      "text": "test('static $inject supplies constructor arguments without a registration decorator', async () => {\n    class Report { static $inject = [Clock]; constructor(readonly clock: Clock) {} }\n    const root = new Container();\n    root.singleton(Clock);\n    root.transient(Report);\n    expect((await root.resolve(Report)).clock).toBe(await root.resolve(Clock));\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/class-token.test.ts",
+      "title": "a delayed class reference registers under the class",
+      "text": "test('a delayed class reference registers under the class', () => {\n    const root = new Container();\n    root.singleton(delay(() => Clock));\n    expect(root.resolveSync(Clock)).toBeInstanceOf(Clock);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/class-token.test.ts",
+      "title": "an abstract class is a token for an implementation",
+      "text": "test('an abstract class is a token for an implementation', () => {\n    abstract class Store { abstract read(): string; }\n    class MemoryStore extends Store { read(): string { return 'mem'; } }\n    const root = new Container();\n    root.singleton(Store, () => new MemoryStore());\n    const store: Store = root.resolveSync(Store);\n    expect(store.read()).toBe('mem');\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/class-token.test.ts",
+      "title": "a lifecycle object is still a factory, not options",
+      "text": "test('a lifecycle object is still a factory, not options', () => {\n    const root = new Container();\n    root.singleton(Clock, { factory: () => new Clock() });\n    expect(root.resolveSync(Clock)).toBeInstanceOf(Clock);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/class-token.test.ts",
+      "title": "a multi registration under the class token",
+      "text": "test('a multi registration under the class token', () => {\n    const root = new Container();\n    root.singletonMulti(Clock);\n    root.singletonMulti(Clock, () => new Clock());\n    return root.resolveAll(Clock).then(all => expect(all).toHaveLength(2));\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/class-token.test.ts",
+      "title": "a string or symbol token without a factory is rejected",
+      "text": "test('a string or symbol token without a factory is rejected', () => {\n    const root = new Container();\n    expect(() => (root as any).singleton('clock')).toThrow(TypeError);\n    expect(() => (root as any).singleton(Symbol('clock'))).toThrow(TypeError);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "a class with injected members resolves through resolveSync",
+      "text": "test('a class with injected members resolves through resolveSync', () => {\n    const root = new Container();\n    root.singleton(Clock);\n    root.singleton(Plain);\n    const plain = root.resolveSync(Plain);\n    expect(plain.clock).toBe(root.resolveSync(Clock));\n    expect(plain.absent).toBe(undefined);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "an asynchronous member does not resolve through resolveSync, but resolves through resolve",
+      "text": "test('an asynchronous member does not resolve through resolveSync, but resolves through resolve', async () => {\n    const root = new Container();\n    root.singleton(Clock, async () => new Clock());\n    root.singleton(Plain);\n    expect(() => root.resolveSync(Plain)).toThrow(LifecycleError);\n    expect((await root.resolve(Plain)).clock).toBeInstanceOf(Clock);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "leading arguments fill the first parameters and the container resolves the rest",
+      "text": "test('leading arguments fill the first parameters and the container resolves the rest', () => {\n    const root = new Container();\n    root.singleton(Clock);\n    const value = root.instantiate(Owned, 'app');\n    expect(value.owner).toBe('app');\n    expect(value.clock).toBe(root.resolveSync(Clock));\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "the instance is not registered",
+      "text": "test('the instance is not registered', () => {\n    const root = new Container();\n    root.singleton(Clock);\n    expect(root.instantiate(Owned, 'a')).not.toBe(root.instantiate(Owned, 'a'));\n    expect(root.isRegistered(Owned)).toBe(false);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "instantiateAsync waits for asynchronous dependencies; instantiate refuses them",
+      "text": "test('instantiateAsync waits for asynchronous dependencies; instantiate refuses them', async () => {\n    const root = new Container();\n    root.singleton(Clock, async () => new Clock());\n    expect(() => root.instantiate(Owned, 'a')).toThrow(LifecycleError);\n    expect((await root.instantiateAsync(Owned, 'a')).clock).toBeInstanceOf(Clock);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "a parameter with no class to resolve by fails with DI_UNRESOLVABLE_PARAMETER",
+      "text": "test('a parameter with no class to resolve by fails with DI_UNRESOLVABLE_PARAMETER', () => {\n    class Loose { constructor(readonly value: unknown) {} }\n    const root = new Container();\n    try { root.instantiate(Loose); expect.unreachable(); }\n    catch (error) {\n      expect(error).toBeInstanceOf(DiError);\n      expect((error as DiError).code).toBe('DI_UNRESOLVABLE_PARAMETER');\n      expect((error as Error).message).toMatch(/index 0 for Loose/);\n    }\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "applies the members once, however often it is called",
+      "text": "test('applies the members once, however often it is called', () => {\n    const root = new Container();\n    root.singleton(Clock);\n    const plain = new Plain();\n    expect(root.injectMembers(plain)).toBe(plain);\n    const clock = plain.clock;\n    root.injectMembers(plain);\n    expect(plain.clock).toBe(clock);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "injectMembersAsync waits for asynchronous members",
+      "text": "test('injectMembersAsync waits for asynchronous members', async () => {\n    const root = new Container();\n    root.singleton(Clock, async () => new Clock());\n    const plain = await root.injectMembersAsync(new Plain());\n    expect(plain.clock).toBeInstanceOf(Clock);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "is off by default: an unregistered class is not registered",
+      "text": "test('is off by default: an unregistered class is not registered', () => {\n    const root = new Container();\n    expect(root.autoInject).toBe(false);\n    expect(() => root.resolveSync(Clock)).toThrow(/No registration/);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "registers an unregistered class on demand, transient by default, tagged auto",
+      "text": "test('registers an unregistered class on demand, transient by default, tagged auto', () => {\n    const root = new Container();\n    root.autoInject = true;\n    const a = root.resolveSync(Needs);\n    expect(a).toBeInstanceOf(Needs);\n    expect(a.clock).toBeInstanceOf(Clock);\n    expect(root.resolveSync(Needs)).not.toBe(a);\n    expect(root.bindingOf(Needs)?.kindTag).toBe('auto');\n    expect(root.bindingOf(Needs)?.lifetime).toBe(ServiceLifetime.Transient);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "uses the lifetime option",
+      "text": "test('uses the lifetime option', () => {\n    const root = new Container();\n    root.autoInject = { lifetime: ServiceLifetime.Singleton };\n    expect(root.resolveSync(Clock)).toBe(root.resolveSync(Clock));\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "a scope inherits the setting until it sets its own",
+      "text": "test('a scope inherits the setting until it sets its own', () => {\n    const root = new Container();\n    root.autoInject = true;\n    const child = root.createScope();\n    expect(child.autoInject).toBe(true);\n    expect(child.resolveSync(Clock)).toBeInstanceOf(Clock);\n    child.autoInject = false;\n    expect(() => child.resolveSync(Needs)).toThrow(/No registration/);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "never registers strings, symbols or typed tokens",
+      "text": "test('never registers strings, symbols or typed tokens', () => {\n    const root = new Container();\n    root.autoInject = true;\n    expect(() => root.resolveSync('name')).toThrow(/No registration/);\n    expect(() => root.resolveSync(createToken<number>('typed'))).toThrow(/No registration/);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/construct.test.ts",
+      "title": "auto registrations are part of the graph",
+      "text": "test('auto registrations are part of the graph', () => {\n    const root = new Container();\n    root.autoInject = true;\n    root.resolveSync(Needs);\n    expect(() => root.validate()).not.toThrow(DiGraphError);\n    expect(root.getRegisteredTokens().length).toBe(2);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/lifetimes.test.ts",
+      "title": "a request service resolved while a tenant service is built is reported as captive",
+      "text": "test('a request service resolved while a tenant service is built is reported as captive', async () => {\n  const root = new Container();\n  root.request('r', () => ({}));\n  root.tenant('t', c => c.resolve('r'));\n  const request = root.createTenantScope().createRequestScope();\n  await expect(request.resolve('t')).rejects.toBeInstanceOf(DiGraphError);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/lifetimes.test.ts",
+      "title": "a tenant service resolved while a singleton is built is reported as captive",
+      "text": "test('a tenant service resolved while a singleton is built is reported as captive', async () => {\n  const root = new Container();\n  root.tenant('t', () => ({}));\n  root.singleton('s', c => c.resolve('t'));\n  const tenant = root.createTenantScope();\n  await expect(tenant.resolve('s')).rejects.toBeInstanceOf(DiGraphError);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/lifetimes.test.ts",
+      "title": "a request service built from a request service is not captive",
+      "text": "test('a request service built from a request service is not captive', async () => {\n  const root = new Container();\n  root.request('inner', () => ({}));\n  root.request('outer', c => c.resolve('inner'));\n  const request = root.createRequestScope();\n  expect(await request.resolve('outer')).toBeDefined();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/lifetimes.test.ts",
+      "title": "data that differs from the data a shared instance was built with is rejected",
+      "text": "test('data that differs from the data a shared instance was built with is rejected', async () => {\n  const root = new Container();\n  root.singleton('s', (_c, data: { id: number }) => ({ id: data.id }));\n  const first = { id: 1 };\n  expect(await root.resolve('s', first)).toStrictEqual({ id: 1 });\n  expect(await root.resolve('s', first)).toStrictEqual({ id: 1 });\n  expect(await root.resolve('s')).toStrictEqual({ id: 1 });\n  await expect(root.resolve('s', { id: 2 })).rejects.toBeInstanceOf(LifecycleError);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/lifetimes.test.ts",
+      "title": "a frozen thenable service cannot be resolved through a promise, but resolveSync returns it",
+      "text": "test('a frozen thenable service cannot be resolved through a promise, but resolveSync returns it', async () => {\n  const value = Object.freeze({ then: () => undefined });\n  const c = new Container();\n  c.singleton('t', () => value);\n  await expect(c.resolve('t')).rejects.toBeInstanceOf(LifecycleError);\n  expect(c.resolveSync('t')).toBe(value);\n})",
+      "count": 1,
+      "failed": true
+    },
+    {
+      "file": "tests/bun/core/lifetimes.test.ts",
+      "title": "a resolve through a captured container joins the running factory, so a cycle is reported, not deadlocked",
+      "text": "test('a resolve through a captured container joins the running factory, so a cycle is reported, not deadlocked', async () => {\n  const root = new Container();\n  root.singleton('a', async () => ({ b: await root.resolve('b') }));\n  root.singleton('b', async () => ({ a: await root.resolve('a') }));\n  await expect(root.resolve('a')).rejects.toBeInstanceOf(CircularDependencyError);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "concurrent resolves of independent chains do not report a false cycle",
+      "text": "test('concurrent resolves of independent chains do not report a false cycle', async () => {\n    const root = new Container();\n    const A = createToken<number>('A'); const B = createToken<number>('B'); const C = createToken<number>('C');\n    root.singleton(C, async () => 3);\n    root.singleton(B, async c => (await c.resolve(C)) + 1);\n    root.singleton(A, async c => (await c.resolve(B)) + 1);\n    const [a, b] = await Promise.all([root.resolve(A), root.resolve(B)]);\n    expect(a).toBe(5);\n    expect(b).toBe(4);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "a cross-chain A↔B cycle rejects instead of hanging when factories await first",
+      "text": "test('a cross-chain A↔B cycle rejects instead of hanging when factories await first', async () => {\n    const root = new Container();\n    const A = createToken<number>('A'); const B = createToken<number>('B');\n    root.singleton(A, async c => { await Promise.resolve(); return (await c.resolve(B)) + 1; });\n    root.singleton(B, async c => { await Promise.resolve(); return (await c.resolve(A)) + 1; });\n    const results = await within(Promise.allSettled([root.resolve(A), root.resolve(B)]));\n    expect(results.every(r => r.status === 'rejected')).toBe(true);\n    const reasons = results.map(r => (r as PromiseRejectedResult).reason);\n    expect(reasons.some(e => e instanceof CircularDependencyError)).toBe(true);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "a synchronous factory throw runs the factory once for all concurrent callers",
+      "text": "test('a synchronous factory throw runs the factory once for all concurrent callers', async () => {\n    const root = new Container();\n    const T = createToken<number>('T');\n    let calls = 0;\n    root.singleton(T, () => { calls++; throw new Error('boom'); });\n    const results = await Promise.allSettled(Array.from({ length: 50 }, () => root.resolve(T)));\n    expect(results.every(r => r.status === 'rejected')).toBe(true);\n    expect(calls).toBe(1);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "resolveAll does not share one batch between callers",
+      "text": "test('resolveAll does not share one batch between callers', async () => {\n    const root = new Container();\n    const M = createToken<{ id: number }>('M');\n    let built = 0;\n    root.transientMulti(M, () => ({ id: ++built }));\n    await root.resolveAll(M);\n    await root.resolveAll(M);\n    expect(built).toBe(2);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "initialization cannot start another service after disposal begins",
+      "text": "test('initialization cannot start another service after disposal begins', async () => {\n    const root = new Container();\n    let finish!: (value: object) => void;\n    const first = new Promise<object>(resolve => { finish = resolve; });\n    let disposed = 0;\n    let laterBuilds = 0;\n    root.singleton('first', { factory: () => first, onDispose: () => { disposed++; } });\n    root.singleton('later', async () => { laterBuilds++; return {}; });\n    const initialization = root.initializeOwned();\n    const outcome = initialization.then(() => undefined, error => error);\n    const disposal = root.dispose();\n    finish({});\n    const [error] = await within(Promise.all([outcome, disposal]));\n    expect(error).toBeInstanceOf(LifecycleError);\n    expect(laterBuilds).toBe(0);\n    expect(disposed).toBe(1);\n    expect(root.isDisposed).toBe(true);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "disposal waits for a pending singleton and disposes its completed instance",
+      "text": "test('disposal waits for a pending singleton and disposes its completed instance', async () => {\n    const root = new Container();\n    const S = createToken<object>('pending');\n    let finish!: (value: object) => void;\n    const factory = new Promise<object>(resolve => { finish = resolve; });\n    let disposed = 0;\n    root.singleton(S, { factory: () => factory, onDispose: () => { disposed++; } });\n    const resolution = root.resolve(S);\n    const disposal = root.dispose();\n    let finished = false;\n    void disposal.then(() => { finished = true; });\n    await Promise.resolve();\n    expect(finished).toBe(false);\n    finish({});\n    await within(Promise.all([resolution, disposal]));\n    expect(disposed).toBe(1);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "a failed pending singleton does not hang disposal or invoke onDispose",
+      "text": "test('a failed pending singleton does not hang disposal or invoke onDispose', async () => {\n    const root = new Container();\n    const S = createToken<object>('failing-pending');\n    let fail!: (error: Error) => void;\n    const factory = new Promise<object>((_, reject) => { fail = reject; });\n    let disposed = 0;\n    root.singleton(S, { factory: () => factory, onDispose: () => { disposed++; } });\n    const resolution = root.resolve(S);\n    const disposal = root.dispose();\n    fail(new Error('construction failed'));\n    await expect(resolution).rejects.toThrow('construction failed');\n    await within(disposal);\n    expect(disposed).toBe(0);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "disposal waits for pending onInit failure to clean up its instance",
+      "text": "test('disposal waits for pending onInit failure to clean up its instance', async () => {\n    const root = new Container();\n    const S = createToken<object>('failing-init');\n    let fail!: (error: Error) => void;\n    const init = new Promise<void>((_, reject) => { fail = reject; });\n    let disposed = 0;\n    root.singleton(S, { factory: () => ({}), onInit: () => init, onDispose: () => { disposed++; } });\n    const resolution = root.resolve(S);\n    const disposal = root.dispose();\n    fail(new Error('initialization failed'));\n    await expect(resolution).rejects.toThrow('initialization failed');\n    await within(disposal);\n    expect(disposed).toBe(1);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "concurrent dispose runs each onDispose once",
+      "text": "test('concurrent dispose runs each onDispose once', async () => {\n    const root = new Container();\n    const S = createToken<object>('S');\n    let disposed = 0;\n    root.singleton(S, { factory: () => ({}), onDispose: () => { disposed++; } });\n    await root.resolve(S);\n    await Promise.all([root.dispose(), root.dispose()]);\n    expect(disposed).toBe(1);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "resolve while disposing throws LifecycleError",
+      "text": "test('resolve while disposing throws LifecycleError', async () => {\n    const root = new Container();\n    const S = createToken<number>('S');\n    const T = createToken<number>('T');\n    let during: unknown;\n    root.singleton(S, { factory: () => 1, onDispose: async () => {\n      try { await root.resolve(T); } catch (error) { during = error; }\n    } });\n    root.singleton(T, () => 2);\n    await root.resolve(S);\n    await root.dispose();\n    expect(during).toBeInstanceOf(LifecycleError);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "a falsy singleton is a valid instance",
+      "text": "test('a falsy singleton is a valid instance', async () => {\n    const root = new Container();\n    const Zero = createToken<number>('zero');\n    root.singleton(Zero, () => 0);\n    await root.resolve(Zero);\n    expect(root.get(Zero)).toBe(0);\n    expect(root.tryGet(Zero)).toBe(0);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "a child single shadows a parent multi registration for resolve",
+      "text": "test('a child single shadows a parent multi registration for resolve', async () => {\n    const root = new Container();\n    const P = createToken<string>('P');\n    root.transientMulti(P, () => 'parent');\n    const child = root.createScope();\n    child.singleton(P, () => 'child');\n    expect(await child.resolve(P)).toBe('child');\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "a multi registration at the single's owner conflicts",
+      "text": "test('a multi registration at the single\\'s owner conflicts', async () => {\n    const root = new Container();\n    const P = createToken<string>('P');\n    const child = root.createScope();\n    child.transientMulti(P, () => 'child-multi');\n    root.singleton(P, () => 'root-single');\n    await expect(child.resolve(P)).rejects.toThrow(/resolveAll/);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "a 20-layer diamond validates quickly and is sound",
+      "text": "test('a 20-layer diamond validates quickly and is sound', () => {\n    const root = new Container();\n    const layers: symbol[][] = [];\n    for (let layer = 0; layer < 20; layer++) {\n      const row: symbol[] = [];\n      for (let i = 0; i < 2; i++) {\n        const token = createToken<unknown>(`L${layer}_${i}`);\n        row.push(token as unknown as symbol);\n        const deps = layer === 0 ? [] : layers[layer - 1]!.map(t => t as never);\n        root.singleton(token, { factory: () => ({}), onInit: undefined }, { deps: deps as never });\n      }\n      layers.push(row);\n    }\n    const started = performance.now();\n    root.graph().assertSound();\n    expect(performance.now() - started).toBeLessThan(50);\n  })",
+      "count": 1,
+      "failed": true
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "captive singleton depending on scoped is reported",
+      "text": "test('captive singleton depending on scoped is reported', () => {\n    const root = new Container();\n    const Scoped = createToken<number>('scoped');\n    const Captive = createToken<number>('captive');\n    root.scoped(Scoped, () => 1);\n    root.singleton(Captive, () => 2, { deps: [Scoped] });\n    expect(root.graph().issues().some(i => i.kind === 'captive')).toBe(true);\n    expect(() => root.graph().assertSound()).toThrow(DiGraphError);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "a declared cycle is reported once, not once per member",
+      "text": "test('a declared cycle is reported once, not once per member', () => {\n    const root = new Container();\n    const A = createToken<unknown>('A'); const B = createToken<unknown>('B'); const C = createToken<unknown>('C');\n    root.transient(A, () => 1, { deps: [B] });\n    root.transient(B, () => 1, { deps: [C] });\n    root.transient(C, () => 1, { deps: [A] });\n    const cycles = root.graph().issues().filter(i => i.kind === 'cycle');\n    expect(cycles.length).toBe(1);\n    expect(cycles[0]!.path?.length).toBe(4);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "a cached scoped service cannot be captured by a singleton factory",
+      "text": "test('a cached scoped service cannot be captured by a singleton factory', async () => {\n    const root = new Container();\n    const Scoped = createToken<object>('cached-scoped');\n    const Captive = createToken<object>('captive');\n    root.scoped(Scoped, () => ({}));\n    root.singleton(Captive, async c => c.resolve(Scoped));\n    await root.resolve(Scoped);\n    await expect(root.resolve(Captive)).rejects.toBeInstanceOf(DiGraphError);\n    await root.dispose();\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "a request-scoped service builds on first resolve, not on acquire",
+      "text": "test('a request-scoped service builds on first resolve, not on acquire', async () => {\n    const root = new Container();\n    const R = createToken<number>('R');\n    let built = 0;\n    root.request(R, { factory: () => ++built, onReady: undefined });\n    const request = root.createRequestScope();\n    expect(built).toBe(0);\n    expect(await request.resolve(R)).toBe(1);\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "an absent optional dependency resolves to undefined",
+      "text": "test('an absent optional dependency resolves to undefined', async () => {\n    class Consumer { static $members = { optional: { token: 'absent', optional: true } }; optional?: unknown; }\n    const root = new Container();\n    root.singleton(Consumer);\n    expect((await root.resolve(Consumer)).optional).toBeUndefined();\n    await root.dispose();\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "a registered optional dependency propagates a missing transitive dependency",
+      "text": "test('a registered optional dependency propagates a missing transitive dependency', async () => {\n    class Consumer { static $members = { optional: { token: 'optional-service', optional: true } }; optional?: unknown; }\n    const root = new Container();\n    root.singleton('optional-service', c => c.resolve('missing-transitive'));\n    root.singleton(Consumer);\n    await expect(root.resolve(Consumer)).rejects.toMatchObject({ token: 'missing-transitive' } satisfies Partial<NotRegisteredError>);\n    await root.dispose();\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/core/regressions.test.ts",
+      "title": "a registered optional dependency does not hide its own NotRegisteredError",
+      "text": "test('a registered optional dependency does not hide its own NotRegisteredError', async () => {\n    class Consumer { static $members = { optional: { token: 'optional-service', optional: true } }; optional?: unknown; }\n    const root = new Container();\n    root.singleton('optional-service', () => { throw new NotRegisteredError('optional-service', 'optional-service'); });\n    root.singleton(Consumer);\n    await expect(root.resolve(Consumer)).rejects.toBeInstanceOf(NotRegisteredError);\n    await root.dispose();\n  })",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/legacy/decorators.test.ts",
+      "title": "legacy decorators and reflected constructor metadata",
+      "text": "test('legacy decorators and reflected constructor metadata', async () => {\n  const c = new Container();\n  c.registerInstance('property', 'ready'); c.registerInstance('service', { valid: true });\n  c.singletonMulti('items', () => 1); c.singletonMulti('items', () => 2);\n  c.registerClass(Legacy);\n  const value = await c.resolve<Legacy>('legacy');\n  expect(value instanceof Legacy).toBeTruthy();\n  expect(describe(Legacy).params[0]!.token).toBe('service');\n  expect((Reflect as any).getMetadata(INJECT_METADATA_KEY, Legacy)[0]).toBe('service');\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/legacy/decorators.test.ts",
+      "title": "legacy method parameter decorator rejects method injection",
+      "text": "test('legacy method parameter decorator rejects method injection', () => {\n  expect(() => {\n    class Invalid { method(@Inject('x') _item: number) {} }\n    return Invalid;\n  }).toThrow(/constructor parameters only/);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/legacy/decorators.test.ts",
+      "title": "two class decorators cannot both register a service",
+      "text": "test('two class decorators cannot both register a service', () => {\n  expect(() => {\n    @Injectable() @Singleton()\n    class Both {}\n    return Both;\n  }).toThrow(/takes one registration/);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/legacy/decorators.test.ts",
+      "title": "legacy parameter metadata inherited by subclasses",
+      "text": "test('legacy parameter metadata inherited by subclasses', async () => {\n  @Injectable()\n  class Base { constructor(@Inject('x') readonly arg: number) {} }\n  @Injectable({ lifetime: ServiceLifetime.Transient })\n  class Child extends Base {}\n  const c = new Container(); c.registerInstance('x', 7); c.registerClass(Child);\n  expect((await c.resolve(Child)).arg).toBe(7);\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/legacy/decorators.test.ts",
+      "title": "legacy injectMembers fills the fields of an instance the container did not construct",
+      "text": "test('legacy injectMembers fills the fields of an instance the container did not construct', async () => {\n  class Owned {\n    @Inject('property') property!: string;\n    @InjectOptional('missing') optional?: string;\n    constructor(readonly owner: string) {}\n  }\n  const c = new Container(); c.registerInstance('property', 'ready');\n  const value = c.injectMembers(new Owned('app'));\n  expect([value.owner, value.property, value.optional]).toStrictEqual(['app', 'ready', undefined]);\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/legacy/decorators.test.ts",
+      "title": "legacy: a parameter typed as a primitive is reported as unresolvable, naming the class and index",
+      "text": "test('legacy: a parameter typed as a primitive is reported as unresolvable, naming the class and index', () => {\n  @Injectable()\n  class Loose { constructor(readonly name: string) {} }\n  const c = new Container();\n  expect(() => c.instantiate(Loose)).toThrow(/index 0 for Loose/);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/legacy/decorators.test.ts",
+      "title": "reflected constructor types resolve through reflect-metadata",
+      "text": "test('reflected constructor types resolve through reflect-metadata', async () => {\n  expect(typeof (Reflect as { getMetadata?: unknown }).getMetadata).toBe('function');\n  class Engine {}\n  @Singleton()\n  class Car { constructor(readonly engine: Engine) {} }\n  const c = new Container();\n  c.singleton(Engine);\n  c.registerClass(Car);\n  expect((await c.resolve(Car)).engine).toBe(await c.resolve(Engine));\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "token normalization, aliases, weak constructor mapping, cache count",
+      "text": "test('token normalization, aliases, weak constructor mapping, cache count', async () => {\n  clearTokenCaches();\n  const original = getGlobalToken('cached-token');\n  expect(normalizeToken('cached-token')).toBe(original);\n  expect(original).not.toBe(Symbol('cached-token'));\n  expect(getTokenCacheSize()).toBe(1);\n  clearTokenCaches(); expect(getTokenCacheSize()).toBe(0);\n  expect(getGlobalToken('cached-token')).toBe(original);\n  class A {}\n  expect(normalizeToken(A)).toBe(normalizeToken(delay(() => A)));\n  expect(() => normalizeToken(123 as never)).toThrow(/Invalid token type: number/);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "singleton, scoped, tenant, request, transient route to correct owner",
+      "text": "test('singleton, scoped, tenant, request, transient route to correct owner', async () => {\n  const c = new Container();\n  c.singleton('singleton', owner => owner);\n  c.scoped('scoped', () => ({}));\n  c.tenant('tenant', () => ({}));\n  c.request('request', () => ({}));\n  c.transient('transient', () => ({ onDispose() { throw new Error('transient disposed'); } }));\n  const a = c.createTenantScope('a'); const b = c.createTenantScope('b');\n  const a1 = a.createRequestScope('a1'); const a2 = a.createRequestScope('a2');\n  // The factory receives a resolution-bound view of its owner, not the container itself.\n  expect((await a1.resolve<Container>('singleton')).identity.id).toBe(c.identity.id);\n  expect(await a2.resolve('singleton')).toBe(await a1.resolve('singleton'));\n  expect(await a1.resolve('tenant')).toBe(await a2.resolve('tenant'));\n  expect(await a1.resolve('tenant')).not.toBe(await b.resolve('tenant'));\n  expect(await a1.resolve('scoped')).toBe(await a1.resolve('scoped'));\n  expect(await a1.resolve('scoped')).not.toBe(await a2.resolve('scoped'));\n  expect(await a1.resolve('request')).not.toBe(await a2.resolve('request'));\n  expect(await c.resolve('transient')).not.toBe(await c.resolve('transient'));\n  await expect(c.resolve('tenant')).rejects.toThrow(expect.toSatisfy((e: unknown) => e instanceof ScopeMissingError && e.scopeKind === 'tenant'));\n  await expect(a.resolve('request')).rejects.toThrow(expect.toSatisfy((e: unknown) => e instanceof ScopeMissingError && e.scopeKind === 'request'));\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "50 concurrent resolutions share one singleton promise including synchronous throw",
+      "text": "test('50 concurrent resolutions share one singleton promise including synchronous throw', async () => {\n  const c = new Container(); let attempts = 0;\n  c.singleton('x', () => { attempts++; if (attempts === 1) throw new Error('first'); return 0; });\n  const failed = await Promise.allSettled(Array.from({ length: 50 }, () => c.resolve('x')));\n  expect(failed.filter(result => result.status === 'rejected').length).toBe(50);\n  expect(attempts).toBe(1);\n  expect(await c.resolve('x')).toBe(0);\n  expect(c.get('x')).toBe(0);\n  c.registerInstance('undefined', undefined);\n  expect(c.get('undefined')).toBe(undefined);\n  c.registerInstance('false', false);\n  expect(c.get('false')).toBe(false);\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "raw thenables are preserved instead of awaited",
+      "text": "test('raw thenables are preserved instead of awaited', async () => {\n  const c = new Container();\n  let assimilations = 0;\n  const value = { state: 'literal', then(onResolve: (v: unknown) => void) { assimilations++; onResolve('wrong'); } };\n  c.singleton('thenable', () => value);\n  const resolved = await c.resolve('thenable');\n  expect(resolved).toBe(value);\n  expect(assimilations).toBe(0);\n  expect(typeof resolved.then).toBe('function');\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "single cycles, transient concurrency, captive dependencies, multi shadowing",
+      "text": "test('single cycles, transient concurrency, captive dependencies, multi shadowing', async () => {\n  const c = new Container(); c.transient('a', c => c.resolve('b')); c.transient('b', c => c.resolve('a'));\n  await expect(c.resolve('a')).rejects.toThrow(expect.toSatisfy((e: unknown) => e instanceof CircularDependencyError && e.path.steps.length === 3));\n  const parallel = new Container(); parallel.transient('t', async () => { await Promise.resolve(); return {}; });\n  const both = await Promise.all([parallel.resolve('t'), parallel.resolve('t')]);\n  expect(both[0]).not.toBe(both[1]);\n  const captive = new Container(); captive.scoped('scoped', () => ({}));\n  captive.singleton('one', c => c.resolve('scoped'));\n  await expect(captive.resolve('one')).rejects.toThrow(expect.toSatisfy((e: unknown) => e instanceof DiGraphError && e.issues[0]?.kind === 'captive'));\n  const multi = new Container(); multi.singletonMulti('x', () => 1);\n  const child = multi.createScope(); child.singleton('x', () => 2);\n  // A child single shadows the parent multi registration.\n  expect(await child.resolve('x')).toBe(2);\n  expect(await child.resolveAll('x')).toStrictEqual([1]);\n  expect(await multi.resolveAll('unknown')).toStrictEqual([]);\n  expect(await c.resolveAll('unknown')).toStrictEqual([]);\n  await c.dispose(); await parallel.dispose(); await captive.dispose(); await multi.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "multi resolution preserves ancestor order and sequential execution",
+      "text": "test('multi resolution preserves ancestor order and sequential execution', async () => {\n  const calls: number[] = []; const root = new Container();\n  root.singletonMulti('x', async () => { calls.push(1); return 1; });\n  root.singletonMulti('x', () => { calls.push(2); return 2; });\n  const child = root.createScope(); child.singletonMulti('x', () => { calls.push(3); return 3; });\n  const results = await child.resolveAll<number>('x');\n  expect(results).toStrictEqual([1, 2, 3]); expect(calls).toStrictEqual([1, 2, 3]);\n  await root.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "hook precedence, init cleanup and failure states",
+      "text": "test('hook precedence, init cleanup and failure states', async () => {\n  const c = new Container(); const order: string[] = [];\n  c.singleton('x', {\n    factory: () => ({ onInit: () => order.push('instanceInit'), onDispose: () => order.push('instanceDispose') }),\n    onInit: () => { order.push('lifecycleInit'); throw new Error('init'); },\n    onDispose: () => { order.push('lifecycleDispose'); }\n  });\n  await expect(c.resolve('x')).rejects.toThrow(/init/);\n  expect(c.instanceState('x')).toBe('failed');\n  expect(order).toStrictEqual(['lifecycleInit', 'lifecycleDispose']);\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "interceptors ordered root-first and errors retain the original",
+      "text": "test('interceptors ordered root-first and errors retain the original', async () => {\n  const c = new Container(); const child = c.createScope(); const order: string[] = [];\n  c.addInterceptor({ onBeforeResolve: () => { order.push('beforeRoot'); }, onAfterResolve: () => { order.push('afterRoot'); } });\n  child.addInterceptor({ onBeforeResolve: () => { order.push('beforeChild'); }, onAfterResolve: () => { order.push('afterChild'); } });\n  c.singleton('valid', () => ({ ready: true }));\n  await child.resolve('valid');\n  expect(order).toStrictEqual(['beforeRoot', 'beforeChild', 'afterRoot', 'afterChild']);\n  c.singleton('bad', () => { throw new Error('original'); });\n  child.addInterceptor({ onResolutionError: () => { throw new Error('error in hook'); } });\n  await expect(child.resolve('bad')).rejects.toThrow(expect.toSatisfy((error: unknown) => error instanceof Error && error.message === 'original' && (error.cause as Error)?.message === 'error in hook'));\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "decorator-free constructor and property injection",
+      "text": "test('decorator-free constructor and property injection', async () => {\n  class Service {\n    static $injectable = { token: 'svc', lifetime: ServiceLifetime.Singleton };\n    static $inject = ['db'];\n    static $members = { optional: { token: 'missing', optional: true }, values: { token: 'values', all: true }, config: 'config' };\n    optional?: unknown; values: unknown[] = []; config?: number; db: unknown;\n    constructor(db: unknown) { this.db = db; }\n    onInit() { expect(this.values).toStrictEqual([1, 2]); expect(this.optional).toBe(undefined); expect(this.config).toBe(3); }\n  }\n  const c = new Container(); c.registerInstance('db', { valid: true }); c.registerInstance('config', 3);\n  c.singletonMulti('values', () => 1); c.singletonMulti('values', () => 2);\n  c.registerClass(Service); c.validate();\n  const a = await c.resolve<Service>('svc');\n  expect(a.db).toBe(c.get('db'));\n  expect(a).toBe(await c.resolve('svc'));\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "missing class parameter throws when resolving, not when registering",
+      "text": "test('missing class parameter throws when resolving, not when registering', async () => {\n  class Missing { static $injectable = {}; constructor(_dependency: unknown) {} }\n  const c = new Container(); c.registerClass(Missing);\n  await expect(c.resolve(Missing)).rejects.toThrow(/Cannot resolve dependency at index 0/);\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "declared graph deferred missing, captive, cycles, undeclared and dangling",
+      "text": "test('declared graph deferred missing, captive, cycles, undeclared and dangling', async () => {\n  const c = new Container(); c.singleton('a', () => ({}), { deps: ['b'] });\n  expect(() => c.validate()).toThrow(expect.toSatisfy((e: unknown) => e instanceof DiGraphError && e.issues.some(i => i.kind === 'missing')));\n  c.singleton('b', () => ({})); c.validate();\n  expect(c.graph().undeclared().length).toBe(1);\n  const rc = new Container(); rc.request('req', () => ({})); rc.singleton('capt', () => ({}), { deps: ['req'] });\n  expect(rc.issuesObserved().some(i => i.kind === 'captive')).toBeTruthy();\n  expect(() => rc.validate()).toThrow(DiGraphError);\n  await c.unregister('b'); expect(c.issuesObserved().some(i => i.kind === 'dangling')).toBeTruthy();\n  const cycles = new Container(); cycles.singleton('x', () => ({}), { deps: ['y'] });\n  cycles.singleton('y', () => ({}), { deps: ['x'] });\n  expect(() => cycles.validate()).toThrow(expect.toSatisfy((e: unknown) => e instanceof DiGraphError && e.issues.some(i => i.kind === 'cycle')));\n  await c.dispose(); await rc.dispose(); await cycles.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "live graph parent updates and standalone graph ordering",
+      "text": "test('live graph parent updates and standalone graph ordering', () => {\n  const parent = new DiGraph({ onIssue: () => {} });\n  const child = new DiGraph({ parent, onIssue: () => {} });\n  const dependency = Symbol('dependency'); const consumer = Symbol('consumer');\n  child.add({ key: consumer, token: consumer, lifetime: ServiceLifetime.Scoped, declared: true,\n    deps: [{ token: dependency, key: dependency, index: 0, optional: false, multi: false }] });\n  expect(child.unresolved().length).toBe(1);\n  parent.add({ key: dependency, token: dependency, lifetime: ServiceLifetime.Scoped, declared: true, deps: [] });\n  expect(child.unresolved().length).toBe(0);\n  expect(child.order().map(n => n.key)).toStrictEqual([consumer]);\n  child.remove(consumer); expect(child.size).toBe(0);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "replace preserves generation and supports retainPrevious and rejectIfLive",
+      "text": "test('replace preserves generation and supports retainPrevious and rejectIfLive', async () => {\n  const c = new Container(); const closed: string[] = [];\n  c.singleton('thing', () => ({ version: 1, onDispose: () => closed.push('old') }));\n  const before = await c.resolve('thing');\n  await expect(c.replace('thing', () => ({}), ServiceLifetime.Singleton, { rejectIfLive: true })).rejects.toThrow(MutationConflictError);\n  const handle = await c.replace('thing', () => ({ version: 2 }), ServiceLifetime.Singleton, { retainPrevious: true });\n  expect(handle.generation).toBe(1);\n  expect(handle.retainedInstances).toStrictEqual([before]);\n  expect(closed).toStrictEqual([]);\n  expect((await c.resolve<{ version: number }>('thing')).version).toBe(2);\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "transactional replacement invalidates dependents and rolls back failed rebuild",
+      "text": "test('transactional replacement invalidates dependents and rolls back failed rebuild', async () => {\n  const c = new Container(); let fail = false; const events: string[] = [];\n  c.singleton('db', () => ({ value: 1, onDispose: () => events.push('db') }));\n  c.singleton('service', async c => {\n    if (fail) throw new Error('bad service');\n    return { db: await c.resolve<{ value: number }>('db'), onDispose: () => events.push('service') };\n  }, { deps: ['db'] });\n  const originalService = await c.resolve('service'); const originalDb = c.get('db');\n  fail = true;\n  await expect(c.replace('db', () => ({ value: 2 }), ServiceLifetime.Singleton, { rebuild: true })).rejects.toThrow(/bad service/);\n  expect(c.get('db')).toBe(originalDb); expect(c.get('service')).toBe(originalService);\n  fail = false;\n  const handle = await c.replace('db', () => ({ value: 3 }), ServiceLifetime.Singleton);\n  expect(handle.generation).toBe(1);\n  expect(events).toStrictEqual(['service', 'db']);\n  expect((await c.resolve<{ db: { value: number } }>('service')).db.value).toBe(3);\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "unregister a multi binding removes one entry; child cannot unregister parent",
+      "text": "test('unregister a multi binding removes one entry; child cannot unregister parent', async () => {\n  const c = new Container(); const one = c.singletonMulti('x', () => 1); c.singletonMulti('x', () => 2);\n  const child = c.createScope();\n  await expect(child.unregister('x')).rejects.toThrow(MutationConflictError);\n  expect(await one.unregister()).toBe(true);\n  expect(await c.resolveAll('x')).toStrictEqual([2]);\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "clearInstances disposes owned instances in reverse build order, drops them, keeps supplied ones",
+      "text": "test('clearInstances disposes owned instances in reverse build order, drops them, keeps supplied ones', async () => {\n  const c = new Container(); let constructed = 0; const order: string[] = [];\n  c.singleton('s', () => { constructed++; return { onDispose: () => { order.push('s'); } }; });\n  c.singleton('t', async () => ({ onDispose: () => { order.push('t'); } }));\n  const manual = { x: 1, onDispose: () => { order.push('manual'); } }; c.registerInstance('manual', manual);\n  await c.resolve('s'); await c.resolve('t'); await c.clearInstances();\n  expect(order).toStrictEqual(['t', 's']); expect(c.get('manual')).toBe(manual);\n  await c.resolve('s'); expect(constructed).toBe(2);\n  await c.dispose(); expect(order).toContain('manual');\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "clearInstances waits for a build in progress, then clears it",
+      "text": "test('clearInstances waits for a build in progress, then clears it', async () => {\n  const c = new Container(); let disposed = 0;\n  c.singleton('slow', async () => { await new Promise(r => setTimeout(r, 5)); return { onDispose: () => { disposed++; } }; });\n  const building = c.resolve('slow'); await c.clearInstances(); await building;\n  expect(disposed).toBe(1); expect(c.instanceState('slow')).toBe('uninitialized');\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "clearInstances reports a failing hook after dropping every instance",
+      "text": "test('clearInstances reports a failing hook after dropping every instance', async () => {\n  const c = new Container(); let constructed = 0;\n  c.singleton('bad', () => { constructed++; return { onDispose: () => { throw new Error('nope'); } }; });\n  await c.resolve('bad');\n  await expect(c.clearInstances()).rejects.toThrow(AggregateError);\n  await c.resolve('bad'); expect(constructed).toBe(2);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "an instance supplied without a policy is owned; an external one is never disposed",
+      "text": "test('an instance supplied without a policy is owned; an external one is never disposed', async () => {\n  const c = new Container(); let owned = 0; let external = 0;\n  c.registerInstance('a', { onDispose: () => { owned++; } });\n  c.registerInstance('b', { onDispose: () => { external++; } }, { ownership: 'external' });\n  const byToken = new Map(c.getResourceGraphSnapshot().resources.map(r => [r.token, r.ownership]));\n  expect(byToken.get('\"a\"')).toBe('owned'); expect(byToken.get('\"b\"')).toBe('external');\n  await c.dispose(); expect(owned).toBe(1); expect(external).toBe(0);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "dispose children then parents, reverse build order, continues after failure, rejects disposed access",
+      "text": "test('dispose children then parents, reverse build order, continues after failure, rejects disposed access', async () => {\n  const c = new Container(); const child = c.createScope(); const order: string[] = [];\n  c.singleton('parent', () => ({ onDispose: () => { order.push('parent'); throw new Error('dispose-error'); } }));\n  child.singleton('child', () => ({ onDispose: () => order.push('child') }));\n  await c.resolve('parent'); await child.resolve('child');\n  await expect(c.dispose()).rejects.toThrow(AggregateError);\n  expect(order).toStrictEqual(['child', 'parent']);\n  await expect(c.resolve('x')).rejects.toThrow(LifecycleError);\n  expect(() => child.graph()).toThrow(LifecycleError);\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "initializeOwned is scope-sensitive and runs onReady once per instance",
+      "text": "test('initializeOwned is scope-sensitive and runs onReady once per instance', async () => {\n  const c = new Container(); let global = 0, ten = 0, req = 0;\n  c.singleton('g', () => ({ onReady: () => global++ }));\n  c.tenant('t', () => ({ onReady: () => ten++ }));\n  c.request('r', () => ({ onReady: () => req++ }));\n  await c.initializeOwned(); expect(global).toBe(1); expect(ten).toBe(0); expect(req).toBe(0);\n  await c.initializeOwned(); expect(global).toBe(1);\n  const t = c.createTenantScope('t1'); await t.initializeOwned(); expect(ten).toBe(1);\n  const r = t.createRequestScope(); await r.initializeOwned(); expect(req).toBe(1);\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "health check detects unloaded and throwing hooks",
+      "text": "test('health check detects unloaded and throwing hooks', async () => {\n  const c = new Container(); c.singleton('s', () => ({ onHealthCheck: () => { throw new Error('offline'); } }));\n  expect(await c.healthCheck('s')).toStrictEqual({ healthy: false, error: 'Service not initialized' });\n  await c.resolve('s'); expect(await c.healthCheck('s')).toStrictEqual({ healthy: false, error: 'offline' });\n  expect(await c.healthCheck('other')).toStrictEqual({ healthy: false, error: 'Service not registered' });\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "runtime failing start retries successfully, rolls back only new services",
+      "text": "test('runtime failing start retries successfully, rolls back only new services', async () => {\n  const c = new Container(); let fail = true; let cleaned = 0;\n  c.singleton('a', () => ({ onDispose: () => cleaned++ }));\n  c.singleton('b', () => { if (fail) throw new Error('startup'); return 1; });\n  const runtime = new DiRuntime(c);\n  await expect(runtime.start()).rejects.toThrow(expect.toSatisfy((e: unknown) => (e as { code: string }).code === 'RUNTIME_FAILED'));\n  expect(cleaned).toBe(1); expect(c.instanceState('a')).toBe('uninitialized');\n  fail = false; await runtime.start(); expect(runtime.state).toBe('ready');\n  await runtime.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "runtime concurrently configures one tenant; failed tenant isolated and retry after drain",
+      "text": "test('runtime concurrently configures one tenant; failed tenant isolated and retry after drain', async () => {\n  const root = new Container(); const called = new Map<string, number>();\n  const runtime = new DiRuntime(root, { configureTenant(id: string) {\n    called.set(id, (called.get(id) ?? 0) + 1);\n    if (id === 'fail' && called.get(id) === 1) throw new Error('no');\n  } });\n  await runtime.start();\n  await Promise.all(Array.from({ length: 20 }, () => runtime.withTenant('a', async () => {})));\n  expect(called.get('a')).toBe(1);\n  await expect(runtime.withTenant('fail', () => {})).rejects.toThrow(expect.toSatisfy((e: unknown) => (e as { code: string }).code === 'TENANT_FAILED'));\n  await runtime.withTenant('a', async () => {});\n  await runtime.drainTenant('fail');\n  await runtime.withTenant('fail', async () => {});\n  expect(called.get('fail')).toBe(2);\n  await runtime.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "each request gets a new scope, release idempotent, graceful drain waits for lease",
+      "text": "test('each request gets a new scope, release idempotent, graceful drain waits for lease', async () => {\n  const c = new Container(); c.request('resource', () => ({}));\n  const runtime = new DiRuntime(c); await runtime.start();\n  const first = await runtime.acquireRequest('tenant'); const second = await runtime.acquireRequest('tenant');\n  expect(first.container.identity.id).not.toBe(second.container.identity.id);\n  expect(first.container.identity.tenantId).toBe('tenant');\n  await Promise.all([first.release(), first.release()]);\n  let complete!: () => void;\n  const pending = new Promise<void>(resolve => { complete = resolve; });\n  const work = second.run(async () => { await pending; });\n  let drained = false;\n  const draining = runtime.drain().then(() => { drained = true; });\n  await Promise.resolve(); expect(drained).toBe(false);\n  complete(); await work; await second.release(); await draining;\n  await expect(runtime.withTenant('tenant', () => {})).rejects.toThrow(expect.toSatisfy((e: unknown) => (e as { code: string }).code === 'RUNTIME_DRAINING'));\n  await runtime.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/static/container.test.ts",
+      "title": "resource graph includes observed edges, changes generation on replacement",
+      "text": "test('resource graph includes observed edges, changes generation on replacement', async () => {\n  const c = new Container(); c.singleton('b', () => ({})); c.singleton('a', async c => ({ b: await c.resolve('b') }), { deps: ['b'] });\n  await c.resolve('a');\n  expect(c.getResourceGraphSnapshot().resources.length).toBe(2);\n  expect(c.getResourceGraphSnapshot().resourceEdges.length).toBe(1);\n  expect(c.dependencyEdges()[0]!.from.generation).toBe(0);\n  await c.replace('b', () => ({}), ServiceLifetime.Singleton, { rebuild: true });\n  expect(c.dependencyEdges().some(e => e.to.generation === 1)).toBeTruthy();\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/standard/decorators.test.ts",
+      "title": "standard decorators wire parameters, fields, optional fields, and multi fields before init",
+      "text": "test('standard decorators wire parameters, fields, optional fields, and multi fields before init', async () => {\n  const root = new Container();\n  root.registerInstance(database, { connected: true });\n  root.registerInstance('configuration', { region: 'eu' });\n  root.singletonMulti('providers', () => 1);\n  root.singletonMulti('providers', () => 2);\n  root.registerClass(StandardService);\n  root.validate();\n  const value = await root.resolve<StandardService>('service');\n  expect(value instanceof StandardService).toBeTruthy();\n  expect(value.db.connected).toBe(true);\n  expect(value.configuration.region).toBe('eu');\n  expect(hookOrder).toStrictEqual(['onInit']);\n  await root.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/standard/decorators.test.ts",
+      "title": "standard private auto-accessor injection uses context.access",
+      "text": "test('standard private auto-accessor injection uses context.access', async () => {\n  const c = new Container();\n  c.registerInstance('word', 'secret');\n  c.registerClass(InjectedPrivate);\n  expect((await c.resolve(InjectedPrivate)).value).toBe('secret');\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/standard/decorators.test.ts",
+      "title": "custom method records, per-instance wrapping, derive, validators, discover, hooks",
+      "text": "test('custom method records, per-instance wrapping, derive, validators, discover, hooks', async () => {\n  const c = new Container();\n  c.registerInstance('suffix', 'hello');\n  c.registerClass(Customized);\n  const discovered = c.discover('@Observe');\n  expect(discovered.length).toBe(1);\n  expect(discovered[0]!.methods[0]!.name).toBe('work');\n  expect(c.discover('tagged').length).toBe(1);\n  const called: string[] = [];\n  c.onInstance('@Observe', () => { called.push('hook'); });\n  const x = await c.resolve(Customized);\n  expect(x.work()).toBe('wrapped:derived:hello');\n  expect(Object.hasOwn(x, 'work')).toBe(true);\n  expect(Object.hasOwn(Customized.prototype, 'work')).toBe(true);\n  expect(new Customized().work()).toBe(undefined);\n  expect(called).toStrictEqual(['hook']);\n  expect(() => c.validate()).toThrow(expect.toSatisfy((e: unknown) => e instanceof DiGraphError && e.issues.some(i => i.kind === 'decorator')));\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/standard/decorators.test.ts",
+      "title": "registration decorator conflict with $injectable is discovered",
+      "text": "test('registration decorator conflict with $injectable is discovered', () => {\n  @Singleton() class Conflict { static $injectable = { lifetime: ServiceLifetime.Transient }; }\n  expect(() => describe(Conflict)).toThrow(/registered by @Singleton and by static \\$injectable/);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/standard/decorators.test.ts",
+      "title": "decorator placement checks include standard constructor hint",
+      "text": "test('decorator placement checks include standard constructor hint', () => {\n  expect(() => { class Bad { @Inject('x') method() {} } return Bad; }).toThrow(/static \\$inject/);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/standard/decorators.test.ts",
+      "title": "subclass inherits injections but not its parent registration",
+      "text": "test('subclass inherits injections but not its parent registration', async () => {\n  @Singleton()\n  class Parent {\n    @Inject('parentValue') prop!: number;\n  }\n  class Child extends Parent { @Inject('childValue') override prop: number = 0; static $injectable = {}; }\n  expect(describe(Child).registration?.source).toBe('static $injectable');\n  const c = new Container(); c.registerInstance('childValue', 12); c.registerClass(Child);\n  expect((await c.resolve(Child)).prop).toBe(12);\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/standard/decorators.test.ts",
+      "title": "undecorated subclass does not inherit standard class registration",
+      "text": "test('undecorated subclass does not inherit standard class registration', () => {\n  @Singleton()\n  class Root {}\n  class Derived extends Root {}\n  expect(describe(Root).registration?.source).toBe('@Singleton');\n  expect(describe(Derived).registration).toBe(undefined);\n  const c = new Container();\n  expect(() => c.registerClass(Derived)).toThrow(/has no registration/);\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/standard/decorators.test.ts",
+      "title": "method records resolve standard #private methods through context.access",
+      "text": "test('method records resolve standard #private methods through context.access', async () => {\n  const c = new Container(); c.registerClass(HiddenMethod);\n  const instance = await c.resolve(HiddenMethod);\n  const record = c.discover('@PrivateMethod')[0]!.methods[0]!;\n  expect(record.get(instance)()).toBe(42);\n  await c.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/standard/decorators.test.ts",
+      "title": "injectMembers fills the fields of an instance the container did not construct",
+      "text": "test('injectMembers fills the fields of an instance the container did not construct', async () => {\n  @Injectable()\n  class Owned {\n    @Inject('configuration') configuration!: { region: string };\n    @InjectOptional('unknown-option') optional?: number;\n    constructor(readonly owner: string) {}\n  }\n  const root = new Container();\n  root.registerInstance('configuration', { region: 'eu' });\n  const value = root.injectMembers(new Owned('app'));\n  expect(value.owner).toBe('app');\n  expect(value.configuration.region).toBe('eu');\n  expect(value.optional).toBe(undefined);\n  await root.dispose();\n})",
+      "count": 1,
+      "failed": false
+    },
+    {
+      "file": "tests/bun/standard/decorators.test.ts",
+      "title": "injectMembers throws for an unregistered, an asynchronous and a multi member",
+      "text": "test('injectMembers throws for an unregistered, an asynchronous and a multi member', async () => {\n  @Injectable() class Missing { @Inject('missing') missing!: unknown; }\n  @Injectable() class Slow { @Inject('slow') slow!: unknown; }\n  @Injectable() class Many { @InjectAll('providers') providers!: number[]; }\n  const root = new Container();\n  root.singleton('slow', async () => 1);\n  root.singletonMulti('providers', () => 1);\n  expect(() => root.injectMembers(new Missing())).toThrow(/missing/);\n  expect(() => root.injectMembers(new Slow())).toThrow(/asynchronous/);\n  expect(() => root.injectMembers(new Many())).toThrow(/asynchronous/);\n  await root.dispose();\n})",
+      "count": 1,
+      "failed": false
+    }
+  ],
+  "members": [
+    [
+      "scopeType",
+      1
+    ],
+    [
+      "isDisposed",
+      1
+    ],
+    [
+      "identity",
+      1
+    ],
+    [
+      "createScope",
+      1
+    ],
+    [
+      "createTenantScope",
+      1
+    ],
+    [
+      "createRequestScope",
+      1
+    ],
+    [
+      "singleton",
+      2
+    ],
+    [
+      "transient",
+      2
+    ],
+    [
+      "scoped",
+      2
+    ],
+    [
+      "tenant",
+      2
+    ],
+    [
+      "request",
+      2
+    ],
+    [
+      "singletonMulti",
+      2
+    ],
+    [
+      "transientMulti",
+      2
+    ],
+    [
+      "scopedMulti",
+      2
+    ],
+    [
+      "tenantMulti",
+      2
+    ],
+    [
+      "requestMulti",
+      2
+    ],
+    [
+      "registerInstance",
+      1
+    ],
+    [
+      "registerClass",
+      1
+    ],
+    [
+      "resolve",
+      1
+    ],
+    [
+      "resolveSync",
+      1
+    ],
+    [
+      "resolveAll",
+      1
+    ],
+    [
+      "instantiate",
+      1
+    ],
+    [
+      "instantiateAsync",
+      1
+    ],
+    [
+      "injectMembers",
+      1
+    ],
+    [
+      "injectMembersAsync",
+      1
+    ],
+    [
+      "autoInject",
+      1
+    ],
+    [
+      "get",
+      1
+    ],
+    [
+      "tryGet",
+      1
+    ],
+    [
+      "isRegistered",
+      1
+    ],
+    [
+      "isRegisteredRecursive",
+      1
+    ],
+    [
+      "has",
+      1
+    ],
+    [
+      "hasRecursive",
+      1
+    ],
+    [
+      "getRegisteredTokens",
+      1
+    ],
+    [
+      "replace",
+      1
+    ],
+    [
+      "replaceBinding",
+      1
+    ],
+    [
+      "unregister",
+      1
+    ],
+    [
+      "unregisterBinding",
+      1
+    ],
+    [
+      "clearInstances",
+      1
+    ],
+    [
+      "initializeOwned",
+      1
+    ],
+    [
+      "dispose",
+      1
+    ],
+    [
+      "healthCheck",
+      1
+    ],
+    [
+      "healthCheckAll",
+      1
+    ],
+    [
+      "addInterceptor",
+      1
+    ],
+    [
+      "removeInterceptor",
+      1
+    ],
+    [
+      "getScopeIdentity",
+      1
+    ],
+    [
+      "getScopeId",
+      1
+    ],
+    [
+      "getScopeChain",
+      1
+    ],
+    [
+      "getRegistryEpoch",
+      1
+    ],
+    [
+      "epochSnapshot",
+      1
+    ],
+    [
+      "bindingOf",
+      1
+    ],
+    [
+      "multiBindingsOf",
+      1
+    ],
+    [
+      "instanceState",
+      1
+    ],
+    [
+      "cachedBindings",
+      1
+    ],
+    [
+      "dependencyEdges",
+      1
+    ],
+    [
+      "ownershipRecords",
+      1
+    ],
+    [
+      "getDependencyGraph",
+      1
+    ],
+    [
+      "getDependencyGraphSnapshot",
+      1
+    ],
+    [
+      "getDependencyTree",
+      1
+    ],
+    [
+      "getResourceGraphSnapshot",
+      1
+    ],
+    [
+      "graph",
+      1
+    ],
+    [
+      "issuesObserved",
+      1
+    ],
+    [
+      "validate",
+      1
+    ],
+    [
+      "onInstance",
+      1
+    ],
+    [
+      "discover",
+      1
+    ]
+  ],
+  "versions": {
+    "bun": "1.3.0",
+    "node": "24.14.1",
+    "vitest": "5.0.5",
+    "typescript": "5.9.3"
+  },
+  "summary": {
+    "total": 116,
+    "passed": 113,
+    "failed": 2,
+    "pending": 1
+  }
+}

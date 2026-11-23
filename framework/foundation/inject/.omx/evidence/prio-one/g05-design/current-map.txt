@@ -1,0 +1,288 @@
+1-11 ImportDeclaration 
+12-12 ImportDeclaration 
+13-13 ImportDeclaration 
+14-14 ImportDeclaration 
+15-15 ImportDeclaration 
+18-18 FirstStatement 
+20-20 FirstStatement 
+22-22 FirstStatement 
+27-32 FunctionDeclaration stamp
+34-37 FirstStatement 
+39-39 FirstStatement 
+41-41 FirstStatement 
+43-46 FirstStatement 
+48-48 FirstStatement 
+50-50 FirstStatement 
+52-52 FirstStatement 
+54-55 FirstStatement 
+57-57 TypeAliasDeclaration AnyFactory
+59-63 FunctionDeclaration isConstructor
+65-70 TypeAliasDeclaration Binding
+72-95 InterfaceDeclaration BindingShape
+97-110 InterfaceDeclaration StoredShape
+112-127 InterfaceDeclaration Observed
+129-138 InterfaceDeclaration ResourceObserved
+140-145 InterfaceDeclaration Build
+147-156 InterfaceDeclaration Frame
+158-169 InterfaceDeclaration Resolver
+171-171 FirstStatement 
+173-176 FirstStatement 
+178-180 FunctionDeclaration frameStep
+182-186 FunctionDeclaration idOf
+188-188 FirstStatement 
+190-194 FunctionDeclaration pathOf
+196-199 FunctionDeclaration cycleError
+201-212 FunctionDeclaration reaches
+214-214 FirstStatement 
+216-218 FunctionDeclaration then
+220-225 FunctionDeclaration each
+227-232 FunctionDeclaration guarded
+237-252 FunctionDeclaration shield
+254-254 FunctionDeclaration valueOf
+256-260 FunctionDeclaration promised
+262-269 FunctionDeclaration synchronous
+271-275 FunctionDeclaration settle
+277-283 FunctionDeclaration syncValue
+285-300 InterfaceDeclaration CompletionState
+302-311 InterfaceDeclaration CompletionAttempt
+313-322 InterfaceDeclaration CompletionLink
+324-329 FunctionDeclaration currentCompletion
+331-336 InterfaceDeclaration MethodOrigin
+338-338 FirstStatement 
+340-348 FunctionDeclaration gather
+350-361 InterfaceDeclaration Scope
+363-367 FunctionDeclaration hostOf
+369-369 FirstStatement 
+371-376 InterfaceDeclaration AmbientResolution
+378-378 FirstStatement 
+383-383 FunctionDeclaration useAmbientResolution
+385-385 FirstStatement 
+387-392 InterfaceDeclaration RegistrationSet
+394-399 InterfaceDeclaration HookSlot
+402-402 TypeAliasDeclaration BindingDependency
+404-410 FunctionDeclaration classEdges
+412-414 FunctionDeclaration isLifecycle
+416-418 FunctionDeclaration isInjectable
+420-422 FunctionDeclaration hasOnReady
+424-424 FunctionDeclaration errorOf
+426-430 FunctionDeclaration attachCause
+433-440 FunctionDeclaration exposeIssues
+443-447 FunctionDeclaration checkTimeout
+449-449 FirstStatement 
+451-451 FirstStatement 
+453-471 FunctionDeclaration buildSignal
+474-474 FirstStatement 
+476-478 FunctionDeclaration isObject
+480-485 FunctionDeclaration record
+487-2175 ClassDeclaration Container
+  489-489 identityState
+  491-491 identityGiven
+  493-493 scopeType
+  495-495 parent
+  497-497 children
+  499-499 registry
+  501-501 order
+  503-503 records
+  505-505 readied
+  507-507 completions
+  509-509 pending
+  511-511 builds
+  513-513 timeoutState
+  515-515 lifetimeController
+  517-517 lifetimeReason
+  519-519 disposalOrder
+  521-521 interceptors
+  523-523 instanceHooks
+  525-525 observed
+  527-527 resourceObserved
+  529-529 observedPairs
+  531-531 resourcePairs
+  533-533 graphIssues
+  535-535 graphIssueKeys
+  537-537 graphState
+  539-539 graphQueue
+  541-541 graphIndexed
+  543-543 epoch
+  545-545 disposed
+  547-547 disposing
+  549-549 disposal
+  551-551 disposalEntries
+  553-553 disposalKeys
+  555-555 disposalListeners
+  557-557 exposeDisposal
+  559-559 autoState
+  562-565 autoInject
+  566-566 autoInject
+  569-572 buildTimeout
+  573-573 buildTimeout
+  575-581 signal
+  584-599 diGraph
+  602-608 constructor
+  610-610 identity
+  612-621 describeScope
+  623-623 isDisposed
+  625-625 assertActive
+  627-627 createIsolated
+  629-629 createScope
+  631-633 createTenantScope
+  635-637 createRequestScope
+  639-642 ancestors
+  644-648 allDescendants
+  650-650 subtree
+  652-652 view
+  654-657 nearestScope
+  659-675 route
+  678-704 createBinding
+  706-706 addGraphNode
+  708-713 rebuildGraphKey
+  715-746 install
+  748-775 register
+  777-777 singleton
+  779-779 singleton
+  780-782 singleton
+  784-784 transient
+  786-786 transient
+  787-789 transient
+  791-791 scoped
+  793-793 scoped
+  794-796 scoped
+  798-798 tenant
+  800-800 tenant
+  801-803 tenant
+  805-805 request
+  807-807 request
+  808-810 request
+  812-812 singletonMulti
+  814-814 singletonMulti
+  815-817 singletonMulti
+  819-819 transientMulti
+  821-821 transientMulti
+  822-824 transientMulti
+  826-826 scopedMulti
+  828-828 scopedMulti
+  829-831 scopedMulti
+  833-833 tenantMulti
+  835-835 tenantMulti
+  836-838 tenantMulti
+  840-840 requestMulti
+  842-842 requestMulti
+  843-845 requestMulti
+  852-862 registerInstance
+  865-878 registerClass
+  880-892 registerConstructor
+  894-902 classFactory
+  907-917 construct
+  919-931 slot
+  936-1013 complete
+  1015-1015 contextHostState
+  1017-1028 contextHost
+  1030-1032 completionView
+  1034-1038 buildClass
+  1040-1045 fill
+  1047-1049 instantiate
+  1051-1051 instantiateAsync
+  1053-1055 injectMembers
+  1057-1057 injectMembersAsync
+  1059-1069 autoBinding
+  1072-1074 handle
+  1076-1076 localSingle
+  1078-1086 locateSingle
+  1088-1095 locateMulti
+  1097-1097 gatherInterceptors
+  1099-1103 makeRecord
+  1105-1117 observe
+  1119-1127 observeResource
+  1129-1129 forgetObserved
+  1131-1136 runInit
+  1138-1148 disposeInstance
+  1153-1163 materialize
+  1165-1170 constructAsync
+  1172-1183 initialize
+  1188-1193 ready
+  1195-1199 fail
+  1201-1208 discard
+  1213-1274 entry
+  1276-1281 finishBuild
+  1283-1287 cleanupLate
+  1289-1289 cancelledResult
+  1291-1304 stopBuild
+  1306-1312 timeoutError
+  1314-1336 watchBuild
+  1338-1341 linked
+  1343-1354 settled
+  1356-1361 share
+  1363-1366 hasInterceptors
+  1368-1374 assertNotMulti
+  1377-1377 resolve
+  1379-1382 rootCtx
+  1384-1386 resolveEither
+  1392-1392 resolveSync
+  1398-1406 resolveIn
+  1408-1435 resolveIntercepted
+  1438-1438 resolveAll
+  1441-1482 resolveAllIn
+  1489-1497 lookupCached
+  1499-1509 get
+  1511-1514 tryGet
+  1516-1516 isRegistered
+  1518-1520 isRegisteredRecursive
+  1522-1525 has
+  1527-1527 hasRecursive
+  1529-1529 getRegisteredTokens
+  1531-1531 addInterceptor
+  1533-1536 removeInterceptor
+  1538-1541 onInstance
+  1543-1551 discover
+  1554-1554 getScopeIdentity
+  1556-1556 getScopeId
+  1558-1561 getScopeChain
+  1563-1563 getRegistryEpoch
+  1565-1565 epochSnapshot
+  1567-1573 toDescriptor
+  1575-1578 bindingOf
+  1580-1582 multiBindingsOf
+  1584-1595 instanceState
+  1597-1601 cachedBindings
+  1603-1606 recordPublic
+  1608-1612 ownershipRecords
+  1614-1625 dependencyEdges
+  1627-1652 getDependencyGraphSnapshot
+  1654-1656 getDependencyGraph
+  1658-1671 getDependencyTree
+  1673-1689 getResourceGraphSnapshot
+  1691-1691 graph
+  1693-1700 recordIssue
+  1702-1705 clearGraphIssues
+  1707-1711 restoreGraphIssues
+  1713-1713 issuesObserved
+  1715-1728 validate
+  1731-1752 initializeOwned
+  1758-1772 disposeRecord
+  1774-1779 disposeWithTracking
+  1781-1786 appendDisposal
+  1791-1800 disposeTree
+  1802-1859 runDisposal
+  1861-1865 dispose
+  1871-1895 clearInstances
+  1897-1905 checkInstance
+  1907-1923 healthCheck
+  1925-1929 healthCheckAll
+  1932-1952 dependentBindings
+  1954-1960 awaitBuilds
+  1962-1964 recordsFor
+  1966-1977 discardRecord
+  1979-2098 replaceBinding
+  2101-2121 replace
+  2125-2131 rollbackNewInstances
+  2134-2143 unregister
+  2145-2174 unregisterBinding
+2178-2395 ClassDeclaration ContainerView
+2403-2454 ClassDeclaration ResolutionView
+2456-2471 InterfaceDeclaration ContextHost
+2473-2495 ClassDeclaration CompletionView
+2497-2497 ExpressionStatement 
+2500-2500 FirstStatement 
+2502-2519 ClassDeclaration Handle
+2522-2639 ClassDeclaration TypedBinding
+2641-2704 ClassDeclaration StoredRecord
+2706-2739 InterfaceDeclaration BindingExtra

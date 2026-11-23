@@ -1,0 +1,3 @@
+# G02 focused re-review cycle 3
+
+Native code-reviewer g02_review: APPROVE,0remainingissues. InitialA/B/Cfixed andconfirmedbyindependentBunprobes; architectureexplicitcompletioncontextclarified. Follow-upnewhookfacadesetterregressionfixedinsharedforwarder usingReflectget/setrealreceiver, includingsetteronlydescriptors. Independentprobespassedhook/factory/target-ownedsettercases;diffcheckpassed. 2filesreviewedinthesetter-onlypass. Wholeplanverificationremainsseparate.

@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "sessions": {
+    "omx-1793103088514-q35626": {
+      "session_id": "omx-1793103088514-q35626",
+      "leader_thread_id": "01a17d48-7557-7302-94ba-1b460cceaa10",
+      "updated_at": "2026-10-27T12:43:20.954Z",
+      "threads": {
+        "01a17d48-7557-7302-94ba-1b460cceaa10": {
+          "thread_id": "01a17d48-7557-7302-94ba-1b460cceaa10",
+          "kind": "leader",
+          "first_seen_at": "2026-10-27T12:14:31.460Z",
+          "last_seen_at": "2026-10-27T12:14:31.460Z",
+          "last_turn_id": "01a17d48-7636-7692-a69d-c2337f0c21d9",
+          "completed_at": "2026-10-27T12:14:31.460Z",
+          "last_completed_turn_id": "01a17d48-7636-7692-a69d-c2337f0c21d9",
+          "turn_count": 1,
+          "completion_source": "notify-fallback-watcher",
+          "status": "closed"
+        },
+        "01a17d48-8ac9-7982-a839-8e5da9cea130": {
+          "thread_id": "01a17d48-8ac9-7982-a839-8e5da9cea130",
+          "kind": "subagent",
+          "first_seen_at": "2026-10-27T12:14:39.282Z",
+          "last_seen_at": "2026-10-27T12:14:39.282Z",
+          "last_turn_id": "01a17d48-8c11-7a13-be5d-75126b070ceb",
+          "completed_at": "2026-10-27T12:14:39.282Z",
+          "last_completed_turn_id": "01a17d48-8c11-7a13-be5d-75126b070ceb",
+          "turn_count": 1,
+          "completion_source": "notify-fallback-watcher",
+          "status": "closed"
+        },
+        "01a17d48-adc2-78f3-99cf-18bffceed0cd": {
+          "thread_id": "01a17d48-adc2-78f3-99cf-18bffceed0cd",
+          "kind": "subagent",
+          "first_seen_at": "2026-10-27T12:15:45.932Z",
+          "last_seen_at": "2026-10-27T12:15:45.932Z",
+          "last_turn_id": "01a17d48-af1b-7e02-b87a-54b750211cec",
+          "completed_at": "2026-10-27T12:15:45.932Z",
+          "last_completed_turn_id": "01a17d48-af1b-7e02-b87a-54b750211cec",
+          "turn_count": 1,
+          "completion_source": "notify-fallback-watcher",
+          "status": "closed"
+        },
+        "01a17d48-cb43-7d42-b2fd-7b19036e2d6d": {
+          "thread_id": "01a17d48-cb43-7d42-b2fd-7b19036e2d6d",
+          "kind": "subagent",
+          "first_seen_at": "2026-10-27T12:15:54.903Z",
+          "last_seen_at": "2026-10-27T12:15:54.903Z",
+          "last_turn_id": "01a17d48-cc81-7c40-8b96-1d90253f2de1",
+          "completed_at": "2026-10-27T12:15:54.903Z",
+          "last_completed_turn_id": "01a17d48-cc81-7c40-8b96-1d90253f2de1",
+          "turn_count": 1,
+          "completion_source": "notify-fallback-watcher",
+          "status": "closed"
+        },
+        "01a17d45-f97a-7380-8b33-e44757976af6": {
+          "thread_id": "01a17d45-f97a-7380-8b33-e44757976af6",
+          "kind": "subagent",
+          "first_seen_at": "2026-10-27T12:16:10.569Z",
+          "last_seen_at": "2026-10-27T12:43:20.954Z",
+          "last_turn_id": "01a17d60-75c9-7743-b614-8337988ea221",
+          "completed_at": "2026-10-27T12:43:20.954Z",
+          "last_completed_turn_id": "01a17d60-75c9-7743-b614-8337988ea221",
+          "turn_count": 2,
+          "completion_source": "notify-fallback-watcher",
+          "status": "closed"
+        },
+        "01a17d4c-2be0-7a52-8876-a637efbfbbdf": {
+          "thread_id": "01a17d4c-2be0-7a52-8876-a637efbfbbdf",
+          "kind": "subagent",
+          "first_seen_at": "2026-10-27T12:20:38.579Z",
+          "last_seen_at": "2026-10-27T12:20:38.579Z",
+          "last_turn_id": "01a17d4c-2c93-7dd3-82f3-1d01c099303f",
+          "completed_at": "2026-10-27T12:20:38.579Z",
+          "last_completed_turn_id": "01a17d4c-2c93-7dd3-82f3-1d01c099303f",
+          "turn_count": 1,
+          "completion_source": "notify-fallback-watcher",
+          "status": "closed"
+        },
+        "01a17d53-c412-7740-9740-126c5489383d": {
+          "thread_id": "01a17d53-c412-7740-9740-126c5489383d",
+          "kind": "subagent",
+          "first_seen_at": "2026-10-27T12:27:34.518Z",
+          "last_seen_at": "2026-10-27T12:27:34.518Z",
+          "last_turn_id": "01a17d53-c476-7f32-a516-3b9a7ff2c1c3",
+          "completed_at": "2026-10-27T12:27:34.518Z",
+          "last_completed_turn_id": "01a17d53-c476-7f32-a516-3b9a7ff2c1c3",
+          "turn_count": 1,
+          "completion_source": "notify-fallback-watcher",
+          "status": "closed"
+        }
+      }
+    }
+  }
+}

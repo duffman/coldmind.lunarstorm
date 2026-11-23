@@ -1,0 +1,5 @@
+# G04 independent review cycle1
+
+Nativecode-reviewer g02_review:REQUESTCHANGES;6files,1MEDIUM. SourceTSC/diff0,8actualcompilerfixturespass,Bun22view/completioncasespass. Explicittypedviews/contextresolve/construct/expiry/signal/getset/publicextras andconstructor/legacysetter/TC39placement reviewedwithoutotherconfirmedregression.
+
+PublicServiceFactory<T,undefined> previouslytreatednodata, allowedfactory(container); simplifiedalways2paramTData makesexplicitundefinedrequired(TS2554), evenwhilevoidpermitsomission. Fixomittedexplicitundefinedcall compatibilitywithoutreintroducingdistributiveinferencecasts, adddirectfactory+ServiceLifecycle.factorycompilerregression. SourceownerresumedviafollowupcurrentG04.

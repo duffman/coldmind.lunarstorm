@@ -1,0 +1,41 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --line: #d9dce1;
+  --text: #1d2127;
+  --muted: #606875;
+  --accent: #2f6fde;
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1c1e22; --panel: #25282d; --line: #3a3e45; --text: #e6e8eb; --muted: #9aa1ab; --accent: #5b93f5; }
+}
+html, body, #app { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); overflow: hidden; user-select: none; }
+.vcl-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.vcl-panel[data-layout="row"] { flex-direction: row; align-items: stretch; }
+.vcl-align-client { flex: 1 1 auto; }
+.vcl-align-top, .vcl-align-bottom { flex: 0 0 auto; }
+.vcl-align-right { margin-left: auto; align-self: center; }
+#app > .vcl-panel { height: 100%; }
+.vcl-panel.vcl-align-top { border-bottom: 1px solid var(--line); background: var(--panel); }
+.vcl-button {
+  font: inherit; padding: 5px 14px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--text); cursor: default;
+}
+.vcl-button:not(:disabled):active { background: var(--bg); }
+.vcl-button:disabled { color: var(--muted); opacity: .6; }
+.vcl-label { color: var(--muted); }
+.vcl-edit {
+  font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--text); user-select: text;
+}
+.vcl-edit:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.vcl-listbox {
+  list-style: none; margin: 0; padding: 4px; overflow: auto; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--panel);
+}
+.vcl-listbox li { padding: 5px 8px; border-radius: 4px; }
+.vcl-listbox li[aria-selected="true"] { background: var(--accent); color: #fff; }
+.vcl-statusbar { padding: 4px 12px; border-top: 1px solid var(--line); background: var(--panel); color: var(--muted); }

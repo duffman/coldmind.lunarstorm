@@ -1,0 +1,21 @@
+{
+  "name": "@coldmind/model",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./src/model.ts",
+  "types": "./src/model.ts",
+  "exports": {
+    ".": "./src/model.ts",
+    "./internal": "./src/model.internal.ts",
+    "./define-model": "./src/models/model.definition.ts",
+    "./model.key": "./src/models/model.identity.ts",
+    "./*": "./*"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.check.json"
+  },
+  "dependencies": {
+    "@coldmind/core": "workspace:*"
+  }
+}

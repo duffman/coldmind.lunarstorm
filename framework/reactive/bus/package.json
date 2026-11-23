@@ -1,0 +1,17 @@
+{
+  "name": "@coldmind/bus",
+  "version": "0.4.0",
+  "description": "SignalBus: in-process topics, QoS, requests, streams",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./bridge": "./src/bus.bridge.ts",
+    "./*": "./*"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

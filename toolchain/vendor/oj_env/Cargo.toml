@@ -1,0 +1,14 @@
+[package]
+name = "oj_env"
+version = "0.2.29"
+edition.workspace = true
+license.workspace = true
+repository = "https://github.com/lovablelabs/oj"
+description = "dotenv loading and import.meta.env define construction (Vite-compatible)"
+
+[dependencies]
+serde_json.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+tempfile.workspace = true

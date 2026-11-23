@@ -1,0 +1,26 @@
+# Lunarstorm monorepo: the JS/TS workspace. The Rust crates are the Cargo
+# workspace in the root `Cargo.toml`.
+#
+# Decision: explicit globs per area rather than `framework/**`, so build output
+# (`dist/`), generated projects and template payloads never become packages by accident.
+#
+# Shared build config lives in `framework/config` (`@coldmind/config`) and is installed
+# at the root, so every package extends `@coldmind/config/tsconfig.base.json` and
+# imports `@coldmind/config/vitest` by name. Decision: package names replace relative
+# paths that leave their own package, so packages can move without breaking imports.
+packages:
+  - framework/config
+  - framework/foundation/*
+  - framework/reactive/*
+  - framework/net/*
+  - framework/build-server
+  - framework/desktop
+  - framework/zebra.framework
+  - framework/vcl/*
+  - framework/vcl/contract/*
+  - framework/templates/lsapp
+  - framework/templates/starters/*
+  - toolchain/react
+  - toolchain/react/packages/*
+allowBuilds:
+  esbuild: true

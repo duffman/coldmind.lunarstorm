@@ -1,0 +1,67 @@
+# Zebra native desktop process (spec section 6).
+#
+# One library holds the core both runtimes share; the binaries are thin:
+#   zebra-debug    debug runtime: embedded pipeline, file watcher, in-memory asset store
+#   zebra-release  release runtime: serves the archive attached to its own executable
+#   zebra-pack     release step of 6.3: pipeline -> archive -> attach -> package -> sign
+#   zebra-web      browser host of 6.3: the project in a browser tab, backend in a Worker
+#
+# Decision: a standalone package (its own lock file) so `_output` builds without the
+# toolchain workspace, whose member paths do not match its directory layout.
+
+[package]
+name = "zebra-desktop"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Zebra native desktop process: debug and release runtimes"
+
+[lib]
+name = "zebra_desktop"
+path = "src/lib.rs"
+
+[[bin]]
+name = "zebra-debug"
+path = "src/bin/zebra_debug.rs"
+
+[[bin]]
+name = "zebra-release"
+path = "src/bin/zebra_release.rs"
+
+[[bin]]
+name = "zebra-pack"
+path = "src/bin/zebra_pack.rs"
+
+# Browser host of 6.3: serves a project to a browser tab with its in-page host.
+[[bin]]
+name = "zebra-web"
+path = "src/bin/zebra_web.rs"
+
+[features]
+# `devtools` turns on WebView devtools; the debug runtime is built with it (6.3).
+default = ["devtools"]
+devtools = ["wry/devtools"]
+
+[dependencies]
+tao = "0.37"
+wry = "0.57"
+muda = "0.20"
+tray-icon = "0.25"
+rfd = "0.17"
+arboard = "3.7"
+notify-rust = "4.18"
+dirs = "6"
+open = "5.4"
+notify = "8.2"
+rquickjs = { version = "0.14", features = ["loader"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+crossbeam-channel = "0.5"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true

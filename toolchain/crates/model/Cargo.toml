@@ -1,0 +1,23 @@
+# Model extraction (spec 4a). Its own crate because the same library is linked into
+# the CLI and the debug runtime (spec 4: "one library, linked into both").
+[package]
+name = "lunarstorm-model"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Model extraction: reads app.tsx and every view resource from the AST, never executes them"
+
+[lib]
+name = "lunarstorm_model"
+
+[dependencies]
+oxc_allocator.workspace = true
+oxc_parser.workspace = true
+oxc_ast.workspace = true
+oxc_ast_visit.workspace = true
+oxc_span.workspace = true
+oxc_syntax.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

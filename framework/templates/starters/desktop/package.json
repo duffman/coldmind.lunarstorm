@@ -1,0 +1,6 @@
+{
+  "name": "project-register",
+  "private": true,
+  "type": "module",
+  "giraffe": { "schema": 1, "features": [] }
+}

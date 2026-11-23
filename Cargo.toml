@@ -1,0 +1,132 @@
+# Lunarstorm monorepo: the one Cargo workspace for every Rust crate in the repo.
+#
+#   crates/      reusable crates with no tie to one product; anything in the repo
+#                may depend on them:
+#     cliui           terminal UI: colors, help screens, error frames, progress bars
+#     http1           HTTP/1.1 request framing and response heads; no sockets, no JS
+#   runtime/     the Lunarstorm runtime, as the layers of spec section 5:
+#     hosts/cli       CLI app host: process, argv, stdio, exit code (binary `lunarstorm`)
+#     hosts/desktop   desktop app host: a desktop application's backend on the Runtime,
+#                     and the tao shell around it (binary `lunarstorm-desktop`)
+#     core            the Runtime: event loop, timers, modules, fs and net; generic
+#                     over the VM and the host
+#     vm              the VM interface, callbacks, capabilities and conformance suite
+#     engines/quickjs   VM adapter wrapping QuickJS
+#     engines/rquickjs  the vendored engine binding (excluded, see below)
+#   toolchain/   the build toolchain (devermind crates and the vendored oj_* compiler)
+#
+# Decision: one workspace at the repo root instead of the former `runtime/` and
+# `toolchain/` workspaces, so one lock file and one `cargo build` cover everything.
+# The JS/TS side is the pnpm workspace in `pnpm-workspace.yaml`.
+#
+# Excluded (each builds on its own, with its own lock file):
+#   runtime/engines/rquickjs   vendored engine binding; its own workspace. It is a path
+#                      dependency of engines/quickjs and would otherwise be auto-joined.
+#   toolchain/jetpack  standalone npm package-manager crate
+#   _output            generated Zebra desktop process; standalone by design
+#   _trash, .archive   parked code, never built
+[workspace]
+resolver = "2"
+members = [
+    "runtime/vm",
+    "runtime/engines/quickjs",
+    "runtime/core",
+    "runtime/hosts/cli",
+    "runtime/hosts/desktop",
+    "crates/cliui",
+    "crates/http1",
+    "toolchain/crates/build-server",
+    "toolchain/crates/model",
+    "toolchain/crates/pipeline",
+    "toolchain/crates/core",
+    "toolchain/crates/server",
+    "toolchain/crates/transform",
+    "toolchain/crates/bundler",
+    "toolchain/crates/cli",
+    "toolchain/crates/tauri",
+    "toolchain/vendor/oj_compiler",
+    "toolchain/vendor/oj_env",
+    "toolchain/vendor/oj_graph",
+    "toolchain/vendor/oj_resolver",
+]
+exclude = ["runtime/engines/rquickjs", "toolchain/jetpack", "_output", "_trash", ".archive"]
+
+# Inherited by the toolchain crates (`version.workspace = true` etc.); the runtime
+# crates set their own package fields.
+[workspace.package]
+version = "0.2.29"
+edition = "2021"
+rust-version = "1.99"
+license = "MIT"
+repository = "https://github.com/lovablelabs/oj"
+
+# Shared dependency versions, used by the toolchain crates via `workspace = true`.
+[workspace.dependencies]
+oj_compiler = { path = "toolchain/vendor/oj_compiler" }
+oj_env = { path = "toolchain/vendor/oj_env" }
+oj_graph = { path = "toolchain/vendor/oj_graph" }
+oj_resolver = { path = "toolchain/vendor/oj_resolver" }
+devermind_core = { path = "toolchain/crates/core" }
+devermind_server = { path = "toolchain/crates/server" }
+devermind_bundler = { path = "toolchain/crates/bundler" }
+
+oxc_allocator = "=0.157.0"
+oxc_parser = "=0.157.0"
+oxc_ast = "=0.157.0"
+oxc_ast_visit = "=0.157.0"
+oxc_span = "=0.157.0"
+oxc_semantic = "=0.157.0"
+oxc_transformer = "=0.157.0"
+oxc_transformer_plugins = "=0.157.0"
+oxc_minifier = "=0.157.0"
+oxc_ecmascript = "=0.157.0"
+oxc_syntax = "=0.157.0"
+oxc_str = "=0.157.0"
+oxc_codegen = "=0.157.0"
+oxc_diagnostics = "=0.157.0"
+oxc_sourcemap = "9.0.0"
+oxc_resolver = "11.24.3"
+base64 = "0.22"
+
+anyhow = "1.0.104"
+memchr = "2.8.3"
+thiserror = "2.0.20"
+serde_json = "1.0.154"
+
+proptest = "1.9.0"
+tempfile = "3.24.0"
+
+# Release profile of the runtime (`cargo build --release -p lunarstorm`), unchanged
+# from the former runtime workspace. Profiles are workspace-wide, so toolchain
+# release builds now also get fat LTO, one codegen unit, abort-on-panic and stripping.
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Per-package overrides carried over from the former toolchain workspace.
+[profile.release.package]
+oj_compiler = { opt-level = 3 }
+oj_graph = { opt-level = 3 }
+oj_resolver = { opt-level = 3 }
+
+[profile.release.package.devermind-native]
+codegen-units = 1
+
+# Release build for Node-API addons (`devermind-native`, built with
+# `--profile release-node`). Decision: `panic` cannot be overridden per package, and
+# under the runtime's `panic = "abort"` a panic inside the addon would kill the
+# host Node/Bun process instead of surfacing as a JS exception (napi-rs relies on
+# unwinding for that). Keeping unwind here preserves the toolchain's old behaviour.
+[profile.release-node]
+inherits = "release"
+panic = "unwind"
+
+# Release code with symbols kept, for profilers (`sample`, Instruments). Cargo
+# builds it into the `profiling` subdirectory of the shared target directory.
+[profile.profiling]
+inherits = "release"
+strip = false
+debug = "line-tables-only"

@@ -1,0 +1,68 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/build-server",
+    "crates/model",
+    "crates/pipeline",
+    "crates/core",
+    "crates/server",
+    "crates/transform",
+    "crates/bundler",
+    "crates/cli",
+    "crates/tauri",
+    "vendor/oj_compiler",
+    "vendor/oj_env",
+    "vendor/oj_graph",
+    "vendor/oj_resolver",
+]
+exclude = ["reference"]
+
+[workspace.package]
+version = "0.2.29"
+edition = "2021"
+rust-version = "1.99"
+license = "MIT"
+repository = "https://github.com/lovablelabs/oj"
+
+[workspace.dependencies]
+oj_compiler = { path = "vendor/oj_compiler" }
+oj_env = { path = "vendor/oj_env" }
+oj_graph = { path = "vendor/oj_graph" }
+oj_resolver = { path = "vendor/oj_resolver" }
+devermind_core = { path = "crates/core" }
+devermind_server = { path = "crates/server" }
+devermind_bundler = { path = "crates/bundler" }
+
+oxc_allocator = "=0.157.0"
+oxc_parser = "=0.157.0"
+oxc_ast = "=0.157.0"
+oxc_ast_visit = "=0.157.0"
+oxc_span = "=0.157.0"
+oxc_semantic = "=0.157.0"
+oxc_transformer = "=0.157.0"
+oxc_transformer_plugins = "=0.157.0"
+oxc_minifier = "=0.157.0"
+oxc_ecmascript = "=0.157.0"
+oxc_syntax = "=0.157.0"
+oxc_str = "=0.157.0"
+oxc_codegen = "=0.157.0"
+oxc_diagnostics = "=0.157.0"
+oxc_sourcemap = "9.0.0"
+oxc_resolver = "11.24.3"
+base64 = "0.22"
+
+anyhow = "1.0.104"
+memchr = "2.8.3"
+thiserror = "2.0.20"
+serde_json = "1.0.154"
+
+proptest = "1.9.0"
+tempfile = "3.24.0"
+
+[profile.release.package]
+oj_compiler = { opt-level = 3 }
+oj_graph = { opt-level = 3 }
+oj_resolver = { opt-level = 3 }
+
+[profile.release.package.devermind-native]
+codegen-units = 1

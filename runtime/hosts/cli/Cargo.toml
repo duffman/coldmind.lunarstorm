@@ -1,0 +1,20 @@
+# The CLI app host: the `lunarstorm` command.
+#
+# It owns a Runtime bound to the QuickJS adapter, implements the host services
+# with the process's own argv, stdio, environment and exit, and registers the
+# terminal bindings behind the `lunarstorm:ui` module.
+[package]
+name = "lunarstorm"
+version = "0.1.0"
+edition = "2021"
+description = "Lunarstorm: a Node.js-inspired JavaScript runtime (CLI app host)"
+
+[[bin]]
+name = "lunarstorm"
+path = "src/main.rs"
+
+[dependencies]
+lunarstorm-runtime = { path = "../../core" }
+lunarstorm-vm-quickjs = { path = "../../engines/quickjs" }
+lunarstorm-cliui = { path = "../../../crates/cliui" }
+libc = "0.2"

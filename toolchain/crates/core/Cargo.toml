@@ -1,0 +1,16 @@
+[package]
+name = "devermind_core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "devermind compile core: one file in, one ESM module out, over oj_compiler"
+
+[dependencies]
+oj_compiler.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true
+toml = { version = "1.1.8", default-features = false, features = ["std", "serde", "parse"] }
+
+[dev-dependencies]
+tempfile.workspace = true

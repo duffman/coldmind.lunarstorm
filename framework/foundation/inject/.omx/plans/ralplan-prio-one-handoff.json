@@ -1,0 +1,69 @@
+{
+  "planning_artifacts": {
+    "prd": ".omx/plans/prd-prio-one.md",
+    "test_spec": ".omx/plans/test-spec-prio-one.md"
+  },
+  "ralplan_architect_review": {
+    "verdict": "APPROVE",
+    "artifact_path": ".omx/plans/architect-prio-one.md",
+    "completed": true,
+    "agent": "full_plan_architect",
+    "review_cycle": 2,
+    "agent_role": "architect",
+    "session_id": "omx-1793103088514-q35626",
+    "sequence_index": 1
+  },
+  "ralplan_critic_review": {
+    "verdict": "APPROVE",
+    "artifact_path": ".omx/plans/critic-prio-one.md",
+    "completed": true,
+    "agent": "full_plan_critic",
+    "review_cycle": 2,
+    "after_architect": true,
+    "agent_role": "critic",
+    "session_id": "omx-1793103088514-q35626",
+    "sequence_index": 2
+  },
+  "ralplan_consensus_gate": {
+    "complete": true,
+    "review_cycle": 2,
+    "host_security_claim": false,
+    "ralplan_architect_review": {
+      "verdict": "APPROVE",
+      "artifact_path": ".omx/plans/architect-prio-one.md",
+      "completed": true,
+      "agent": "full_plan_architect",
+      "review_cycle": 2,
+      "agent_role": "architect",
+      "session_id": "omx-1793103088514-q35626",
+      "sequence_index": 1
+    },
+    "ralplan_critic_review": {
+      "verdict": "APPROVE",
+      "artifact_path": ".omx/plans/critic-prio-one.md",
+      "completed": true,
+      "agent": "full_plan_critic",
+      "review_cycle": 2,
+      "after_architect": true,
+      "agent_role": "critic",
+      "session_id": "omx-1793103088514-q35626",
+      "sequence_index": 2
+    }
+  },
+  "ralplan_execution_handoff": {
+    "authorized": true,
+    "reason": "Explicit complete-deliverable Autopilot request; dedicated Planner and sequential Architect/Critic approved cycle 2. Continue all stories through verified completion.",
+    "authorized_at": "2026-10-27T13:09:19.893Z",
+    "session_id": "omx-1793103088514-q35626",
+    "review_cycle": 2,
+    "source": "autopilot"
+  },
+  "artifact_sha256": {
+    "prd": "84afb0522901467024639ab98a76002968b755809a1043d2d98f769f5f7c2c9d",
+    "test_spec": "e7e3d1b53c1cb775f5f33644980595dbeac2306227f2bdf05ee21fa16f47e9b2",
+    "architect": "732cd038e11c4b68ebb893b65571c1199120f2659bf699988ae97d60ccc9a4a6",
+    "critic": "044d3642579a3b4f6c13cb22e2bce1fed1ae362ca829d7e11d06f014175e35b0"
+  },
+  "plan_path": ".omx/plans/prd-prio-one.md",
+  "test_spec_path": ".omx/plans/test-spec-prio-one.md"
+}

@@ -1,0 +1,6 @@
+native/*.node
+native/target/
+crates/*/target/
+crates/*/Cargo.lock
+bench/
+node_modules/.vite/

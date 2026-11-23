@@ -1,0 +1,45 @@
+{
+  "name": "@coldmind/devermind-shell",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dev shell for apps on the devermind server: one HMR/app WebSocket, error boundary and overlay",
+  "exports": {
+    ".": "./src/start-shell.tsx",
+    "./hot": "./src/hot-runtime.ts",
+    "./*": "./*",
+    "./src/shell.tsx": "./src/start-shell.tsx",
+    "./src/shell.app.tsx": "./src/app-loader.tsx",
+    "./src/shell.boundary.tsx": "./src/error-boundary.tsx",
+    "./src/shell.errors.ts": "./src/error-store.ts",
+    "./src/shell.hot.ts": "./src/hot-runtime.ts",
+    "./src/shell.overlay.tsx": "./src/error-overlay.tsx",
+    "./src/shell.protocol.ts": "./src/protocol.ts",
+    "./src/shell.terminal.tsx": "./src/terminal.tsx",
+    "./src/shell.transport.ts": "./src/transport.ts",
+    "./tests/shell.test.tsx": "./tests/start-shell.test.tsx",
+    "./tests/shell.hot.test.ts": "./tests/hot-runtime.test.ts",
+    "./tests/shell.boundary.test.tsx": "./tests/error-boundary.test.tsx",
+    "./tests/shell.errors.test.ts": "./tests/error-store.test.ts",
+    "./tests/shell.transport.test.ts": "./tests/transport.test.ts",
+    "./tests/fake.socket.ts": "./tests/fake-socket.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "peerDependencies": {
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^17.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "happy-dom": "^17.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@types/node": "24.19.2"
+  }
+}

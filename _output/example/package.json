@@ -1,0 +1,5 @@
+{
+  "name": "project-register",
+  "private": true,
+  "giraffe": { "schema": 1, "features": [] }
+}

@@ -1,0 +1,8 @@
+{
+  "version": "8.2.3",
+  "gitHead": null,
+  "repository": {
+    "url": "git+https://github.com/inversify/monorepo.git",
+    "type": "git"
+  }
+}

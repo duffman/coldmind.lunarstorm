@@ -1,0 +1,27 @@
+{
+  "name": "@coldmind/devermind",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared Rust source transforms for Bun, Tauri, and direct Rust hosts",
+  "exports": {
+    ".": "./src/bun-plugin.ts",
+    "./tauri": "./src/tauri-client.ts",
+    "./*": "./*",
+    "./src/devermind.plugin.ts": "./src/bun-plugin.ts",
+    "./src/devermind.tauri.ts": "./src/tauri-client.ts",
+    "./scripts/build.native.ts": "./scripts/build-native.ts",
+    "./tests/devermind.plugin.test.ts": "./tests/bun-plugin.test.ts",
+    "./tests/devermind.tauri.test.ts": "./tests/tauri-client.test.ts",
+    "./tests/fixtures/serve/define.plugin.ts": "./tests/fixtures/serve/define-plugin.ts"
+  },
+  "scripts": {
+    "build:native": "bun scripts/build-native.ts",
+    "bench": "bun scripts/bench.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "bun --bun vitest run"
+  },
+  "devDependencies": {
+    "@coldmind/inject": "workspace:*"
+  }
+}

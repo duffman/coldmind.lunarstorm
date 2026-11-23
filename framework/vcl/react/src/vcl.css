@@ -1,0 +1,109 @@
+/*
+ * The look of the React VCL (spec 2.4, "Look": the VCL owns the visual design;
+ * the model carries no fonts or CSS).
+ *
+ * Decisions:
+ * - Colours are tokens on :root, redefined for dark, so a form follows the
+ *   window's theme (`theme` on <form> / <application>) through color-scheme.
+ * - Docking (`align`) is flexbox: a container lays out in one direction
+ *   (data-layout); top/left dock at the start, bottom/right at the end, client
+ *   takes what is left.
+ */
+:root {
+  color-scheme: light dark;
+  --vcl-bg: #f5f5f7;
+  --vcl-surface: #ffffff;
+  --vcl-raised: #fbfbfd;
+  --vcl-text: #1d1d1f;
+  --vcl-muted: #6e6e73;
+  --vcl-border: #d2d2d7;
+  --vcl-accent: #0a64d8;
+  --vcl-accent-text: #ffffff;
+  --vcl-select: #dbe9fd;
+  --vcl-radius: 6px;
+  font: 13px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --vcl-bg: #1c1c1e;
+    --vcl-surface: #2c2c2e;
+    --vcl-raised: #242426;
+    --vcl-text: #f5f5f7;
+    --vcl-muted: #a1a1a6;
+    --vcl-border: #48484a;
+    --vcl-accent: #3b8cf6;
+    --vcl-accent-text: #ffffff;
+    --vcl-select: #1f3d66;
+  }
+}
+
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--vcl-bg); color: var(--vcl-text); overflow: hidden; user-select: none; -webkit-user-select: none; }
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+/* Layout and docking. */
+.vcl-form { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+[data-layout] { display: flex; min-width: 0; min-height: 0; }
+[data-layout='row'] { flex-direction: row; align-items: stretch; }
+[data-layout='column'] { flex-direction: column; }
+.vcl-align-none { flex: 0 0 auto; }
+.vcl-align-client { flex: 1 1 0; min-width: 0; min-height: 0; }
+.vcl-align-top, .vcl-align-left { flex: 0 0 auto; order: -1; }
+.vcl-align-bottom, .vcl-align-right { flex: 0 0 auto; order: 1; }
+/* Fix: this rule used to centre every align-less child of a row, containers
+   included; a panel in a row then shrank to its content and its `client` child
+   (a list) got no height. Only leaf controls are centred; containers stretch. */
+[data-layout='row'] > .vcl-align-none:not([data-layout], .vcl-groupbox, .vcl-pagecontrol) { align-self: center; }
+.vcl-disabled { opacity: 0.55; }
+
+/* Containers. */
+.vcl-scrollbox { overflow: auto; }
+.vcl-groupbox { margin: 0; padding: 8px 12px 12px; border: 1px solid var(--vcl-border); border-radius: var(--vcl-radius); min-width: 0; }
+.vcl-groupbox > legend { padding: 0 6px; color: var(--vcl-muted); }
+.vcl-groupbox-body { height: 100%; }
+.vcl-pagecontrol { display: flex; flex-direction: column; min-height: 0; }
+.vcl-tabs { display: flex; gap: 2px; padding: 0 8px; border-bottom: 1px solid var(--vcl-border); }
+.vcl-tab { border: 0; background: none; color: var(--vcl-muted); font: inherit; padding: 7px 12px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.vcl-tab-active { color: var(--vcl-text); border-bottom-color: var(--vcl-accent); }
+.vcl-tabsheet { padding-top: 8px; }
+.vcl-splitter { flex: 0 0 5px; align-self: stretch; cursor: row-resize; background: transparent; touch-action: none; }
+[data-layout='row'] > .vcl-splitter { cursor: col-resize; }
+.vcl-splitter:hover { background: var(--vcl-border); }
+.vcl-toolbar { gap: 4px; padding: 6px 8px; background: var(--vcl-raised); border-bottom: 1px solid var(--vcl-border); }
+.vcl-statusbar { padding: 5px 12px; color: var(--vcl-muted); background: var(--vcl-raised); border-top: 1px solid var(--vcl-border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Display. */
+.vcl-label { color: var(--vcl-text); }
+.vcl-image { max-width: 100%; }
+.vcl-progressbar { height: 8px; accent-color: var(--vcl-accent); }
+
+/* Input. */
+.vcl-button { font: inherit; color: var(--vcl-text); background: var(--vcl-surface); border: 1px solid var(--vcl-border); border-radius: var(--vcl-radius); padding: 5px 14px; }
+.vcl-button:hover:not(:disabled) { border-color: var(--vcl-muted); }
+.vcl-button:active:not(:disabled) { background: var(--vcl-raised); }
+.vcl-button-default { background: var(--vcl-accent); border-color: var(--vcl-accent); color: var(--vcl-accent-text); }
+.vcl-button-default:active:not(:disabled) { background: var(--vcl-accent); filter: brightness(0.9); }
+.vcl-edit, .vcl-memo, .vcl-combobox { font: inherit; color: var(--vcl-text); background: var(--vcl-surface); border: 1px solid var(--vcl-border); border-radius: var(--vcl-radius); padding: 5px 8px; user-select: text; -webkit-user-select: text; }
+.vcl-memo { resize: none; }
+.vcl-checkbox, .vcl-radio { display: flex; align-items: center; gap: 6px; }
+.vcl-radiogroup { margin: 0; padding: 8px 12px; border: 1px solid var(--vcl-border); border-radius: var(--vcl-radius); display: flex; flex-direction: column; gap: 4px; }
+.vcl-radiogroup > legend { padding: 0 6px; color: var(--vcl-muted); }
+.vcl-trackbar { accent-color: var(--vcl-accent); }
+:is(.vcl-button, .vcl-edit, .vcl-memo, .vcl-combobox, .vcl-listbox, .vcl-listview, .vcl-treeview, .vcl-tab):focus-visible { outline: 2px solid var(--vcl-accent); outline-offset: 1px; }
+
+/* Lists. */
+.vcl-listbox, .vcl-listview, .vcl-treeview { margin: 0; padding: 4px; list-style: none; overflow: auto; background: var(--vcl-surface); border: 1px solid var(--vcl-border); border-radius: var(--vcl-radius); }
+.vcl-item { padding: 4px 8px; border-radius: 4px; white-space: nowrap; }
+.vcl-item-selected { background: var(--vcl-select); }
+:is(.vcl-listbox, .vcl-listview, .vcl-treeview):focus .vcl-item-selected { background: var(--vcl-accent); color: var(--vcl-accent-text); }
+.vcl-listview table { width: 100%; border-collapse: collapse; }
+.vcl-listview th { text-align: left; font-weight: 500; color: var(--vcl-muted); padding: 4px 8px; border-bottom: 1px solid var(--vcl-border); position: sticky; top: 0; background: var(--vcl-surface); }
+.vcl-listview td { padding: 4px 8px; }
+.vcl-treeview ul { margin: 0; padding: 0 0 0 16px; list-style: none; }
+.vcl-treeview > ul { padding-left: 0; }
+.vcl-tree-toggle { display: inline-block; width: 16px; padding: 0; border: 0; background: none; color: inherit; font: inherit; }
+
+/* Shell. */
+.vcl-shell-error { margin: 24px; padding: 16px; border: 1px solid var(--vcl-border); border-radius: var(--vcl-radius); background: var(--vcl-surface); user-select: text; -webkit-user-select: text; }
+.vcl-shell-error pre { margin: 12px 0 0; white-space: pre-wrap; font: 12px/1.45 ui-monospace, Menlo, monospace; color: var(--vcl-muted); }

@@ -1,0 +1,24 @@
+{
+  "name": "lunarstorm",
+  "private": true,
+  "description": "Lunarstorm monorepo: pnpm workspace (JS/TS) + Cargo workspace (Rust) at the repo root",
+  "scripts": {
+    "build": "pnpm build:rust && pnpm build:js",
+    "build:rust": "cargo build --workspace",
+    "build:js": "pnpm -r --if-present build",
+    "test": "pnpm test:rust && pnpm test:js",
+    "test:rust": "cargo test --workspace",
+    "test:js": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "check": "cargo clippy --workspace --all-targets && pnpm typecheck"
+  },
+  "devDependencies": {
+    "@coldmind/config": "workspace:*",
+    "@types/bun": "1.4.2",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  },
+  "packageManager": "pnpm@11.29.0"
+}

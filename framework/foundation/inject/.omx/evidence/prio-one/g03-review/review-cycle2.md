@@ -1,0 +1,9 @@
+# G03 focused re-review cycle 2
+
+Native code-reviewer g02_review: REQUEST CHANGES,1remainingHIGH. Timeroverflowfixapproved(segmentedabsoluteclock/unref/clear/guards), initialendedownerrestorefixed. Fresh3focusedregressionsBungreen,sourceTSC/diff0. RemainingterminalrollbackleakconfirmedindependentBun:
+
+BuildownedSingletonAanddependentB;Brebuildsecondfactorythrows. replaceA({factory:()=>({}),onDispose(){candidate++;entered.resolve();returncleanup.promise}},Singleton,{rebuild:true}). Awaitentered(candidatecleanupblocked), disposeowner, releasecleanup, awaitreplacementrejection. cachesproperlyemptybutoldA.onDispose=oldB.onDispose=0,candidate=1. Originalsdetachedfromcachesbeforefailure;ownerteardowncan'tsee, guardedrollbackskipsrestorationbutneverdisposes.
+
+FixterminalrollbackcleanupofSNAPSHOT-OWNEDdetachedLIVEoriginals/dependents exactlyonce, respectingexternalpolicy/alreadyclaimedcleanup/reverseorder, noendedscoperestore/reinstall. TestdisposalDURINGactualawaitedrollbackcleanup, notunrelatedlatefactorycleanup. OldA/Bmustdisposeonceafterrollbackcompletionwithnohistoricalkeyrefresurrection.
+
+Mainresumedoriginalperformer viafollowup_task afterdiscoveringearliermessagequeuedwhileperformeridle;G004remainsIN_PROGRESS,nevercheckpointedcomplete. Independentnarrowre-reviewrequiredafterfix.

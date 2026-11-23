@@ -1,0 +1,19 @@
+{
+  "name": "@coldmind/protocol",
+  "version": "0.4.0",
+  "description": "The Coldmind protocol: frames, codecs, framing, the auth and bus contracts",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./*"
+  },
+  "dependencies": {
+    "@coldmind/rpc": "workspace:*",
+    "@coldmind/model": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

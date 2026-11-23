@@ -1,0 +1,218 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Raphael Amorim
+
+//! The server define list and its SSR layering, exercised through
+//! `compile` with an [`ImportMetaEnv`] riding the compile options.
+
+use std::path::Path;
+use std::sync::Arc;
+
+use oj_compiler::{compile, CompileOptions, ImportMetaEnv};
+
+fn client() -> Vec<(String, String)> {
+    vec![
+        ("import.meta.env.SSR".into(), "false".into()),
+        ("import.meta.env.VITE_X".into(), "\"x1\"".into()),
+        (
+            "import.meta.env".into(),
+            "({\"SSR\":false,\"VITE_X\":\"x1\"})".into(),
+        ),
+        ("process.env.NODE_ENV".into(), "\"development\"".into()),
+        ("__SIDE__".into(), "\"client\"".into()),
+    ]
+}
+
+fn dev(env: &Arc<ImportMetaEnv>) -> CompileOptions {
+    CompileOptions {
+        env: Some(Arc::clone(env)),
+        ..CompileOptions::dev()
+    }
+}
+
+fn ssr_opts(env: &Arc<ImportMetaEnv>) -> CompileOptions {
+    CompileOptions {
+        ssr: true,
+        ..dev(env)
+    }
+}
+
+fn env_of(client: Vec<(String, String)>, ssr: Vec<(String, String)>) -> Arc<ImportMetaEnv> {
+    Arc::new(ImportMetaEnv::new(client, ssr))
+}
+
+#[test]
+fn the_client_defines_replace_and_a_merge_never_touches_them() {
+    let env = env_of(client(), vec![]);
+    let src = "export const x = import.meta.env.VITE_X; export const s = __SIDE__;";
+    let out = compile(Path::new("a.ts"), src, &dev(&env)).unwrap();
+    assert!(
+        out.code.contains("\"x1\"") && out.code.contains("\"client\""),
+        "{}",
+        out.code
+    );
+
+    env.merge_ssr(vec![("import.meta.env.VITE_X".into(), "\"x2\"".into())]);
+    let out = compile(Path::new("a.ts"), src, &dev(&env)).unwrap();
+    assert!(
+        out.code.contains("\"x1\"") && !out.code.contains("\"x2\""),
+        "an ssr merge leaked into the client variant:\n{}",
+        out.code
+    );
+}
+
+#[test]
+fn ssr_compiles_flip_ssr_flag_and_layer_ssr_overrides_only() {
+    let env = env_of(client(), vec![("__SIDE__".into(), "\"server\"".into())]);
+    let src = "export const s = import.meta.env.SSR; export const all = import.meta.env; export const side = __SIDE__;";
+    let ssr = compile(Path::new("a.ts"), src, &ssr_opts(&env)).unwrap();
+    assert!(ssr.code.contains("s = true"), "{}", ssr.code);
+    assert!(
+        ssr.code.contains("\"SSR\": true"),
+        "blob SSR flag flipped:\n{}",
+        ssr.code
+    );
+    assert!(ssr.code.contains("\"server\""), "{}", ssr.code);
+    let cli = compile(Path::new("a.ts"), src, &dev(&env)).unwrap();
+    assert!(
+        cli.code.contains("s = false") && cli.code.contains("\"client\""),
+        "ssr override leaked to client:\n{}",
+        cli.code
+    );
+}
+
+#[test]
+fn merge_ssr_overrides_later_wins_and_invalidates_the_ssr_variant() {
+    let env = env_of(client(), vec![("__SIDE__".into(), "\"server\"".into())]);
+    let src = "export const side = __SIDE__; export const only = __SSR_ONLY__;";
+    let before = compile(Path::new("a.ts"), src, &ssr_opts(&env)).unwrap();
+    assert!(
+        before.code.contains("\"server\"") && before.code.contains("__SSR_ONLY__"),
+        "{}",
+        before.code
+    );
+    env.merge_ssr(vec![
+        ("__SIDE__".into(), "\"srv2\"".into()),
+        ("__SSR_ONLY__".into(), "1".into()),
+    ]);
+    let after = compile(Path::new("a.ts"), src, &ssr_opts(&env)).unwrap();
+    assert!(
+        after.code.contains("\"srv2\"") && after.code.contains("only = 1"),
+        "merge not applied:\n{}",
+        after.code
+    );
+
+    // Set once: a second merge is ignored.
+    env.merge_ssr(vec![("__SIDE__".into(), "\"srv3\"".into())]);
+    let again = compile(Path::new("a.ts"), src, &ssr_opts(&env)).unwrap();
+    assert!(
+        again.code.contains("\"srv2\"") && !again.code.contains("\"srv3\""),
+        "a later merge overwrote the first:\n{}",
+        again.code
+    );
+}
+
+#[test]
+fn plain_key_gate_still_replaces_process_env_node_env() {
+    let env = env_of(client(), vec![]);
+    let src = "export const dev = process.env.NODE_ENV !== \"production\";";
+    let out = compile(Path::new("dep.js"), src, &dev(&env)).unwrap();
+    assert!(!out.code.contains("process.env.NODE_ENV"), "{}", out.code);
+}
+
+#[test]
+fn a_rejected_define_list_silently_skips_replacement() {
+    // oxc rejects a value with a syntax error; that skips the replacer
+    // for the compile rather than failing it, and the cache must keep that.
+    let env = env_of(vec![("import.meta.env.BAD".into(), "{".into())], vec![]);
+    let out = compile(
+        Path::new("a.ts"),
+        "export const b = import.meta.env.BAD;",
+        &dev(&env),
+    )
+    .unwrap();
+    assert!(out.code.contains("import.meta.env.BAD"), "{}", out.code);
+}
+
+#[test]
+fn an_invalid_ssr_override_only_disables_the_ssr_variant() {
+    // Each variant carries its own Option<config>: a value oxc rejects in the
+    // ssr overrides skips replacement for ssr compiles only.
+    let env = env_of(client(), vec![("__SIDE__".into(), "{".into())]);
+    let src = "export const x = import.meta.env.VITE_X; export const side = __SIDE__;";
+    let ssr = compile(Path::new("a.ts"), src, &ssr_opts(&env)).unwrap();
+    assert!(
+        ssr.code.contains("import.meta.env.VITE_X") && ssr.code.contains("__SIDE__"),
+        "ssr compile must skip replacement wholesale:\n{}",
+        ssr.code
+    );
+    let cli = compile(Path::new("a.ts"), src, &dev(&env)).unwrap();
+    assert!(
+        cli.code.contains("\"x1\"") && cli.code.contains("\"client\""),
+        "client variant must be unaffected:\n{}",
+        cli.code
+    );
+}
+
+#[test]
+fn a_factory_dep_with_only_plain_key_defines_gets_them_replaced() {
+    // The exact partial-bundle shape that reaches the browser as a bare
+    // `process` if the factory gate only scans for import.meta.env: an ESM
+    // dep whose sole define use is a plain key like process.env.NODE_ENV.
+    let mut defines = client();
+    defines.push(("process.env.NODE_ENV".into(), "\"development\"".into()));
+    let env = env_of(defines, vec![]);
+    let src = r#"export const dev = process.env.NODE_ENV !== "production";"#;
+    let mut resolve = |_: &str| None;
+    let factory = oj_compiler::bundle::compile_factory(
+        Path::new("/app/node_modules/d/index.mjs"),
+        "/u.mjs",
+        src,
+        &mut resolve,
+        Some(&env),
+    )
+    .expect("factory compiles");
+    assert!(
+        !factory.code.contains("process.env.NODE_ENV"),
+        "plain-key define must be replaced in the factory:\n{}",
+        factory.code
+    );
+    assert!(
+        factory.code.contains("\"development\""),
+        "replacement value missing:\n{}",
+        factory.code
+    );
+}
+
+#[test]
+fn a_non_env_import_meta_define_still_gates_and_replaces() {
+    // import.meta.vitest-style defines are not covered by the import.meta.env
+    // finder, so they must stay scanned plain keys or a module mentioning only
+    // them skips replacement entirely.
+    let mut defines = client();
+    defines.push(("import.meta.vitest".into(), "undefined".into()));
+    let env = env_of(defines, vec![]);
+    let src = "export const t = import.meta.vitest;";
+    let out = compile(Path::new("a.ts"), src, &dev(&env)).unwrap();
+    assert!(
+        !out.code.contains("import.meta.vitest"),
+        "the non-env import.meta define must be replaced:\n{}",
+        out.code
+    );
+}
+
+#[test]
+fn an_esm_dependency_gets_the_server_defines() {
+    // Deps served unbundled compile through `cjs::compile_dep`; its ESM branch
+    // must carry the env, or `process.env.NODE_ENV` reaches the browser.
+    let env = env_of(client(), vec![]);
+    let src = r#"export const dev = process.env.NODE_ENV !== "production";"#;
+    let out = oj_compiler::cjs::compile_dep(
+        Path::new("/app/node_modules/d/index.mjs"),
+        "/node_modules/d/index.mjs",
+        src,
+        &mut |_| None,
+        Some(Arc::clone(&env)),
+    )
+    .expect("dep compiles");
+    assert!(!out.code.contains("process.env"), "{}", out.code);
+}

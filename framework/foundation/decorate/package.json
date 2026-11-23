@@ -1,0 +1,72 @@
+{
+  "name": "@coldmind/decorate",
+  "version": "0.0.1",
+  "private": false,
+  "type": "module",
+  "description": "Decorator kernel: one view of legacy and standard decorators, and per-class records for both. Browser-safe, no runtime dependencies.",
+  "sideEffects": [
+    "./src/decorate.metadata.ts",
+    "./dist/decorate.metadata.js"
+  ],
+  "main": "./dist/decorate.core.js",
+  "types": "./dist/decorate.core.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/decorate.core.d.ts",
+      "bun": "./src/decorate.core.ts",
+      "default": "./dist/decorate.core.js"
+    },
+    "./internal/core": {
+      "types": "./dist/decorate.core.d.ts",
+      "bun": "./src/decorate.core.ts",
+      "default": "./dist/decorate.core.js"
+    },
+    "./src/decorate.core.ts": {
+      "types": "./dist/decorate.core.d.ts",
+      "bun": "./src/decorate.core.ts",
+      "default": "./dist/decorate.core.js"
+    },
+    "./internal/metadata": {
+      "types": "./dist/decorate.metadata.d.ts",
+      "bun": "./src/decorate.metadata.ts",
+      "default": "./dist/decorate.metadata.js"
+    },
+    "./src/decorate.metadata.ts": {
+      "types": "./dist/decorate.metadata.d.ts",
+      "bun": "./src/decorate.metadata.ts",
+      "default": "./dist/decorate.metadata.js"
+    },
+    "./internal/records": {
+      "types": "./dist/decorate.records.d.ts",
+      "bun": "./src/decorate.records.ts",
+      "default": "./dist/decorate.records.js"
+    },
+    "./src/decorate.records.ts": {
+      "types": "./dist/decorate.records.d.ts",
+      "bun": "./src/decorate.records.ts",
+      "default": "./dist/decorate.records.js"
+    },
+    "./internal/site": {
+      "types": "./dist/decorate.site.d.ts",
+      "bun": "./src/decorate.site.ts",
+      "default": "./dist/decorate.site.js"
+    },
+    "./src/decorate.site.ts": {
+      "types": "./dist/decorate.site.d.ts",
+      "bun": "./src/decorate.site.ts",
+      "default": "./dist/decorate.site.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run tests/standard && cd tests/legacy && vitest run --root ../.. --config vitest.config.ts tests/legacy",
+    "test:node": "node --test tests/node/*.test.mjs",
+    "typecheck": "tsc -p tsconfig.check.json"
+  },
+  "files": [
+    "src",
+    "dist",
+    "README.md"
+  ]
+}

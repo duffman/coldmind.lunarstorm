@@ -1,0 +1,25 @@
+[package]
+name = "jetpack"
+version = "0.4.0"
+edition = "2021"
+license = "MIT"
+description = "An npm registry package manager with peer dependency resolution and configurable npm registries"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+dirs = "6"
+flate2 = "1"
+fs2 = "0.4"
+hex = "0.4"
+node-semver = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10"
+sha2 = "0.10"
+tar = "0.4"
+# No HTTP stack: the embedder supplies a transport::Transport.
+url = "2"
+
+[dev-dependencies]
+tempfile = "3"

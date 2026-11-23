@@ -1,0 +1,5 @@
+# G03 independent review cycle 1
+
+Native code-reviewer g02_review: REQUEST CHANGES;6files,1HIGH+1MEDIUM. SourceTSC/diffchecks0,36existingbuildcontrolcasesBungreen plus implementer's37throllbackredmatchesprobe.
+
+HIGH: replacementrollback unconditionallyrestoresrecords/pending/order/observations/diagnosticretentions afterownerdisposecancelscandidate;disposedrootretainsoriginalrecord/order. Needowner+per-scope lifecyclechecks afterasyncCleanup andnoendedregistrationreinstall, releasesnaprefs. MEDIUM: finite2147483648 deadlineclampedbynativetimer1ms→falseearlytimeout. Segment<=2147483647 usingmonotonicabsolutedeadline+rearm/unref/terminalguards;fakeclockproof.

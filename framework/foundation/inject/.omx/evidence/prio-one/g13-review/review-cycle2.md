@@ -1,0 +1,5 @@
+# G13 focused re-review cycle 2
+
+Native code-reviewer g13_review: APPROVE reviewed fixes;8implementationfiles+regressions,0remainingissues. Optionaldeps nowruntimeinitializer/spread-aware; computed$injectprecedence; generatedvirtualfilesonResolve+relativepaths+bothbundleexecution; UUIDresultfreshness; isolatedbundledserverdiscoverywithclientsecurity.
+
+ReviewerFRESH verification:3focusedctsc regressionspassed,6focusedBungenerated/freshness/discovery/securityregressionspassed; bothpackage typechecks,workersyntax,diffcheckspassed. Performerfull11Node+13Bunfixturespassedpreviously. Thisisprepapprovalonly: real-injectdistributionintegrationstillMANDATORYafterG07build.

@@ -1,0 +1,8 @@
+{
+  "pid": 4119,
+  "parent_pid": 2777,
+  "cwd": "/Users/patrik/cmdrive/coldmind/apps/dolphi/dolphi-1/framework/packages/foundation/inject",
+  "started_at": "2026-10-27T12:11:33.868Z",
+  "max_lifetime_ms": 21600000,
+  "owner_token": "4119-1793103093868-0r2yh5sm"
+}

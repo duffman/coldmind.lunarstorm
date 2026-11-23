@@ -1,0 +1,391 @@
+[
+  {
+    "id": "@coldmind/inject@1.0.0",
+    "name": "@coldmind/inject",
+    "version": "1.0.0",
+    "size": 176335,
+    "unpackedSize": 842377,
+    "shasum": "788b61dcea9bb4b09bb43ebcd37b7b872e010ca6",
+    "integrity": "sha512-fuzeoMxzCCimCPaepWUecIdBr8nuGxAV5t5ykUEcUKV6H677+jNBJ7SlNNREqqqGtZ5GTkja8wY+EwVzWir8lg==",
+    "filename": "coldmind-inject-1.0.0.tgz",
+    "files": [
+      {
+        "path": "README.md",
+        "size": 1845,
+        "mode": 420
+      },
+      {
+        "path": "dist/cminject.hot.d.ts",
+        "size": 576,
+        "mode": 420
+      },
+      {
+        "path": "dist/cminject.hot.js",
+        "size": 343,
+        "mode": 420
+      },
+      {
+        "path": "dist/cminject.inspect.d.ts",
+        "size": 824,
+        "mode": 420
+      },
+      {
+        "path": "dist/cminject.inspect.js",
+        "size": 375,
+        "mode": 420
+      },
+      {
+        "path": "dist/cminject.react.d.ts",
+        "size": 2343,
+        "mode": 420
+      },
+      {
+        "path": "dist/cminject.react.js",
+        "size": 5265,
+        "mode": 420
+      },
+      {
+        "path": "dist/cminject.testing.d.ts",
+        "size": 1301,
+        "mode": 420
+      },
+      {
+        "path": "dist/cminject.testing.js",
+        "size": 2856,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.async.d.ts",
+        "size": 3076,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.async.js",
+        "size": 7877,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.binding.d.ts",
+        "size": 15865,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.binding.js",
+        "size": 15558,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.construction.d.ts",
+        "size": 2915,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.construction.js",
+        "size": 11976,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.container.d.ts",
+        "size": 27191,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.container.js",
+        "size": 64080,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.contracts.d.ts",
+        "size": 45166,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.contracts.js",
+        "size": 848,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.core.d.ts",
+        "size": 326,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.core.js",
+        "size": 326,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.decorators.d.ts",
+        "size": 2588,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.decorators.js",
+        "size": 14503,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.errors.d.ts",
+        "size": 3099,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.errors.js",
+        "size": 3577,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.graph.d.ts",
+        "size": 5230,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.graph.js",
+        "size": 18004,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.host.d.ts",
+        "size": 17005,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.host.js",
+        "size": 11,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.lazy.d.ts",
+        "size": 4608,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.lazy.js",
+        "size": 2130,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.module.d.ts",
+        "size": 10012,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.module.js",
+        "size": 12212,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.mutation.d.ts",
+        "size": 3798,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.mutation.js",
+        "size": 27613,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.observe.d.ts",
+        "size": 6187,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.observe.js",
+        "size": 20462,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.resolution.d.ts",
+        "size": 6348,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.resolution.js",
+        "size": 26375,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.token.d.ts",
+        "size": 3713,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.token.js",
+        "size": 5886,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.view.d.ts",
+        "size": 20269,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/cminject.view.js",
+        "size": 15127,
+        "mode": 420
+      },
+      {
+        "path": "dist/server/cminject.context.d.ts",
+        "size": 408,
+        "mode": 420
+      },
+      {
+        "path": "dist/server/cminject.context.js",
+        "size": 717,
+        "mode": 420
+      },
+      {
+        "path": "dist/server/cminject.runtime.d.ts",
+        "size": 5541,
+        "mode": 420
+      },
+      {
+        "path": "dist/server/cminject.runtime.js",
+        "size": 12547,
+        "mode": 420
+      },
+      {
+        "path": "dist/server/cminject.server.d.ts",
+        "size": 114,
+        "mode": 420
+      },
+      {
+        "path": "dist/server/cminject.server.js",
+        "size": 236,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 6561,
+        "mode": 420
+      },
+      {
+        "path": "src/.omc/state/idle-notif-cooldown.json",
+        "size": 46,
+        "mode": 420
+      },
+      {
+        "path": "src/cminject.hot.ts",
+        "size": 679,
+        "mode": 420
+      },
+      {
+        "path": "src/cminject.inspect.ts",
+        "size": 1014,
+        "mode": 420
+      },
+      {
+        "path": "src/cminject.react.ts",
+        "size": 6842,
+        "mode": 420
+      },
+      {
+        "path": "src/cminject.testing.ts",
+        "size": 3608,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.async.ts",
+        "size": 8277,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.binding.ts",
+        "size": 23511,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.construction.ts",
+        "size": 12416,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.container.ts",
+        "size": 73305,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.contracts.ts",
+        "size": 43577,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.core.ts",
+        "size": 327,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.decorators.ts",
+        "size": 15851,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.errors.ts",
+        "size": 4022,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.graph.ts",
+        "size": 17994,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.host.ts",
+        "size": 16982,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.lazy.ts",
+        "size": 5758,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.module.ts",
+        "size": 20178,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.mutation.ts",
+        "size": 25450,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.observe.ts",
+        "size": 20581,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.resolution.ts",
+        "size": 25966,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.token.ts",
+        "size": 7158,
+        "mode": 420
+      },
+      {
+        "path": "src/core/cminject.view.ts",
+        "size": 27806,
+        "mode": 420
+      },
+      {
+        "path": "src/server/cminject.context.ts",
+        "size": 832,
+        "mode": 420
+      },
+      {
+        "path": "src/server/cminject.runtime.ts",
+        "size": 14148,
+        "mode": 420
+      },
+      {
+        "path": "src/server/cminject.server.ts",
+        "size": 236,
+        "mode": 420
+      }
+    ],
+    "entryCount": 75,
+    "bundled": []
+  }
+]

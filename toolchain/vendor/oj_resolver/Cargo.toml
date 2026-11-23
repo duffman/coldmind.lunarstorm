@@ -1,0 +1,15 @@
+[package]
+name = "oj_resolver"
+version = "0.2.29"
+edition.workspace = true
+license.workspace = true
+repository = "https://github.com/lovablelabs/oj"
+description = "Module resolution: thin policy layer over oxc_resolver (Node algorithm, exports maps, tsconfig paths)"
+
+[dependencies]
+oxc_resolver.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

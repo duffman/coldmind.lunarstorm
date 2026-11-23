@@ -1,0 +1,35 @@
+# Rust (a global CARGO_TARGET_DIR may move this elsewhere)
+/target/
+**/*.rs.bk
+mutants.out/
+mutants.out.old/
+
+# Agent and tool state
+.omc/
+.omx/
+.remember/
+.playwright-mcp/
+.claude/settings.local.json
+
+# OS and editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.log
+
+# Local env
+.env
+.env.*
+
+# JS output
+node_modules/
+dist/
+.oj-cache/
+
+# Resolver fixtures ship their own node_modules and dist trees
+!vendor/oj_resolver/fixtures/**/node_modules/
+!vendor/oj_resolver/fixtures/**/dist/
+
+# Integration reports (retain in CI as artifacts)
+/test-results/

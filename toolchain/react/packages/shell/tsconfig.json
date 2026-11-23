@@ -1,0 +1,15 @@
+{
+  "extends": "@coldmind/config/tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": [
+      "node",
+      "bun"
+    ]
+  },
+  "include": [
+    "src",
+    "tests",
+    "examples"
+  ]
+}

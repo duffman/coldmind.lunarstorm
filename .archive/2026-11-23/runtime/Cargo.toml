@@ -1,0 +1,29 @@
+# The Lunarstorm runtime, as the layers of spec section 5:
+#
+#   host-cli    CLI app host: process, argv, stdio, exit code   (binary `lunarstorm`)
+#   host-desktop  desktop app host: the backend of a desktop application on the
+#               Runtime, driven by the native desktop process (spec section 6)
+#   core        the Runtime: event loop, timers, modules, fs and net; generic over
+#               the VM and the host
+#   vm          the VM interface, callbacks, capabilities and conformance suite
+#   vm-quickjs  VM adapter wrapping QuickJS
+#   cliui       terminal UI used by the CLI host
+#   rquickjs    the vendored engine binding (its own workspace, hence excluded)
+[workspace]
+resolver = "2"
+members = ["vm", "vm-quickjs", "core", "host-cli", "host-desktop", "cliui"]
+exclude = ["rquickjs"]
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Release code with symbols kept, for profilers (`sample`, Instruments). Cargo
+# builds it into the `profiling` subdirectory of the shared target directory.
+[profile.profiling]
+inherits = "release"
+strip = false
+debug = "line-tables-only"

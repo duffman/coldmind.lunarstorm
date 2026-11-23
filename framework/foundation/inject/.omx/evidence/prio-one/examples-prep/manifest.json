@@ -1,0 +1,82 @@
+{
+  "status": "draft-syntax-only",
+  "compiler": "5.9.3",
+  "entrypoint": "runExample(): Promise<string>",
+  "verification": "No execution, semantic typecheck, build or active-runner integration; G07\u2013G13 APIs pending.",
+  "examples": [
+    {
+      "guide": "docs/getting-started.md",
+      "filename": "examples/cminject.getting-started.ts",
+      "expected": "Hello from north|NORTH"
+    },
+    {
+      "guide": "docs/lifetimes.md",
+      "filename": "examples/cminject.lifetimes.ts",
+      "expected": "ready|isolated:true|owned-disposed:2|external-disposed:0"
+    },
+    {
+      "guide": "docs/async-and-cycles.md",
+      "filename": "examples/cminject.async-and-cycles.ts",
+      "expected": "shared:true|cycle:true|provider:1,2|disposed:1"
+    },
+    {
+      "guide": "docs/modules.md",
+      "filename": "examples/cminject.modules.ts",
+      "expected": "Region: north|unloaded:1"
+    },
+    {
+      "guide": "docs/testing.md",
+      "filename": "examples/cminject.testing.ts",
+      "expected": "override:42|restored:7|rebuilt:2|owned-conflict:true|owned-disposed:1"
+    },
+    {
+      "guide": "docs/decorators.md",
+      "filename": "examples/cminject.decorators.ts",
+      "expected": "Ada:Ada|Ada:Ada|Ada:Ada"
+    },
+    {
+      "guide": "docs/server.md",
+      "filename": "examples/cminject.server.ts",
+      "expected": "north|context:true|request-disposed:2"
+    },
+    {
+      "guide": "docs/react.md",
+      "filename": "examples/cminject.react.ts",
+      "expected": "<p>Hello Ada</p>|disposed:1"
+    },
+    {
+      "guide": "docs/introspection.md",
+      "filename": "examples/cminject.introspection.ts",
+      "expected": "primary/replica|top-level:fallback|issues:0"
+    },
+    {
+      "guide": "docs/errors.md",
+      "filename": "examples/cminject.errors.ts",
+      "expected": "DI_NOT_REGISTERED|DI_GRAPH_UNSOUND:missing"
+    },
+    {
+      "guide": "docs/migrate-inversify.md",
+      "filename": "examples/cminject.migrate-inversify.ts",
+      "expected": "slash|first,second|restored:true"
+    },
+    {
+      "guide": "docs/migrate-tsyringe.md",
+      "filename": "examples/cminject.migrate-tsyringe.ts",
+      "expected": "done|isolated:true|external-disposed:0"
+    },
+    {
+      "guide": "docs/migrate-nest.md",
+      "filename": "examples/cminject.migrate-nest.ts",
+      "expected": "Hello Ada|alias:true|request-isolated:true"
+    }
+  ],
+  "requiredAPIassumptions": [
+    "G07 distribution resolves public root/server/react/inspect/testing imports under Bun and Node.",
+    "G08 exports defineModule and composeModules from root; Container.load(module) returns ModuleHandle[] and unload removes root-owned module registrations/import edges. composeModules returns the prepared Module definition.",
+    "G09 exports async createTestContainer and override from /testing, and Container.snapshot/async restore. Factory-backed restores rebuild, owned supplied overrides reject atomically, supplied owned values are immediately get-readable.",
+    "G10 provides typed inject tuples on singleton/scoped factories and typed lifecycle objects with inject/factory/onDispose; root exports lazy/provider/Lazy; Lazy.peek never constructs; provider resolves each transient call.",
+    "G11 root exports qualify and registration options accept when({requester,path,scope}); requester is a ResolutionPathStep; introspection compares requester?.tokenName with public tokenName(Label). Fallback selection is independent of position and binding caches remain isolated. Validation supports requireDeps/includeObserved.",
+    "G13 optional React peer and react-dom/server are available to the future runner; SSR supplies a pre-resolved request container to ContainerProvider without ScopeProvider effect ownership.",
+    "Decorator example is transpiled in standard-decorator mode; legacy calls use typed ClassDecorator/ParameterDecorator/PropertyDecorator application overloads, not legacy syntax or parameter reflection. Full legacy Bun compilation belongs to the separate suite."
+  ]
+}

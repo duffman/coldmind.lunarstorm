@@ -1,0 +1,16 @@
+{
+  "completedAt": "2026-10-27T18:18:24.035Z",
+  "requirements": 28,
+  "functionalTests": {
+    "bun": 356,
+    "node": 356
+  },
+  "compiledNodeTests": {
+    "22.0.0": 13,
+    "24.14.1": 13
+  },
+  "compilerContractTests": 19,
+  "autopilot": "previous workflow cancelled; not restarted",
+  "execution": "solo user override",
+  "evidence": "README.md"
+}

@@ -1,0 +1,1318 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for src/core/cminject.binding.ts</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../prettify.css" />
+    <link rel="stylesheet" href="../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../index.html">All files</a> / <a href="index.html">src/core</a> cminject.binding.ts</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">93.46% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>143/153</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">96.69% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>117/121</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">83.92% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>47/56</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">91.3% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>105/115</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line high'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a>
+<a name='L140'></a><a href='#L140'>140</a>
+<a name='L141'></a><a href='#L141'>141</a>
+<a name='L142'></a><a href='#L142'>142</a>
+<a name='L143'></a><a href='#L143'>143</a>
+<a name='L144'></a><a href='#L144'>144</a>
+<a name='L145'></a><a href='#L145'>145</a>
+<a name='L146'></a><a href='#L146'>146</a>
+<a name='L147'></a><a href='#L147'>147</a>
+<a name='L148'></a><a href='#L148'>148</a>
+<a name='L149'></a><a href='#L149'>149</a>
+<a name='L150'></a><a href='#L150'>150</a>
+<a name='L151'></a><a href='#L151'>151</a>
+<a name='L152'></a><a href='#L152'>152</a>
+<a name='L153'></a><a href='#L153'>153</a>
+<a name='L154'></a><a href='#L154'>154</a>
+<a name='L155'></a><a href='#L155'>155</a>
+<a name='L156'></a><a href='#L156'>156</a>
+<a name='L157'></a><a href='#L157'>157</a>
+<a name='L158'></a><a href='#L158'>158</a>
+<a name='L159'></a><a href='#L159'>159</a>
+<a name='L160'></a><a href='#L160'>160</a>
+<a name='L161'></a><a href='#L161'>161</a>
+<a name='L162'></a><a href='#L162'>162</a>
+<a name='L163'></a><a href='#L163'>163</a>
+<a name='L164'></a><a href='#L164'>164</a>
+<a name='L165'></a><a href='#L165'>165</a>
+<a name='L166'></a><a href='#L166'>166</a>
+<a name='L167'></a><a href='#L167'>167</a>
+<a name='L168'></a><a href='#L168'>168</a>
+<a name='L169'></a><a href='#L169'>169</a>
+<a name='L170'></a><a href='#L170'>170</a>
+<a name='L171'></a><a href='#L171'>171</a>
+<a name='L172'></a><a href='#L172'>172</a>
+<a name='L173'></a><a href='#L173'>173</a>
+<a name='L174'></a><a href='#L174'>174</a>
+<a name='L175'></a><a href='#L175'>175</a>
+<a name='L176'></a><a href='#L176'>176</a>
+<a name='L177'></a><a href='#L177'>177</a>
+<a name='L178'></a><a href='#L178'>178</a>
+<a name='L179'></a><a href='#L179'>179</a>
+<a name='L180'></a><a href='#L180'>180</a>
+<a name='L181'></a><a href='#L181'>181</a>
+<a name='L182'></a><a href='#L182'>182</a>
+<a name='L183'></a><a href='#L183'>183</a>
+<a name='L184'></a><a href='#L184'>184</a>
+<a name='L185'></a><a href='#L185'>185</a>
+<a name='L186'></a><a href='#L186'>186</a>
+<a name='L187'></a><a href='#L187'>187</a>
+<a name='L188'></a><a href='#L188'>188</a>
+<a name='L189'></a><a href='#L189'>189</a>
+<a name='L190'></a><a href='#L190'>190</a>
+<a name='L191'></a><a href='#L191'>191</a>
+<a name='L192'></a><a href='#L192'>192</a>
+<a name='L193'></a><a href='#L193'>193</a>
+<a name='L194'></a><a href='#L194'>194</a>
+<a name='L195'></a><a href='#L195'>195</a>
+<a name='L196'></a><a href='#L196'>196</a>
+<a name='L197'></a><a href='#L197'>197</a>
+<a name='L198'></a><a href='#L198'>198</a>
+<a name='L199'></a><a href='#L199'>199</a>
+<a name='L200'></a><a href='#L200'>200</a>
+<a name='L201'></a><a href='#L201'>201</a>
+<a name='L202'></a><a href='#L202'>202</a>
+<a name='L203'></a><a href='#L203'>203</a>
+<a name='L204'></a><a href='#L204'>204</a>
+<a name='L205'></a><a href='#L205'>205</a>
+<a name='L206'></a><a href='#L206'>206</a>
+<a name='L207'></a><a href='#L207'>207</a>
+<a name='L208'></a><a href='#L208'>208</a>
+<a name='L209'></a><a href='#L209'>209</a>
+<a name='L210'></a><a href='#L210'>210</a>
+<a name='L211'></a><a href='#L211'>211</a>
+<a name='L212'></a><a href='#L212'>212</a>
+<a name='L213'></a><a href='#L213'>213</a>
+<a name='L214'></a><a href='#L214'>214</a>
+<a name='L215'></a><a href='#L215'>215</a>
+<a name='L216'></a><a href='#L216'>216</a>
+<a name='L217'></a><a href='#L217'>217</a>
+<a name='L218'></a><a href='#L218'>218</a>
+<a name='L219'></a><a href='#L219'>219</a>
+<a name='L220'></a><a href='#L220'>220</a>
+<a name='L221'></a><a href='#L221'>221</a>
+<a name='L222'></a><a href='#L222'>222</a>
+<a name='L223'></a><a href='#L223'>223</a>
+<a name='L224'></a><a href='#L224'>224</a>
+<a name='L225'></a><a href='#L225'>225</a>
+<a name='L226'></a><a href='#L226'>226</a>
+<a name='L227'></a><a href='#L227'>227</a>
+<a name='L228'></a><a href='#L228'>228</a>
+<a name='L229'></a><a href='#L229'>229</a>
+<a name='L230'></a><a href='#L230'>230</a>
+<a name='L231'></a><a href='#L231'>231</a>
+<a name='L232'></a><a href='#L232'>232</a>
+<a name='L233'></a><a href='#L233'>233</a>
+<a name='L234'></a><a href='#L234'>234</a>
+<a name='L235'></a><a href='#L235'>235</a>
+<a name='L236'></a><a href='#L236'>236</a>
+<a name='L237'></a><a href='#L237'>237</a>
+<a name='L238'></a><a href='#L238'>238</a>
+<a name='L239'></a><a href='#L239'>239</a>
+<a name='L240'></a><a href='#L240'>240</a>
+<a name='L241'></a><a href='#L241'>241</a>
+<a name='L242'></a><a href='#L242'>242</a>
+<a name='L243'></a><a href='#L243'>243</a>
+<a name='L244'></a><a href='#L244'>244</a>
+<a name='L245'></a><a href='#L245'>245</a>
+<a name='L246'></a><a href='#L246'>246</a>
+<a name='L247'></a><a href='#L247'>247</a>
+<a name='L248'></a><a href='#L248'>248</a>
+<a name='L249'></a><a href='#L249'>249</a>
+<a name='L250'></a><a href='#L250'>250</a>
+<a name='L251'></a><a href='#L251'>251</a>
+<a name='L252'></a><a href='#L252'>252</a>
+<a name='L253'></a><a href='#L253'>253</a>
+<a name='L254'></a><a href='#L254'>254</a>
+<a name='L255'></a><a href='#L255'>255</a>
+<a name='L256'></a><a href='#L256'>256</a>
+<a name='L257'></a><a href='#L257'>257</a>
+<a name='L258'></a><a href='#L258'>258</a>
+<a name='L259'></a><a href='#L259'>259</a>
+<a name='L260'></a><a href='#L260'>260</a>
+<a name='L261'></a><a href='#L261'>261</a>
+<a name='L262'></a><a href='#L262'>262</a>
+<a name='L263'></a><a href='#L263'>263</a>
+<a name='L264'></a><a href='#L264'>264</a>
+<a name='L265'></a><a href='#L265'>265</a>
+<a name='L266'></a><a href='#L266'>266</a>
+<a name='L267'></a><a href='#L267'>267</a>
+<a name='L268'></a><a href='#L268'>268</a>
+<a name='L269'></a><a href='#L269'>269</a>
+<a name='L270'></a><a href='#L270'>270</a>
+<a name='L271'></a><a href='#L271'>271</a>
+<a name='L272'></a><a href='#L272'>272</a>
+<a name='L273'></a><a href='#L273'>273</a>
+<a name='L274'></a><a href='#L274'>274</a>
+<a name='L275'></a><a href='#L275'>275</a>
+<a name='L276'></a><a href='#L276'>276</a>
+<a name='L277'></a><a href='#L277'>277</a>
+<a name='L278'></a><a href='#L278'>278</a>
+<a name='L279'></a><a href='#L279'>279</a>
+<a name='L280'></a><a href='#L280'>280</a>
+<a name='L281'></a><a href='#L281'>281</a>
+<a name='L282'></a><a href='#L282'>282</a>
+<a name='L283'></a><a href='#L283'>283</a>
+<a name='L284'></a><a href='#L284'>284</a>
+<a name='L285'></a><a href='#L285'>285</a>
+<a name='L286'></a><a href='#L286'>286</a>
+<a name='L287'></a><a href='#L287'>287</a>
+<a name='L288'></a><a href='#L288'>288</a>
+<a name='L289'></a><a href='#L289'>289</a>
+<a name='L290'></a><a href='#L290'>290</a>
+<a name='L291'></a><a href='#L291'>291</a>
+<a name='L292'></a><a href='#L292'>292</a>
+<a name='L293'></a><a href='#L293'>293</a>
+<a name='L294'></a><a href='#L294'>294</a>
+<a name='L295'></a><a href='#L295'>295</a>
+<a name='L296'></a><a href='#L296'>296</a>
+<a name='L297'></a><a href='#L297'>297</a>
+<a name='L298'></a><a href='#L298'>298</a>
+<a name='L299'></a><a href='#L299'>299</a>
+<a name='L300'></a><a href='#L300'>300</a>
+<a name='L301'></a><a href='#L301'>301</a>
+<a name='L302'></a><a href='#L302'>302</a>
+<a name='L303'></a><a href='#L303'>303</a>
+<a name='L304'></a><a href='#L304'>304</a>
+<a name='L305'></a><a href='#L305'>305</a>
+<a name='L306'></a><a href='#L306'>306</a>
+<a name='L307'></a><a href='#L307'>307</a>
+<a name='L308'></a><a href='#L308'>308</a>
+<a name='L309'></a><a href='#L309'>309</a>
+<a name='L310'></a><a href='#L310'>310</a>
+<a name='L311'></a><a href='#L311'>311</a>
+<a name='L312'></a><a href='#L312'>312</a>
+<a name='L313'></a><a href='#L313'>313</a>
+<a name='L314'></a><a href='#L314'>314</a>
+<a name='L315'></a><a href='#L315'>315</a>
+<a name='L316'></a><a href='#L316'>316</a>
+<a name='L317'></a><a href='#L317'>317</a>
+<a name='L318'></a><a href='#L318'>318</a>
+<a name='L319'></a><a href='#L319'>319</a>
+<a name='L320'></a><a href='#L320'>320</a>
+<a name='L321'></a><a href='#L321'>321</a>
+<a name='L322'></a><a href='#L322'>322</a>
+<a name='L323'></a><a href='#L323'>323</a>
+<a name='L324'></a><a href='#L324'>324</a>
+<a name='L325'></a><a href='#L325'>325</a>
+<a name='L326'></a><a href='#L326'>326</a>
+<a name='L327'></a><a href='#L327'>327</a>
+<a name='L328'></a><a href='#L328'>328</a>
+<a name='L329'></a><a href='#L329'>329</a>
+<a name='L330'></a><a href='#L330'>330</a>
+<a name='L331'></a><a href='#L331'>331</a>
+<a name='L332'></a><a href='#L332'>332</a>
+<a name='L333'></a><a href='#L333'>333</a>
+<a name='L334'></a><a href='#L334'>334</a>
+<a name='L335'></a><a href='#L335'>335</a>
+<a name='L336'></a><a href='#L336'>336</a>
+<a name='L337'></a><a href='#L337'>337</a>
+<a name='L338'></a><a href='#L338'>338</a>
+<a name='L339'></a><a href='#L339'>339</a>
+<a name='L340'></a><a href='#L340'>340</a>
+<a name='L341'></a><a href='#L341'>341</a>
+<a name='L342'></a><a href='#L342'>342</a>
+<a name='L343'></a><a href='#L343'>343</a>
+<a name='L344'></a><a href='#L344'>344</a>
+<a name='L345'></a><a href='#L345'>345</a>
+<a name='L346'></a><a href='#L346'>346</a>
+<a name='L347'></a><a href='#L347'>347</a>
+<a name='L348'></a><a href='#L348'>348</a>
+<a name='L349'></a><a href='#L349'>349</a>
+<a name='L350'></a><a href='#L350'>350</a>
+<a name='L351'></a><a href='#L351'>351</a>
+<a name='L352'></a><a href='#L352'>352</a>
+<a name='L353'></a><a href='#L353'>353</a>
+<a name='L354'></a><a href='#L354'>354</a>
+<a name='L355'></a><a href='#L355'>355</a>
+<a name='L356'></a><a href='#L356'>356</a>
+<a name='L357'></a><a href='#L357'>357</a>
+<a name='L358'></a><a href='#L358'>358</a>
+<a name='L359'></a><a href='#L359'>359</a>
+<a name='L360'></a><a href='#L360'>360</a>
+<a name='L361'></a><a href='#L361'>361</a>
+<a name='L362'></a><a href='#L362'>362</a>
+<a name='L363'></a><a href='#L363'>363</a>
+<a name='L364'></a><a href='#L364'>364</a>
+<a name='L365'></a><a href='#L365'>365</a>
+<a name='L366'></a><a href='#L366'>366</a>
+<a name='L367'></a><a href='#L367'>367</a>
+<a name='L368'></a><a href='#L368'>368</a>
+<a name='L369'></a><a href='#L369'>369</a>
+<a name='L370'></a><a href='#L370'>370</a>
+<a name='L371'></a><a href='#L371'>371</a>
+<a name='L372'></a><a href='#L372'>372</a>
+<a name='L373'></a><a href='#L373'>373</a>
+<a name='L374'></a><a href='#L374'>374</a>
+<a name='L375'></a><a href='#L375'>375</a>
+<a name='L376'></a><a href='#L376'>376</a>
+<a name='L377'></a><a href='#L377'>377</a>
+<a name='L378'></a><a href='#L378'>378</a>
+<a name='L379'></a><a href='#L379'>379</a>
+<a name='L380'></a><a href='#L380'>380</a>
+<a name='L381'></a><a href='#L381'>381</a>
+<a name='L382'></a><a href='#L382'>382</a>
+<a name='L383'></a><a href='#L383'>383</a>
+<a name='L384'></a><a href='#L384'>384</a>
+<a name='L385'></a><a href='#L385'>385</a>
+<a name='L386'></a><a href='#L386'>386</a>
+<a name='L387'></a><a href='#L387'>387</a>
+<a name='L388'></a><a href='#L388'>388</a>
+<a name='L389'></a><a href='#L389'>389</a>
+<a name='L390'></a><a href='#L390'>390</a>
+<a name='L391'></a><a href='#L391'>391</a>
+<a name='L392'></a><a href='#L392'>392</a>
+<a name='L393'></a><a href='#L393'>393</a>
+<a name='L394'></a><a href='#L394'>394</a>
+<a name='L395'></a><a href='#L395'>395</a>
+<a name='L396'></a><a href='#L396'>396</a>
+<a name='L397'></a><a href='#L397'>397</a>
+<a name='L398'></a><a href='#L398'>398</a>
+<a name='L399'></a><a href='#L399'>399</a>
+<a name='L400'></a><a href='#L400'>400</a>
+<a name='L401'></a><a href='#L401'>401</a>
+<a name='L402'></a><a href='#L402'>402</a>
+<a name='L403'></a><a href='#L403'>403</a>
+<a name='L404'></a><a href='#L404'>404</a>
+<a name='L405'></a><a href='#L405'>405</a>
+<a name='L406'></a><a href='#L406'>406</a>
+<a name='L407'></a><a href='#L407'>407</a>
+<a name='L408'></a><a href='#L408'>408</a>
+<a name='L409'></a><a href='#L409'>409</a>
+<a name='L410'></a><a href='#L410'>410</a>
+<a name='L411'></a><a href='#L411'>411</a>
+<a name='L412'></a><a href='#L412'>412</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">648x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">50627x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">50627x</span>
+<span class="cline-any cline-yes">50627x</span>
+<span class="cline-any cline-yes">50627x</span>
+<span class="cline-any cline-yes">50627x</span>
+<span class="cline-any cline-yes">40180x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">50627x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">113x</span>
+<span class="cline-any cline-yes">113x</span>
+<span class="cline-any cline-yes">92x</span>
+<span class="cline-any cline-yes">92x</span>
+<span class="cline-any cline-yes">91x</span>
+<span class="cline-any cline-yes">91x</span>
+<span class="cline-any cline-yes">91x</span>
+<span class="cline-any cline-yes">113x</span>
+<span class="cline-any cline-yes">113x</span>
+<span class="cline-any cline-yes">91x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">50523x</span>
+<span class="cline-any cline-yes">50521x</span>
+<span class="cline-any cline-yes">50521x</span>
+<span class="cline-any cline-yes">90379x</span>
+<span class="cline-any cline-yes">50521x</span>
+<span class="cline-any cline-yes">50521x</span>
+<span class="cline-any cline-yes">40x</span>
+<span class="cline-any cline-yes">40x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">101x</span>
+<span class="cline-any cline-yes">101x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">93x</span>
+<span class="cline-any cline-yes">93x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">146x</span>
+<span class="cline-any cline-yes">50409x</span>
+<span class="cline-any cline-yes">36x</span>
+<span class="cline-any cline-yes">147322x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">521x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">849x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">50494x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">50327x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">834x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">391x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1773x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">65x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">101x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">50276x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">29x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">132x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">81x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">252028x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">211x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">185x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">50055x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">184x</span>
+<span class="cline-any cline-yes">184x</span>
+<span class="cline-any cline-yes">184x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">533x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">533x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">533x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">18x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">18x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">390x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">533x</span>
+<span class="cline-any cline-yes">533x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">40275x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">26x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">28x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">94x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-yes">733x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">64x</span>
+<span class="cline-any cline-yes">62x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">45355x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">45391x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">45359x</span>
+<span class="cline-any cline-yes">45359x</span>
+<span class="cline-any cline-yes">45359x</span>
+<span class="cline-any cline-yes">45359x</span>
+<span class="cline-any cline-yes">45359x</span>
+<span class="cline-any cline-yes">85539x</span>
+<span class="cline-any cline-yes">85539x</span>
+<span class="cline-any cline-yes">85537x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">45359x</span>
+<span class="cline-any cline-yes">45359x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">45359x</span>
+<span class="cline-any cline-yes">45359x</span>
+<span class="cline-any cline-yes">45359x</span>
+<span class="cline-any cline-yes">45359x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">45359x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">45359x</span>
+<span class="cline-any cline-yes">85189x</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { unwrapDependencySlot, isDeferredToken } from '@coldmind/inject/lazy';
+import { ServiceLifetime, type IContainer, type ResourceLifetime, type RegisterOptions, type InstanceRecord, type BindingDescriptor, type BindingHandle, type ClassDescriptor, type DependencyEdge, type ReplacementOptions, type ServiceFactory, type ServiceLifecycle } from '@coldmind/inject/contracts';
+import { type Constructor, type InjectionToken, internToken, lookupToken, nextResourceInstanceId, nextSequence, releaseTokenKey, retainTokenKey, tokenName } from '@coldmind/inject/token';
+import type { BindingOwner, RecordOwner } from '@coldmind/inject/internal/host';
+import type { DiError } from '@coldmind/inject/errors';
+import { stamp, buildSignal } from '@coldmind/inject/internal/async';
+&nbsp;
+/** A factory with its data type erased, as stored on a binding. */
+export type AnyFactory = (c: IContainer, data?: unknown) =&gt; unknown;
+/** Operational registry identity erases only the public replacement payload contract; no internal caller invokes it. */
+export type Binding = Omit&lt;TypedBinding, 'replace' | 'single' | 'multi'&gt; &amp; {
+  /** Registry links carry the same erased operational identity, not a public handle's data type. */
+  readonly single: Binding | undefined;
+  /** Multi lookup never needs the public replacement signature. */
+  readonly multi: readonly Binding[];
+};
+/** A registration as the container stores it: the public descriptor plus what resolution needs. */
+export interface BindingShape extends BindingDescriptor {
+  /** Registry key of the token. */
+  key: symbol;
+  /** Node identity in the dependency graph: the token key for a single, a fresh symbol per multi entry. */
+  graphId: symbol;
+  /** Id of the binding this one replaces, while a replacement is staged. */
+  replacesId?: string;
+  /** Builds the instance. Receives the resolution-bound container and the resolve data. */
+  factory: AnyFactory;
+  /** Lifecycle hooks given with the factory, if any. */
+  lifecycle?: ServiceLifecycle&lt;unknown, unknown&gt;;
+  /** Declared dependency edges. */
+  deps: readonly DependencyEdge[];
+  /** Whether the dependencies were declared. Undeclared bindings are not checked for missing dependencies. */
+  declared: boolean;
+  /** The class, for a class registration. */
+  ctor?: Constructor;
+  /** The class descriptor, for a class registration. */
+  descriptor?: ClassDescriptor;
+  /** The container the binding was registered on. */
+  ownerContainer: BindingOwner;
+  /** Per-registration deadline; undefined inherits the resolving owner. */
+  readonly timeoutMs?: number | null;
+}
+/** Owner policy of every container-built binding. Shared: it is never mutated. */
+const OWNED: Binding['owner'] = Object.freeze({ ownership: 'owned' as const });
+/** Dependencies of a binding that declares none. Shared: dependency lists are never mutated. */
+const NO_DEPS: readonly DependencyEdge[] = Object.freeze([]);
+/** `kindTag` of each lifetime, for single and multi registrations. */
+export const KIND_TAGS: Record&lt;ServiceLifetime, readonly [string, string]&gt; = {
+  [ServiceLifetime.Singleton]: ['singleton', 'singletonMulti'], [ServiceLifetime.Transient]: ['transient', 'transientMulti'],
+  [ServiceLifetime.Scoped]: ['scoped', 'scopedMulti'], [ServiceLifetime.Tenant]: ['tenant', 'tenantMulti'], [ServiceLifetime.Request]: ['request', 'requestMulti'],
+};
+/** The empty multi list every registry group starts with. Frozen: a group gets its own list on its first multi. */
+const NO_BINDINGS: readonly Binding[] = Object.freeze([]);
+/** Live multi-definition counts across all containers. Other keys skip the multi conflict check. */
+const multiKeys = new Map&lt;symbol, number&gt;();
+/** Whether the token has any live multi definition across roots. */
+export const hasMultiBinding = (key: symbol): boolean =&gt; multiKeys.has(key);
+/** No retained instances. Shared by every handle that retains none. */
+export const NO_INSTANCES: readonly never[] = Object.freeze([]);
+/** Handle returned by a registration: `unregister` and `replace` act on the binding it was created for. */
+export class Handle&lt;T, D&gt; implements BindingHandle&lt;T, D&gt; {
+  /** Creates the handle of `binding` on `container`. */
+  constructor(private readonly container: BindingOwner, private readonly binding: TypedBinding&lt;T, D&gt;, readonly retainedInstances: readonly T[]) {}
+  /** Id of the binding. */
+  get <span class="fstat-no" title="function not covered" >bindingId(): string {</span> <span class="cstat-no" title="statement not covered" >return this.binding.id; }</span>
+  /** The registered token. */
+  get <span class="fstat-no" title="function not covered" >token(): InjectionToken&lt;T&gt; {</span> <span class="cstat-no" title="statement not covered" >return this.binding.token; }</span>
+  /** Whether this is a single or a multi registration. */
+  get <span class="fstat-no" title="function not covered" >kind(): 'single' | 'multi' {</span> <span class="cstat-no" title="statement not covered" >return this.binding.kind; }</span>
+  /** Generation of the binding. */
+  get generation(): number { return this.binding.generation; }
+  /** Removes this binding. Resolves `false` if it was already removed. */
+<span class="fstat-no" title="function not covered" >  unregister(): Promise&lt;boolean&gt; {</span> <span class="cstat-no" title="statement not covered" >return this.container.unregisterBinding(this.bindingId); }</span>
+  /** Replaces this binding's factory and returns a handle to the replacement. */
+<span class="fstat-no" title="function not covered" >  replace(f</span>actory: ServiceFactory&lt;T, D&gt; | ServiceLifecycle&lt;T, D&gt;, lifetime: ServiceLifetime = <span class="branch-0 cbranch-no" title="branch not covered" >this.binding.lifetime, o</span>ptions?: ReplacementOptions): Promise&lt;BindingHandle&lt;T, D&gt;&gt; {
+<span class="cstat-no" title="statement not covered" >    return this.container.replaceBinding&lt;T, D&gt;(this.bindingId, factory, lifetime, options);</span>
+  }
+}
+&nbsp;
+/** A registration as the container stores it. Its id is formatted on first read, so registering never builds a string. */
+export class TypedBinding&lt;T = unknown, D = unknown&gt; implements BindingShape, BindingHandle&lt;T, D&gt; {
+  /** Fields only some bindings have. Created on first write, so a plain registration allocates one object. */
+  private declare extra: BindingExtra | undefined;
+  /** String keys retained by the definition, deduplicated across token and declared dependencies. */
+  private declare retainedKeys: Set&lt;symbol&gt; | undefined;
+  /** The last dynamically cached string key when it is not already retained by the definition. */
+  private declare dynamicKey: symbol | undefined;
+  /** False after unregister, rollback or disposal releases this definition. */
+  private retentionLive = true;
+  /** Time of registration. */
+  declare readonly registeredAt: number;
+  /** The container the binding was registered on. */
+  declare readonly ownerContainer: BindingOwner;
+  /** The registered token. */
+  declare readonly token: InjectionToken&lt;T&gt;;
+  /** Registry key of the token. */
+  declare readonly key: symbol;
+  /** Lifetime of the instances. */
+  declare readonly lifetime: ServiceLifetime;
+  /** Whether this is a single or a multi registration. */
+  declare readonly kind: 'single' | 'multi';
+  /** Builds the instance. Receives the resolution-bound container and the resolve data. */
+  declare readonly factory: AnyFactory;
+  /** Creates a binding owned by `ownerContainer`. `extra` holds every field that differs from its default. */
+  constructor(ownerContainer: BindingOwner, token: InjectionToken&lt;T&gt;, key: symbol, lifetime: ServiceLifetime, kind: 'single' | 'multi',
+    factory: AnyFactory, extra: BindingExtra | undefined) {
+    this.extra = extra; this.registeredAt = stamp();
+    this.ownerContainer = ownerContainer; this.token = token; this.key = key; this.lifetime = lifetime; this.kind = kind; this.factory = factory;
+    if (retainTokenKey(key)) this.retainedKeys = new Set([key]);
+    for (const dep of extra?.deps ?? NO_DEPS) {
+      if (!this.retainedKeys?.has(dep.key) &amp;&amp; retainTokenKey(dep.key)) (this.retainedKeys ??= new Set()).add(dep.key);
+    }
+    if (kind === 'multi') multiKeys.set(key, (multiKeys.get(key) ?? 0) + 1);
+  }
+  /**
+   * The key of a token this binding's factory resolves. Its last string key is retained while cached, then released
+   * when another token replaces it or the binding is removed.
+   */
+  keyOf(token: InjectionToken): symbol | undefined {
+    const extra = this.extra;
+    if (this.retentionLive &amp;&amp; extra !== undefined &amp;&amp; extra.lastToken === token) return extra.lastKey;
+    const key = lookupToken(token);
+    if (!this.retentionLive) return key;
+    if (this.dynamicKey !== undefined) releaseTokenKey(this.dynamicKey);
+    this.dynamicKey = undefined;
+    const into = this.extra ??= {};
+    into.lastToken = key === undefined ? undefined : token; into.lastKey = key;
+    if (key !== undefined &amp;&amp; !this.retainedKeys?.has(key) &amp;&amp; retainTokenKey(key)) this.dynamicKey = key;
+    return key;
+  }
+  /** Releases this definition's references once; retained factory views cannot reacquire ownership. */
+  releaseTokens(): void {
+    if (!this.retentionLive) return;
+    this.retentionLive = false;
+    if (this.dynamicKey !== undefined) releaseTokenKey(this.dynamicKey);
+    for (const key of this.retainedKeys ?? []) releaseTokenKey(key);
+    this.dynamicKey = undefined; this.retainedKeys = undefined;
+    if (this.kind === 'multi') {
+      const left = (multiKeys.get(this.key) ?? <span class="branch-1 cbranch-no" title="branch not covered" >1) - 1</span>;
+      if (left) multiKeys.set(this.key, left); else multiKeys.delete(this.key);
+    }
+  }
+  /** Whether the edge to `binding` is the last one logged from this binding into `pairs`, a container's edge set. */
+  observedLast(binding: Binding, pairs: WeakMap&lt;Binding, Set&lt;Binding&gt;&gt; | undefined): boolean {
+    const extra = this.extra;
+    return pairs !== undefined &amp;&amp; extra !== undefined &amp;&amp; extra.observedTo === binding &amp;&amp; extra.observedIn === pairs;
+  }
+  /** Remembers the edge to `binding` as the last one logged into `pairs`. A new edge set (after a trim) invalidates it. */
+  noteObserved(binding: Binding, pairs: WeakMap&lt;Binding, Set&lt;Binding&gt;&gt;): void {
+    const into = this.extra ??= {};
+    into.observedTo = binding; into.observedIn = pairs;
+  }
+  /** How it was registered, such as `singleton` or `registerInstance`. */
+  get kindTag(): string { return this.extra?.kindTag ?? KIND_TAGS[this.lifetime][this.kind === 'multi' ? <span class="branch-0 cbranch-no" title="branch not covered" >1 : 0</span>]; }
+  get module(): string | undefined { return this.extra?.module; }
+  set module(value: string | undefined) { (this.extra ??= {}).module = value; }
+  get when(): RegisterOptions['when'] { return this.extra?.when; }
+  /** Per-registration deadline, including an explicit null disable value. */
+  get timeoutMs(): number | null | undefined { return this.extra?.timeoutMs; }
+  /** Lifecycle hooks given with the factory, if any. */
+  get lifecycle(): ServiceLifecycle&lt;unknown, unknown&gt; | undefined { return this.extra?.lifecycle; }
+  /** Declared dependency edges. */
+  get deps(): readonly DependencyEdge[] { return this.extra?.deps ?? NO_DEPS; }
+  /** Whether the dependencies were declared. Undeclared bindings are not checked for missing dependencies. */
+  get declared(): boolean { return this.extra?.declared ?? false; }
+  /** Who disposes the instance. */
+  get owner(): BindingDescriptor['owner'] { return this.extra?.owner ?? OWNED; }
+  /** Bumped on each replacement of a binding for the same token. */
+  get generation(): number { return this.extra?.generation ?? 0; }
+  /** Registry view: a single binding stored alone is its own registry entry. */
+  get single(): Binding | undefined { return this.kind === 'single' ? this : <span class="branch-1 cbranch-no" title="branch not covered" >undefined; }</span>
+  /** Registry view: a single binding's entry has no multi registrations. */
+  get multi(): readonly Binding[] { return NO_BINDINGS; }
+  /** Time of the last change. A binding never changes after registration: a replacement is a new binding. */
+  get updatedAt(): number { return this.registeredAt; }
+  /** Node identity in the dependency graph: the token key for a single, its own symbol for a multi entry. */
+  get graphId(): symbol { return this.kind === 'single' &amp;&amp; !this.when ? this.key : ((this.extra ??= {}).graphId ??= Symbol(`candidate:${tokenName(this.token)}`)); }
+  /** Id of the binding replaced by this one, while a replacement is staged. */
+  get <span class="fstat-no" title="function not covered" >replacesId(): string | undefined {</span> <span class="cstat-no" title="statement not covered" >return this.extra?.replacesId; }</span>
+  set replacesId(value: string | undefined) { (this.extra ??= {}).replacesId = value; }
+  /** The class, for a class registration. */
+  get ctor(): Constructor | undefined { return this.extra?.ctor; }
+  set <span class="fstat-no" title="function not covered" >ctor(v</span>alue: Constructor | undefined) { <span class="cstat-no" title="statement not covered" >(this.extra ??= {}).ctor = value; }</span>
+  /** The class descriptor, for a class registration. */
+  get descriptor(): ClassDescriptor | undefined { return this.extra?.descriptor; }
+  set <span class="fstat-no" title="function not covered" >descriptor(v</span>alue: ClassDescriptor | undefined) { <span class="cstat-no" title="statement not covered" >(this.extra ??= {}).descriptor = value; }</span>
+  /** Unique id of the binding. */
+  get id(): string { return (this.extra ??= {}).id ??= 'binding-' + nextSequence(); }
+  /** Id of the scope the binding was registered on. */
+  get ownerScopeId(): string { return this.ownerContainer.identity.id; }
+  /** Handle view: id of the binding. */
+  get bindingId(): string { return this.id; }
+  /** Handle view: a plain registration retains no instances. */
+  get retainedInstances(): readonly T[] { return NO_INSTANCES; }
+  /** Handle view: removes this binding. Resolves `false` if it was already removed. */
+  unregister(): Promise&lt;boolean&gt; { return this.ownerContainer.unregisterBinding(this.id); }
+  /** Handle view: replaces this binding's factory and returns a handle to the replacement. */
+  replace(factory: ServiceFactory&lt;T, D&gt; | ServiceLifecycle&lt;T, D&gt;, lifetime: ServiceLifetime = this.lifetime, options?: ReplacementOptions): Promise&lt;BindingHandle&lt;T, D&gt;&gt; {
+    return this.ownerContainer.replaceBinding&lt;T, D&gt;(this.id, factory, lifetime, options);
+  }
+}
+/** Binding fields only some bindings have. */
+export interface BindingExtra {
+  module?: string;
+  when?: RegisterOptions['when'];
+  /** Per-registration deadline override. */
+  timeoutMs?: number | null;
+  /** The token the factory resolved last. */
+  lastToken?: InjectionToken;
+  /** The key of `lastToken`. */
+  lastKey?: symbol;
+  /** Target of the edge logged last from this binding. */
+  observedTo?: Binding;
+  /** The edge set it was logged into. */
+  observedIn?: WeakMap&lt;Binding, Set&lt;Binding&gt;&gt;;
+  /** The id, reserved on first read. */
+  id?: string;
+  /** How it was registered, when not the lifetime's default tag. */
+  kindTag?: string;
+  /** Lifecycle hooks given with the factory. */
+  lifecycle?: ServiceLifecycle&lt;unknown, unknown&gt;;
+  /** Declared dependency edges. */
+  deps?: DependencyEdge[];
+  /** Whether the dependencies were declared. */
+  declared?: boolean;
+  /** Who disposes the instance. */
+  owner?: BindingDescriptor['owner'];
+  /** Replacement generation. */
+  generation?: number;
+  /** Graph node identity of a multi entry. */
+  graphId?: symbol;
+  /** Id of the binding replaced, while a replacement is staged. */
+  replacesId?: string;
+  /** The class, for a class registration. */
+  ctor?: Constructor;
+  /** The class descriptor, for a class registration. */
+  descriptor?: ClassDescriptor;
+}
+&nbsp;
+/** A built (or building) instance as the container stores it. */
+interface StoredShape extends InstanceRecord {
+  /** Registry key of the token. */
+  key: symbol;
+  /** Whether the binding is a single or a multi registration. */
+  kind: 'single' | 'multi';
+  /** Unique id of this instance, used in resource snapshots. */
+  instanceId: string;
+  /** The data the instance was resolved with. */
+  data: unknown;
+  /** The binding that built the instance. */
+  binding: Binding;
+  /** The container that holds the instance. */
+  container: RecordOwner;
+}
+/** The id of an instance, assigned on first read: most instances are never shown in a path, edge or snapshot. */
+export function idOf(record: StoredRecord): string {
+  let id = instanceIds.get(record);
+  if (id === undefined) instanceIds.set(record, id = nextResourceInstanceId());
+  return id;
+}
+/** Instance ids, assigned on first read. Kept off the record: most records never show one. */
+const instanceIds = new WeakMap&lt;StoredRecord, string&gt;();
+/** A built (or building) instance as the container stores it. Its binding id is read through the binding. */
+export class StoredRecord implements StoredShape {
+  /** Lifecycle state. */
+  declare state: InstanceRecord['state'];
+  /** The instance, once built. */
+  declare instance: unknown;
+  /** Time the build started. */
+  declare createdAt: number;
+  /** Time of the last state change. */
+  declare lastTouchedAt: number;
+  /** The binding that built the instance. */
+  declare readonly binding: Binding;
+  /** The container that holds the instance. */
+  declare readonly container: RecordOwner;
+  /** The data the instance was resolved with. */
+  declare readonly data: unknown;
+  /** True until materialization is published or cancelled. */
+  building = true;
+  /** Distinguishes a produced undefined value from an unfinished factory. */
+  produced = false;
+  /** Cancellation terminal state, distinct from an ordinary factory error. */
+  cancelled?: DiError;
+  /** Absolute deadline, only for configured asynchronous work. */
+  deadline?: number;
+  /** Unrefed pending deadline. */
+  timer?: ReturnType&lt;typeof setTimeout&gt;;
+  /** Shared caller rejection boundary while a build is pending. */
+  rejectBuild?: (error: unknown) =&gt; void;
+  /** Whether exactly-once cleanup has claimed this produced instance. */
+  cleanupStarted = false;
+  /** Asynchronous cleanup shared by terminal paths. */
+  cleanupPromise?: Promise&lt;unknown&gt;;
+  /** Lazy build-local cancellation source. */
+  private controller?: AbortController;
+  /** Stable composed signal, independent of a retained view's resolver state. */
+  private signalValue?: AbortSignal;
+  /** Terminal abort is retained even when the signal was never read during construction. */
+  private abortReason?: DiError;
+  /** Stable factory/build signal linked to the owning scope lifetime. */
+  get signal(): AbortSignal {
+    if (!this.signalValue) {
+      this.controller = new AbortController();
+      if (this.abortReason) this.controller.abort(this.abortReason);
+      this.signalValue = buildSignal(this.controller.signal, this.container.signal);
+    }
+    return this.signalValue;
+  }
+  /** Aborts at most once without creating an unused signal or parent listener. */
+  abort(reason: DiError): void { this.abortReason ??= reason; this.controller?.abort(this.abortReason); }
+  /** Creates the record of a build of `binding` held by `container`. */
+  constructor(binding: Binding, container: RecordOwner, data: unknown, at: number) {
+    this.state = 'creating'; this.instance = undefined; this.createdAt = this.lastTouchedAt = at;
+    this.binding = binding; this.container = container; this.data = data;
+  }
+  /** Id of the binding that built the instance. */
+  get bindingId(): string { return this.binding.id; }
+  /** Unique id of this instance, or `''` before one is assigned on first read through `idOf`. */
+  get instanceId(): string { return instanceIds.get(this) ?? ''; }
+  /** Generation of the binding that built the instance. */
+  get generation(): number { return this.binding.generation; }
+  /** Registry key of the token. */
+  get key(): symbol { return this.binding.key; }
+  /** Whether the binding is a single or a multi registration. */
+  get <span class="fstat-no" title="function not covered" >kind(): 'single' | 'multi' {</span> <span class="cstat-no" title="statement not covered" >return this.binding.kind; }</span>
+}
+&nbsp;
+/** Declared dependency metadata, normalized only inside a registration-owned retention scope. */
+export type BindingDependency = Omit&lt;DependencyEdge, 'key'&gt;;
+&nbsp;
+/** Lifetime names used in resource snapshots. */
+export const lifetimeText: Record&lt;ServiceLifetime, ResourceLifetime&gt; = {
+  [ServiceLifetime.Singleton]: 'singleton', [ServiceLifetime.Transient]: 'transient',
+  [ServiceLifetime.Scoped]: 'scoped', [ServiceLifetime.Tenant]: 'tenant', [ServiceLifetime.Request]: 'request',
+};
+/** How long a lifetime lives, for the lifetimes that can be captured by a longer one. Others are 0. */
+export const lifespan = (lifetime: ServiceLifetime): number =&gt;
+  lifetime === ServiceLifetime.Singleton ? 3 : lifetime === ServiceLifetime.Tenant ? 2 : lifetime === ServiceLifetime.Request ? 1 : 0;
+&nbsp;
+/** Metadata controlled by class registration and replacement staging. */
+export interface BindingOptions {
+  module?: string;
+  when?: RegisterOptions['when'];
+  /** Unnormalized edges remain leased by the registration being constructed. */
+  deps?: BindingDependency[];
+  declared?: boolean;
+  owner?: Binding['owner'];
+  ctor?: Constructor;
+  descriptor?: ClassDescriptor;
+  generation?: number;
+  timeoutMs?: number | null;
+}
+&nbsp;
+&nbsp;
+/** Runtime construction check narrows erased token unions without pretending abstract tokens are concrete. */
+export function isConstructor&lt;T&gt;(token: InjectionToken&lt;T&gt;): token is Constructor&lt;T&gt; {
+  if (typeof token !== 'function') return false;
+  try { Reflect.construct(Object, [], token); return true; }
+  catch { <span class="cstat-no" title="statement not covered" >return false; }</span>
+}
+&nbsp;
+/** Registrations of one token on one container. */
+export interface RegistrationSet {
+  singles?: Binding[];
+  /** The single registration, if any. */
+  single?: Binding;
+  /** Multi registrations, in registration order. `NO_BINDINGS` until the first one. */
+  multi: Binding[];
+}
+&nbsp;
+/** Whether a registration argument is a `ServiceLifecycle` object rather than a bare factory. */
+export function isLifecycle&lt;T, D&gt;(factory: ServiceFactory&lt;T, D&gt; | ServiceLifecycle&lt;T, D&gt;): factory is ServiceLifecycle&lt;T, D&gt; {
+  return !!factory &amp;&amp; typeof factory === 'object' &amp;&amp; 'factory' in factory;
+}
+&nbsp;
+&nbsp;
+/** Validates settings before they can silently disable a build deadline. */
+export function checkTimeout(value: number | null | undefined, token?: InjectionToken): void {
+  if (value !== undefined &amp;&amp; value !== null &amp;&amp; (typeof value !== 'number' || !Number.isFinite(value) || value &lt; 0)) {
+    throw new RangeError(`Invalid build timeout: ${token === undefined ? 'scope' : tokenName(token)}`);
+  }
+}
+&nbsp;
+&nbsp;
+  /** Builds a binding record without registering it. */
+export function createBinding&lt;T, D&gt;(owner: BindingOwner, token: InjectionToken&lt;T&gt;, factory: ServiceFactory&lt;T, D&gt; | ServiceLifecycle&lt;T, D&gt;,
+    lifetime: ServiceLifetime, kind: 'single' | 'multi', kindTag: string, options?: RegisterOptions,
+    internal?: BindingOptions): TypedBinding&lt;T, D&gt; {
+    const requestedTimeout = options?.timeoutMs;
+    const timeoutMs = requestedTimeout === undefined ? internal?.timeoutMs : requestedTimeout;
+    checkTimeout(timeoutMs, token);
+    const held = new Set&lt;symbol&gt;();
+    const own = (dep: InjectionToken): symbol =&gt; {
+      const key = internToken(dep);
+      if (!held.has(key) &amp;&amp; retainTokenKey(key)) held.add(key);
+      return key;
+    };
+    try {
+      const key = own(token);
+      // Storage erases factory data; only the generic registration/resolve boundary supplies it.
+      const lifecycle = isLifecycle(factory) ? factory as ServiceLifecycle&lt;unknown, unknown&gt; : undefined;
+      const metadata = internal?.deps ?? options?.deps?.map((dep, index) =&gt; ({ token: unwrapDependencySlot(dep), lazy: isDeferredToken(dep), index, optional: false, multi: false }));
+      const deps = metadata?.map(dep =&gt; ({ ...dep, key: own(dep.token) }));
+      const declared = internal?.declared ?? (options?.deps !== undefined);
+      // A plain registration allocates no extra object: every field it would hold is at its default.
+      const extra: BindingExtra | undefined = options?.when || lifecycle || deps || declared || internal || timeoutMs !== undefined || kindTag !== KIND_TAGS[lifetime][kind === 'multi' ? 1 : 0]
+        ? { kindTag, lifecycle, deps, declared, timeoutMs, when: options?.when ?? internal?.when, module: internal?.module, owner: internal?.owner, generation: internal?.generation, ctor: internal?.ctor,
+          descriptor: internal?.ctor &amp;&amp; internal.descriptor }
+        : undefined;
+      return new TypedBinding&lt;T, D&gt;(owner, token, key, lifetime, kind, (lifecycle ? lifecycle.factory : factory) as AnyFactory, extra);
+    } finally { for (const key of held) releaseTokenKey(key); }
+  }</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-10-27T18:12:51.988Z
+            </div>
+        <script src="../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../sorter.js"></script>
+        <script src="../../block-navigation.js"></script>
+    </body>
+</html>
+    

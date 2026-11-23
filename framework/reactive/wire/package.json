@@ -1,0 +1,20 @@
+{
+  "name": "@coldmind/wire",
+  "version": "0.4.0",
+  "description": "Action<T>: reactive channels, operators, telemetry, lifecycle, components",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./*"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "demo": "bun examples/action.demo.ts"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  }
+}

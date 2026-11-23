@@ -1,0 +1,168 @@
+== 2026-11-23 08:35 Apple M1, 2s per measurement
+-- lunarstorm lunarstorm 0.1.0
+http            91136 req/s   p50 0.63 ms  p99 1.55 ms  ok 100.0%
+http pipelined  233952 req/s
+server rss      3 MiB after the http runs
+tcp echo        1869 MiB/s
+loop promise-jobs             2508774 ops/s
+loop nextTick                 4294149 ops/s
+loop setImmediate-loop-turns  76549 ops/s
+loop timers                   1400513 ops/s
+-- node v24.22.3
+http            83450 req/s   p50 0.68 ms  p99 1.75 ms  ok 100.0%
+http pipelined  162960 req/s
+server rss      88 MiB after the http runs
+tcp echo        1825 MiB/s
+loop promise-jobs             21057674 ops/s
+loop nextTick                 21779513 ops/s
+loop setImmediate-loop-turns  76710 ops/s
+loop timers                   3926468 ops/s
+-- bun 1.4.4
+http            100800 req/s   p50 0.54 ms  p99 1.51 ms  ok 100.0%
+http pipelined  144984 req/s
+server rss      68 MiB after the http runs
+tcp echo        1556 MiB/s
+loop promise-jobs             26794417 ops/s
+loop nextTick                 54101087 ops/s
+loop setImmediate-loop-turns  2394657 ops/s
+loop timers                   4162403 ops/s
+== 2026-11-23 08:36 Apple M1, 10s per measurement
+-- lunarstorm lunarstorm 0.1.0
+http            92885 req/s   p50 0.61 ms  p99 1.95 ms  ok 100.0%
+http pipelined  236019 req/s
+server rss      2 MiB after the http runs
+tcp echo        2006 MiB/s
+loop promise-jobs             2408008 ops/s
+loop nextTick                 4174006 ops/s
+loop setImmediate-loop-turns  78849 ops/s
+loop timers                   1399737 ops/s
+-- node v24.22.3
+http            90765 req/s   p50 0.65 ms  p99 1.45 ms  ok 100.0%
+http pipelined  189943 req/s
+server rss      101 MiB after the http runs
+tcp echo        1727 MiB/s
+loop promise-jobs             19774032 ops/s
+loop nextTick                 19819281 ops/s
+loop setImmediate-loop-turns  78411 ops/s
+loop timers                   4053528 ops/s
+-- bun 1.4.4
+http            97705 req/s   p50 0.59 ms  p99 1.44 ms  ok 100.0%
+http pipelined  151994 req/s
+server rss      68 MiB after the http runs
+tcp echo        1668 MiB/s
+loop promise-jobs             23632677 ops/s
+loop nextTick                 51220980 ops/s
+loop setImmediate-loop-turns  2220903 ops/s
+loop timers                   4392625 ops/s
+== 2026-11-23 09:12 Apple M1, 10s per measurement
+-- lunarstorm lunarstorm 0.1.0
+http            84803 req/s   p50 0.67 ms  p99 1.89 ms  ok 100.0%
+http pipelined  234484 req/s
+server rss      3 MiB after the http runs
+tcp echo        1841 MiB/s
+loop promise-jobs             2205125 ops/s
+loop nextTick                 3891187 ops/s
+loop setImmediate-loop-turns  1255865 ops/s
+loop timers                   1430271 ops/s
+-- node v24.22.3
+http            85159 req/s   p50 0.68 ms  p99 1.67 ms  ok 100.0%
+http pipelined  164217 req/s
+server rss      102 MiB after the http runs
+tcp echo        1719 MiB/s
+loop promise-jobs             16999972 ops/s
+loop nextTick                 18235170 ops/s
+loop setImmediate-loop-turns  76300 ops/s
+loop timers                   3706703 ops/s
+-- bun 1.4.4
+http            92647 req/s   p50 0.60 ms  p99 1.61 ms  ok 100.0%
+http pipelined  155020 req/s
+server rss      82 MiB after the http runs
+tcp echo        1591 MiB/s
+loop promise-jobs             23252975 ops/s
+loop nextTick                 48352198 ops/s
+loop setImmediate-loop-turns  2221766 ops/s
+loop timers                   4643697 ops/s
+== 2026-11-23 09:47 Apple M1, 10s per measurement
+-- lunarstorm lunarstorm 0.1.0
+http            65786 req/s   p50 0.89 ms  p99 2.23 ms  ok 100.0%
+http pipelined  209005 req/s
+server rss      3 MiB after the http runs
+tcp echo        1340 MiB/s
+loop promise-jobs             5084246 ops/s
+loop nextTick                 5195480 ops/s
+loop setImmediate-loop-turns  1299072 ops/s
+loop timers                   1290889 ops/s
+-- node v24.22.3
+http            54883 req/s   p50 1.04 ms  p99 2.89 ms  ok 100.0%
+http pipelined  124803 req/s
+server rss      102 MiB after the http runs
+tcp echo        909 MiB/s
+loop promise-jobs             11392111 ops/s
+loop nextTick                 11827146 ops/s
+loop setImmediate-loop-turns  75642 ops/s
+loop timers                   4027959 ops/s
+-- bun 1.4.4
+http            60981 req/s   p50 0.92 ms  p99 2.52 ms  ok 100.0%
+http pipelined  95043 req/s
+server rss      61 MiB after the http runs
+tcp echo        907 MiB/s
+loop promise-jobs             13432367 ops/s
+loop nextTick                 27337530 ops/s
+loop setImmediate-loop-turns  1344190 ops/s
+loop timers                   2653952 ops/s
+== 2026-11-23 16:02 Apple M1, 3s per measurement
+-- lunarstorm lunarstorm 0.1.0
+http            82354 req/s   p50 0.71 ms  p99 1.53 ms  ok 100.0%
+http pipelined  167958 req/s
+server rss      3 MiB after the http runs
+tcp echo        1177 MiB/s
+loop promise-jobs             5481705 ops/s
+loop nextTick                 5157830 ops/s
+loop setImmediate-loop-turns  1238832 ops/s
+loop timers                   1327225 ops/s
+-- node v24.22.3
+http            59644 req/s   p50 0.92 ms  p99 2.76 ms  ok 100.0%
+http pipelined  145643 req/s
+server rss      117 MiB after the http runs
+tcp echo        1295 MiB/s
+loop promise-jobs             16445430 ops/s
+loop nextTick                 17052624 ops/s
+loop setImmediate-loop-turns  76174 ops/s
+loop timers                   3751787 ops/s
+-- bun 1.4.4
+http            62346 req/s   p50 0.82 ms  p99 2.95 ms  ok 100.0%
+http pipelined  138965 req/s
+server rss      79 MiB after the http runs
+tcp echo        1232 MiB/s
+loop promise-jobs             22085761 ops/s
+loop nextTick                 42266245 ops/s
+loop setImmediate-loop-turns  2096857 ops/s
+loop timers                   4502645 ops/s
+== 2026-11-23 16:04 Apple M1, 3s per measurement
+-- lunarstorm lunarstorm 0.1.0
+http            91366 req/s   p50 0.62 ms  p99 1.65 ms  ok 100.0%
+http pipelined  237675 req/s
+server rss      3 MiB after the http runs
+tcp echo        1298 MiB/s
+loop promise-jobs             6201781 ops/s
+loop nextTick                 5664535 ops/s
+loop setImmediate-loop-turns  1468429 ops/s
+loop timers                   1536986 ops/s
+-- node v24.22.3
+http            63862 req/s   p50 0.80 ms  p99 3.27 ms  ok 100.0%
+http pipelined  168518 req/s
+server rss      106 MiB after the http runs
+tcp echo        1540 MiB/s
+loop promise-jobs             19434221 ops/s
+loop nextTick                 21332878 ops/s
+loop setImmediate-loop-turns  77108 ops/s
+loop timers                   4365773 ops/s
+-- bun 1.4.4
+http            62471 req/s   p50 0.78 ms  p99 3.51 ms  ok 100.0%
+http pipelined  125366 req/s
+server rss      74 MiB after the http runs
+tcp echo        1426 MiB/s
+loop promise-jobs             23047006 ops/s
+loop nextTick                 46444480 ops/s
+loop setImmediate-loop-turns  2143411 ops/s
+loop timers                   4224475 ops/s

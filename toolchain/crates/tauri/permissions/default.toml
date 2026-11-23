@@ -1,0 +1,5 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Transform source text supplied by the webview. No filesystem, network, or execution access."
+permissions = ["allow-transform"]
