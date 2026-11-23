@@ -14,8 +14,7 @@ mod services;
 use crate::assets::AssetStore;
 use crate::changes::classify;
 use crate::envelope::{validate_inbound, validate_update, Envelope, Inbound, Kind, Mirror, Reject};
-use crate::js::{FromJs, NativeCall, ToJs};
-use crate::runtime::{self, AppRuntime, RuntimeContext};
+use crate::runtime::{self, AppRuntime, HostMessage, NativeCall, RuntimeContext, RuntimeMessage};
 use crate::manifest::{FormConfig, HostConfig, APPLICATION_ID};
 use crate::native::NativeServices;
 use crate::pipeline::{BuildOutput, Diagnostic};
@@ -32,7 +31,7 @@ use tray_icon::TrayIcon;
 use wry::{DragDropEvent, NewWindowResponse, WebView, WebViewBuilder};
 
 /// Shell runtime injected into every WebView.
-const SHELL: &str = include_str!("../shell/shell.js");
+pub const SHELL: &str = include_str!("../shell/shell.js");
 
 /// Which runtime is running.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,7 +46,7 @@ pub enum Mode {
 #[derive(Debug)]
 pub enum UserEvent {
     /// A message from the JS thread.
-    Js(FromJs),
+    Js(RuntimeMessage),
     /// A native call that must run on the UI thread.
     Native(NativeCall),
     /// A raw message from a form's WebView.
@@ -319,7 +318,7 @@ impl App {
         if let Err(e) = app.create_window(&main, target) {
             fatal(&format!("cannot create the main window: {e}"));
         }
-        app.runtime.send_blocking(ToJs::Load {
+        app.runtime.send_blocking(HostMessage::Load {
             backend: app.build.backend.clone(),
             config,
             restore: app.mirror.snapshot(),
@@ -569,7 +568,7 @@ impl App {
     /// # Returns
     /// Whether it was queued.
     fn send_backend(&mut self, envelope: Envelope) -> bool {
-        match self.runtime.send(ToJs::Envelope(envelope)) {
+        match self.runtime.send(HostMessage::Envelope(envelope)) {
             Ok(()) => true,
             Err(e) => {
                 self.runtime_error(&e);
@@ -656,9 +655,9 @@ impl App {
     /// # Arguments
     /// * `message` - the message.
     /// * `target` - event loop target.
-    fn on_js(&mut self, message: FromJs, target: &EventLoopWindowTarget<UserEvent>) {
+    fn on_js(&mut self, message: RuntimeMessage, target: &EventLoopWindowTarget<UserEvent>) {
         match message {
-            FromJs::Loaded { epoch, error } if epoch == self.epoch => {
+            RuntimeMessage::Loaded { epoch, error } if epoch == self.epoch => {
                 self.loaded = error.is_none();
                 if let Some(error) = error {
                     if self.mode == Mode::Release {
@@ -681,13 +680,13 @@ impl App {
                     }
                 }
             }
-            FromJs::Envelope(envelope) if envelope.epoch == self.epoch => match envelope.kind {
+            RuntimeMessage::Envelope(envelope) if envelope.epoch == self.epoch => match envelope.kind {
                 Kind::Update => self.apply_update(&envelope),
                 Kind::Response => self.on_response(&envelope),
                 _ => {}
             },
-            FromJs::Error { epoch, message } if epoch == self.epoch => self.runtime_error(&message),
-            FromJs::Log { level, message } => eprintln!("[backend {level}] {message}"),
+            RuntimeMessage::Error { epoch, message } if epoch == self.epoch => self.runtime_error(&message),
+            RuntimeMessage::Log { level, message } => eprintln!("[backend {level}] {message}"),
             // Anything else is from a retired epoch.
             _ => {}
         }
@@ -979,7 +978,7 @@ impl App {
             self.loaded = false;
             self.pending.clear();
             self.broadcast("backend.epoch", json!({ "epoch": self.epoch }));
-            self.runtime.send_blocking(ToJs::Load {
+            self.runtime.send_blocking(HostMessage::Load {
                 backend: self.build.backend.clone(),
                 config: self.config.clone(),
                 restore: self.mirror.snapshot(),
@@ -1012,7 +1011,7 @@ impl App {
             eprintln!("zebra: {}.onCloseQuery passed its deadline; closing", pending.form);
             let mut cancel = Envelope::new(Kind::Cancel, &pending.form, self.epoch, &format!("{}.onCloseQuery", pending.form), json!({}));
             cancel.id = Some(id);
-            let _ = self.runtime.send(ToJs::Envelope(cancel));
+            let _ = self.runtime.send(HostMessage::Envelope(cancel));
             self.finish_close(&pending.form);
         }
         let mut due = Vec::new();

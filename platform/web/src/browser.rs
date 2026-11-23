@@ -17,16 +17,27 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
 use std::thread;
 
-use crate::assets::mime;
-use crate::js::{API_MODULE, BRIDGE_MODULE};
-use crate::pipeline::BuildOutput;
+use lunarstorm_platform::assets::mime;
+use lunarstorm_platform::pipeline::BuildOutput;
 
 /// The in-page host; `__ZEBRA_CONFIG__` is replaced with the host configuration.
 const HOST: &str = include_str!("host.js");
 /// The backend Worker.
 const WORKER: &str = include_str!("worker.js");
 /// The shell every WebView gets (`__ZEBRA_BOOT__` is replaced).
-const SHELL: &str = include_str!("../shell/shell.js");
+const SHELL: &str = lunarstorm_platform::ui::SHELL;
+
+/// `@desktop/bridge` as the Worker imports it: a view of the `globalThis.__zebra`
+/// object `worker.js` sets up before importing the backend.
+///
+/// Decision: these two sources moved here from the desktop process's former JS
+/// thread, whose own modules now come from the desktop app host; the Worker is
+/// their only consumer.
+const BRIDGE_MODULE: &str = "const b = globalThis.__zebra.bridge;\n\
+export const setProperty = b.setProperty;\nexport const serve = b.serve;\nexport const restored = b.restored;\nexport default b;\n";
+
+/// `@desktop/api` as the Worker imports it.
+const API_MODULE: &str = "export const native = globalThis.__zebra.native;\nexport default native;\n";
 
 /// Builds `index.html` with the in-page host and the shell injected first in `<head>`.
 ///
@@ -103,7 +114,7 @@ pub fn serve(build: BuildOutput, listener: TcpListener) -> io::Result<()> {
         let build = Arc::clone(&build);
         thread::spawn(move || {
             if let Err(error) = respond(&build, stream) {
-                eprintln!("zebra-web: {error}");
+                eprintln!("lunarstorm-web: {error}");
             }
         });
     }
@@ -149,7 +160,12 @@ fn respond(build: &BuildOutput, mut stream: TcpStream) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pipeline::tests::sample_build;
+    use lunarstorm_platform::pipeline::{OutputDirPipeline, Pipeline};
+
+    /// The example app in `platform/examples/app`, built through the real pipeline.
+    fn sample_build() -> BuildOutput {
+        OutputDirPipeline::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../examples/app")).build().expect("example builds")
+    }
 
     /// The host runs before the shell, and both run before the page's own scripts.
     #[test]

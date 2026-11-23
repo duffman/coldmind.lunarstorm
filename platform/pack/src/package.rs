@@ -7,9 +7,9 @@
 //! | Windows | `<name>.exe` with the archive as an overlay                    | `signtool`, if set |
 //! | Linux   | `<name>/<name>` + `<name>.zebra` + `<name>.desktop`             | none               |
 
-use crate::assets::{append_overlay, write_archive};
-use crate::manifest::HostConfig;
-use crate::pipeline::BuildOutput;
+use lunarstorm_platform::assets::{append_overlay, write_archive};
+use lunarstorm_platform::manifest::HostConfig;
+use lunarstorm_platform::pipeline::BuildOutput;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -64,7 +64,7 @@ pub fn exe_name(name: &str) -> String {
 ///
 /// # Arguments
 /// * `build` - pipeline output.
-/// * `runtime` - path of the prebuilt `zebra-release` executable for `target`.
+/// * `runtime` - path of the prebuilt `lunarstorm-release` executable for `target`.
 /// * `out` - output directory.
 /// * `target` - packaging target.
 /// * `sign` - signing identity (`-` for ad-hoc on macOS); `None` skips signing except
@@ -258,8 +258,13 @@ pub fn icns(png: &[u8]) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::{attached_path, read_archive, split_overlay};
-    use crate::pipeline::tests::sample_build;
+    use lunarstorm_platform::assets::{attached_path, read_archive, split_overlay};
+    use lunarstorm_platform::pipeline::{OutputDirPipeline, Pipeline};
+
+    /// The example app in `platform/examples/app`, built through the real pipeline.
+    fn sample_build() -> BuildOutput {
+        OutputDirPipeline::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../examples/app")).build().expect("example builds")
+    }
 
     /// A scratch directory under the system temp dir.
     ///
@@ -269,7 +274,7 @@ mod tests {
     /// # Returns
     /// A fresh directory.
     fn scratch(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("zebra-pack-{tag}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("lunarstorm-pack-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
@@ -285,7 +290,7 @@ mod tests {
     fn windows_and_linux_layouts_carry_a_readable_archive() {
         let build = sample_build();
         let dir = scratch("wl");
-        let runtime = dir.join("zebra-release");
+        let runtime = dir.join("lunarstorm-release");
         std::fs::write(&runtime, b"MZ prebuilt runtime").unwrap();
 
         let exe = package(&build, &runtime, &dir.join("win"), Target::Windows, None).unwrap();

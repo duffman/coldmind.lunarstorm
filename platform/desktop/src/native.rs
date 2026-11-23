@@ -13,7 +13,7 @@
 //! retired (6.2). Timers die with their Instance; no other service holds native
 //! resources across calls.
 
-use crate::js::{NativeCall, NativeRouter};
+use crate::runtime::{NativeCall, NativeRouter};
 use crate::manifest::HostConfig;
 use crossbeam_channel::{unbounded, Sender};
 use serde_json::{json, Value};
@@ -52,7 +52,7 @@ impl WorkerPool {
         for i in 0..threads {
             let rx = rx.clone();
             std::thread::Builder::new()
-                .name(format!("zebra-worker-{i}"))
+                .name(format!("lunarstorm-worker-{i}"))
                 .spawn(move || {
                     while let Ok(job) = rx.recv() {
                         // A panicking service must not take a worker down with it.
@@ -437,7 +437,7 @@ fn reader<R: Read + Send + 'static>(stream: Option<R>) -> std::thread::JoinHandl
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::js::tests::config_with;
+    use crate::pipeline::tests::config_with;
 
     #[test]
     fn executables_need_a_permission() {

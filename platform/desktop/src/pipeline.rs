@@ -165,14 +165,27 @@ fn collect(base: &Path, dir: &Path, out: &mut BTreeMap<String, Arc<[u8]>>) -> st
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::manifest::HostConfig;
 
-    /// The example app shipped in `example/`, built through the real pipeline.
+    /// The example app in `platform/examples/app`, built through the real pipeline.
+    pub fn sample_build() -> BuildOutput {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/app");
+        OutputDirPipeline::new(root).build().expect("example builds")
+    }
+
+    /// A host configuration with the given native and executable permissions.
+    ///
+    /// # Arguments
+    /// * `native` - `ns.method` permissions.
+    /// * `executables` - permitted executables.
     ///
     /// # Returns
-    /// Its build output.
-    pub fn sample_build() -> BuildOutput {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("example");
-        OutputDirPipeline::new(root).build().expect("example builds")
+    /// The configuration (the example's, with permissions replaced).
+    pub fn config_with(native: &[&str], executables: &[&str]) -> HostConfig {
+        let mut config = sample_build().config;
+        config.permissions.native = native.iter().map(|s| s.to_string()).collect();
+        config.permissions.executables = executables.iter().map(|s| s.to_string()).collect();
+        config
     }
 
     /// A pipeline that panics.

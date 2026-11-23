@@ -112,7 +112,7 @@ pub fn first_build(pipeline: &mut dyn Pipeline) -> BuildOutput {
 pub fn starter(mut pipeline: Box<dyn Pipeline>) -> DevStarter {
     Box::new(move |proxy| {
         std::thread::Builder::new()
-            .name("zebra-compiler".into())
+            .name("lunarstorm-compiler".into())
             .spawn(move || {
                 let (_watcher, rx) = match watch(pipeline.watch_root()) {
                     Ok(w) => w,
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn watcher_reports_a_change() {
-        let dir = std::env::temp_dir().join(format!("zebra-watch-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("lunarstorm-watch-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let (_w, rx) = watch(&dir).unwrap();
         std::thread::sleep(Duration::from_millis(100));

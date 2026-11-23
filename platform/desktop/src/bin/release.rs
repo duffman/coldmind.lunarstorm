@@ -1,7 +1,7 @@
 //! Release runtime: runs the archive attached to its own executable (spec 6.3). Built
-//! once, prebuilt for the developer; `zebra-pack` attaches each application's archive.
+//! once, prebuilt for the developer; `lunarstorm-pack` attaches each application's archive.
 
-use zebra_desktop::{assets, ui};
+use lunarstorm_platform::{assets, ui};
 
 /// Reads the attached archive and runs it.
 fn main() {
@@ -12,7 +12,7 @@ fn main() {
     match build {
         Ok(build) => ui::run(build, ui::Mode::Release, None),
         Err(e) => {
-            eprintln!("zebra: {e}");
+            eprintln!("lunarstorm: {e}");
             let _ = rfd::MessageDialog::new()
                 .set_level(rfd::MessageLevel::Error)
                 .set_title("Error")

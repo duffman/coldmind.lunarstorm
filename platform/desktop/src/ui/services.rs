@@ -2,7 +2,7 @@
 //! dialog. The first argument of every `window.*` call is the form name.
 
 use super::{form_of, App, UserEvent};
-use crate::js::NativeCall;
+use crate::runtime::NativeCall;
 use crate::native::arg_str;
 use serde_json::{json, Map, Value};
 use tao::dpi::{LogicalPosition, LogicalSize};

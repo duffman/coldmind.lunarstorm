@@ -103,7 +103,7 @@ pub fn describe(message: &HostMessage) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::js::{NativeCall, NativeRouter};
+    use crate::runtime::{NativeCall, NativeRouter};
     use crate::pipeline::tests::sample_build;
     use std::sync::{Arc, Mutex};
 

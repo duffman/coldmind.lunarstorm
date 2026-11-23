@@ -13,6 +13,11 @@
 #     vm              the VM interface, callbacks, capabilities and conformance suite
 #     engines/quickjs   VM adapter wrapping QuickJS
 #     engines/rquickjs  the vendored engine binding (excluded, see below)
+#   platform/    the Lunarstorm platform, spec section 6 (the product):
+#     desktop         native desktop process: lib + `lunarstorm-debug`, `lunarstorm-release`
+#     pack            `lunarstorm-pack`: archive, attach, package and sign per OS
+#     web             `lunarstorm-web`: the app in a browser tab, backend in a Worker
+#     examples/app    a complete generated project (not a crate)
 #   toolchain/   the build toolchain (devermind crates and the vendored oj_* compiler)
 #
 # Decision: one workspace at the repo root instead of the former `runtime/` and
@@ -23,7 +28,6 @@
 #   runtime/engines/rquickjs   vendored engine binding; its own workspace. It is a path
 #                      dependency of engines/quickjs and would otherwise be auto-joined.
 #   toolchain/jetpack  standalone npm package-manager crate
-#   _output            generated Zebra desktop process; standalone by design
 #   _trash, .archive   parked code, never built
 [workspace]
 resolver = "2"
@@ -33,6 +37,9 @@ members = [
     "runtime/core",
     "runtime/hosts/cli",
     "runtime/hosts/desktop",
+    "platform/desktop",
+    "platform/pack",
+    "platform/web",
     "crates/cliui",
     "crates/http1",
     "toolchain/crates/build-server",
@@ -49,7 +56,7 @@ members = [
     "toolchain/vendor/oj_graph",
     "toolchain/vendor/oj_resolver",
 ]
-exclude = ["runtime/engines/rquickjs", "toolchain/jetpack", "_output", "_trash", ".archive"]
+exclude = ["runtime/engines/rquickjs", "toolchain/jetpack", "_trash", ".archive"]
 
 # Inherited by the toolchain crates (`version.workspace = true` etc.); the runtime
 # crates set their own package fields.
@@ -121,6 +128,16 @@ codegen-units = 1
 # host Node/Bun process instead of surfacing as a JS exception (napi-rs relies on
 # unwinding for that). Keeping unwind here preserves the toolchain's old behaviour.
 [profile.release-node]
+inherits = "release"
+panic = "unwind"
+
+# Release build of the platform binaries (`cargo build --profile platform -p
+# lunarstorm-platform -p lunarstorm-pack -p lunarstorm-web`). Decision: `release`
+# aborts on panic, but the platform catches panics on purpose (a compiler panic
+# becomes a diagnostic in `pipeline::run_guarded`; a failed native job must not take
+# the worker pool down), so it keeps unwinding. Otherwise the same as `release`, which
+# matches the former standalone `_output` profile.
+[profile.platform]
 inherits = "release"
 panic = "unwind"
 

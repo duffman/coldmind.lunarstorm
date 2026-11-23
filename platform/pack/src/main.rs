@@ -1,15 +1,17 @@
 //! Release step (spec 6.3): runs the pipeline, writes the archive, attaches it to the
 //! prebuilt release runtime, and packages and signs for the target OS.
 //!
-//! Usage: `zebra-pack <project> --runtime <zebra-release> --out <dir>
+//! Usage: `lunarstorm-pack <project> --runtime <lunarstorm-release> --out <dir>
 //!         [--target macos|windows|linux] [--sign <identity>]`
 
+mod package;
+
+use lunarstorm_platform::pipeline::{OutputDirPipeline, Pipeline};
+use package::{package, Target};
 use std::path::PathBuf;
-use zebra_desktop::package::{package, Target};
-use zebra_desktop::pipeline::{OutputDirPipeline, Pipeline};
 
 /// Usage text.
-const USAGE: &str = "usage: zebra-pack <project> --runtime <zebra-release> --out <dir> [--target macos|windows|linux] [--sign <identity>]";
+const USAGE: &str = "usage: lunarstorm-pack <project> --runtime <lunarstorm-release> --out <dir> [--target macos|windows|linux] [--sign <identity>]";
 
 /// Parses arguments, builds and packages.
 fn main() {
@@ -58,6 +60,6 @@ fn main() {
 /// # Returns
 /// Never.
 fn fail(message: &str) -> ! {
-    eprintln!("zebra-pack: {message}");
+    eprintln!("lunarstorm-pack: {message}");
     std::process::exit(1)
 }
