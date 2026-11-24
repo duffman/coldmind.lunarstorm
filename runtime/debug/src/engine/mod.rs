@@ -8,6 +8,14 @@ mod identity;
 mod images;
 mod scope;
 mod values;
+// lunarstorm patch: jetbunny's engine bridge (the VM-side call path) and its command
+// type, compiled with jetbunny's VM into the unit tests only; see `crate::vm`.
+#[cfg(test)]
+mod bridge;
+#[cfg(test)]
+pub use crate::vm::command::EngineCommand;
+#[cfg(test)]
+pub use bridge::*;
 
 pub use api::*;
 pub use data::*;

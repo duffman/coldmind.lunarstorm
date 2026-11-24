@@ -36,5 +36,13 @@ builtin-facades = []
 # jetbunny's `.jbn` packaging hooks in the adapter; Lunarstorm packages live in `lunarstorm-jbn`.
 jbn = []
 
+# jetbunny's VM and its tests (unit-test build only; see src/lib.rs `vm`), with
+# jetbunny's own dev-dependencies.
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "net", "time", "sync", "macros", "io-util"] }
+loom = "0.7.2"
+static_assertions = "1.1.0"
+cap-std = "3"
+
 [build-dependencies]
 sha2 = "0.10.9"

@@ -490,6 +490,49 @@ fn owner_copy_allocation_failures_release_native_string_and_compiler_buffers() {
     });
 }
 
+/// Fix: the bytecode writer ignored a failed atom-index allocation (13 callers
+/// drop `bc_put_atom`'s -1) and never read its buffer's allocation flag, so under
+/// memory pressure `compiled_payload` returned a truncated image as written.
+/// Every image written under a memory limit must be refused or equal the
+/// unlimited one, and some limit in the sweep must make the writer fail.
+#[test]
+fn compiled_payload_under_a_memory_limit_is_refused_or_complete() {
+    live_scope(QuickJsNgConfig::default(), |scope| {
+        let names: String = (0..2000).map(|i| format!("o.p{i}=1;")).collect();
+        let source = ScriptSource::new(
+            JsString::from_utf8(&format!("var o={{}};{names}")),
+            "file:///write-limit.js".into(),
+        );
+        let origin = scope.source_origin(&source).unwrap();
+        // SAFETY: The active owner scope keeps source buffers and context live.
+        let raw = unsafe {
+            ffi::jbq_compile(
+                scope.ptr(),
+                source.text.as_units().as_ptr(),
+                source.text.as_units().len(),
+                origin.as_ptr(),
+            )
+        };
+        let compiled = scope.owned(raw).unwrap();
+        let reference = scope.compiled_payload(&compiled, false).unwrap();
+        let (mut used, mut limit) = (0, 0);
+        // SAFETY: owner-local runtime of the live scope; plain out-parameters.
+        unsafe { ffi::jbq_heap_usage(scope.ptr(), &mut used, &mut limit) };
+        let mut refused = 0;
+        for extra in (0..256 * 1024).step_by(64) {
+            // SAFETY: owner-local runtime of the live scope.
+            unsafe { ffi::jbq_set_memory_limit(scope.ptr(), used as usize + extra) };
+            match scope.compiled_payload(&compiled, false) {
+                Ok(bytes) => assert!(bytes == reference, "limit +{extra}: a different image was returned as written"),
+                Err(_) => refused += 1,
+            }
+        }
+        // SAFETY: owner-local runtime of the live scope; restores the original limit.
+        unsafe { ffi::jbq_set_memory_limit(scope.ptr(), limit as usize) };
+        assert!(refused > 0, "no limit in the sweep made the writer fail");
+    });
+}
+
 #[test]
 fn owner_source_metadata_and_nondata_diagnostics_are_rejected_without_application_entry() {
     live_scope(QuickJsNgConfig::default(), |scope| {

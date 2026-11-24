@@ -26727,8 +26727,14 @@ static int bc_put_atom(BCWriterState *s, JSAtom atom)
     if (__JS_AtomIsTaggedInt(atom)) {
         v = (__JS_AtomToUInt32(atom) << 1) | 1;
     } else {
-        if (bc_atom_to_idx(s, &v, atom))
+        if (bc_atom_to_idx(s, &v, atom)) {
+            /* lunarstorm patch: 13 callers (upstream's and jetbunny's) ignore
+               this -1, so the atom was left out of the stream and the image
+               still returned as written. Marking the buffer failed makes
+               JS_WriteObject2 refuse the image whichever caller dropped it. */
+            dbuf_set_error(&s->dbuf);
             return -1;
+        }
         v <<= 1;
     }
     bc_put_leb128(s, v);
@@ -27436,6 +27442,15 @@ uint8_t *JS_WriteObject2(JSContext *ctx, size_t *psize, JSValueConst obj,
         goto fail;
     if (JS_WriteObjectAtoms(s))
         goto fail;
+    /* lunarstorm patch: the writer never read the buffer's allocation flag, so
+       an out-of-memory growth (or a dropped atom, see bc_put_atom) returned a
+       truncated image as success. Refuse it; the growth path throws nothing,
+       so throw out-of-memory unless an allocation already did. */
+    if (dbuf_error(&s->dbuf)) {
+        if (!JS_HasException(ctx))
+            JS_ThrowOutOfMemory(ctx);
+        goto fail;
+    }
     js_object_list_end(ctx, &s->object_list);
     js_free(ctx, s->atom_to_idx);
     js_free(ctx, s->idx_to_atom);

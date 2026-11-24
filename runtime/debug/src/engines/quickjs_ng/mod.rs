@@ -692,6 +692,14 @@ mod tests;
 // `VirtualMachine`, which Lunarstorm does not take, and are archived in
 // `.archive/2026-11-24/runtime/debug/tests/`.
 
+// lunarstorm patch: jetbunny's integration test, verbatim. jetbunny builds it as a
+// test target of its own crate; here it is a unit-test module, as the other jetbunny
+// files in tests/ are, so its `use coldmind_runtime::...` resolves through the
+// crate's `extern crate self as coldmind_runtime`.
+#[cfg(test)]
+#[path = "../../../tests/quickjs_ng_debug_exceptions.rs"]
+mod debug_exceptions_acceptance;
+
 /// Factory registered by applications that compile in the native QuickJS adapter.
 #[derive(Default)]
 pub struct QuickJsNgFactory;
