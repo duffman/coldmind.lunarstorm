@@ -390,10 +390,10 @@ DEF(   for_of_skip, 2, 3, 4, u8) /* IteratorStep without Get(value) */
    effects are selector-dependent and checked by the Rust image verifier. */
 DEF(     strict_op, 6, 0, 0, atom_u8)
 
-/* Debug-only handler installation. Identical execution to catch; the trailing
-   u16 is 1 for a user catch and 0 for finally/cleanup. The debugger must not
-   misclassify cleanup as a catch. Existing opcode identities stay unchanged. */
-DEF(   debug_catch, 7, 0, 1, label_u16)
+/* lunarstorm patch: jetbunny's `debug_catch` (a `catch` plus a u16 user/cleanup
+   flag) is removed. It took id 255, the last free one-byte id, while executing
+   exactly like `catch`. The flag is debugger metadata, so it now lives in
+   `JSFunctionBytecode.user_catch`, the function's debug section. */
 
 #undef DEF
 #undef def

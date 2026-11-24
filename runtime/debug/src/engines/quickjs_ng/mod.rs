@@ -5,6 +5,7 @@
 //! backend: select an explicit Disabled debugging profile. Default Development
 //! requirements still fail with Unsupported before application execution.
 mod attach;
+mod compiler;
 mod callbacks;
 mod data;
 mod debug;
@@ -274,10 +275,14 @@ impl JsEngine for QuickJsNgEngine {
                 Arc::as_ptr(&interrupt).cast_mut().cast(),
             )
         };
-        // lunarstorm patch: jetbunny installed its Rust compiler (`compiler.rs`,
-        // crates/qjs-*) here as the context's only compiler. The engine's C parser
-        // is restored, so no compiler callback is registered and the context
-        // compiles with the C compiler.
+        // SAFETY: a fresh context on this owner thread; null is rejected below.
+        let ptr = if !ptr.is_null() && unsafe { !compiler::install(ptr, std::ptr::null_mut()) } {
+            // SAFETY: the fresh context has no other owner yet.
+            unsafe { ffi::jbq_context_free(ptr) };
+            std::ptr::null_mut()
+        } else {
+            ptr
+        };
         let pointer = NonNull::new(ptr).ok_or_else(|| {
             FailureReport::new(
                 FailureClass::Engine,
@@ -313,7 +318,10 @@ impl JsEngine for QuickJsNgEngine {
             ffi::jbq_set_job_sink(ptr, Some(take_job), Rc::as_ptr(&raw).cast_mut().cast());
         }
         let debug = debug::QuickJsDebug::new(id, Rc::downgrade(&raw));
-        // lunarstorm patch: no compiler callback to hand the backend to (see above).
+        // SAFETY: ContextState retains this backend until hooks and native context are closed.
+        unsafe {
+            compiler::install(ptr, Rc::as_ptr(&debug).cast_mut().cast());
+        }
         self.contexts.borrow_mut().insert(
             id,
             Rc::new(ContextState {

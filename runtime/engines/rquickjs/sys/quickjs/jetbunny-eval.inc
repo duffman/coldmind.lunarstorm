@@ -50,9 +50,36 @@ static void jetbunny_close_lease(JetbunnyFrameLease *lease){
 }
 int JS_JetbunnySetCompiler(JSContext *ctx,JSJetbunnyCompiler *compiler,void *opaque){
  if(!jetbunny_owner(ctx)||ctx->jetbunny_compiling)return -1;
+ /* lunarstorm patch: a reset falls back to the base compiler, if any, so a
+    debugger that installed its own compiler and is released leaves the
+    context compiling as before it attached. */
+ if(!compiler){compiler=ctx->jetbunny_base_compiler;opaque=ctx->jetbunny_base_opaque;}
  ctx->jetbunny_compiler=compiler;ctx->jetbunny_compiler_opaque=opaque;
  /* Reset is fail-closed, even in compiler-enabled test builds. */
  ctx->eval_internal=compiler?jetbunny_compile_dispatch:NULL;return 0;
+}
+/**
+ * lunarstorm patch: install the context's base compiler.
+ *
+ * With the C parser removed the Rust compiler is the only compiler, so every
+ * context needs one from creation; a context created by rquickjs gets it here.
+ * The base compiler is current unless another compiler is installed, and is
+ * what JS_JetbunnySetCompiler(ctx, NULL, NULL) restores. `release` runs once
+ * with `opaque` when the context is freed (or the base is replaced).
+ *
+ * @param ctx context on its owner thread, not compiling
+ * @param compiler the base compiler; not NULL
+ * @param opaque state passed to `compiler`, owned by the context
+ * @param release frees `opaque`; may be NULL
+ * @return 0, or -1 (wrong thread, compiling, or NULL compiler)
+ */
+int JS_JetbunnySetBaseCompiler(JSContext *ctx,JSJetbunnyCompiler *compiler,void *opaque,void (*release)(void *)){
+ if(!compiler||!jetbunny_owner(ctx)||ctx->jetbunny_compiling)return -1;
+ bool current=!ctx->jetbunny_compiler||ctx->jetbunny_compiler==ctx->jetbunny_base_compiler;
+ if(ctx->jetbunny_base_release)ctx->jetbunny_base_release(ctx->jetbunny_base_opaque);
+ ctx->jetbunny_base_compiler=compiler;ctx->jetbunny_base_opaque=opaque;ctx->jetbunny_base_release=release;
+ if(current){ctx->jetbunny_compiler=compiler;ctx->jetbunny_compiler_opaque=opaque;ctx->eval_internal=jetbunny_compile_dispatch;}
+ return 0;
 }
 int JS_JetbunnyEnvView(JSContext *ctx,uint64_t id,JSJetbunnyEnvView *out){
  JetbunnyFrameLease *lease=jetbunny_lease(ctx,id);if(!lease||!out)return -1;
@@ -143,6 +170,14 @@ static JSValue jetbunny_compile_dispatch(JSContext *ctx,JSValueConst this_obj,co
  JetbunnyFrameLease lease;bool direct=(flags&JS_EVAL_TYPE_MASK)==JS_EVAL_TYPE_DIRECT;
  if(direct&&jetbunny_open_lease(ctx,ctx->rt->current_stack_frame,scope,false,&lease)<0){JS_FreeCStringUTF16(ctx,text);return JS_ThrowTypeError(ctx,"direct eval has no live lexical frame");}
  JSValue value=jetbunny_compile_units(ctx,direct?lease.id:0,text,units,filename,line,flags);JS_FreeCStringUTF16(ctx,text);
+ /* lunarstorm patch: jetbunny installs every module image "prepared" (imports
+  * unbound) and binds the edges from its own host module graph. A Lunarstorm
+  * context is rquickjs's: its imports resolve through the runtime's module loader.
+  * So, as the C compile path does (`__JS_EvalInternal`: js_resolve_module unless
+  * JS_EVAL_FLAG_JETBUNNY_PREPARE), a module compiled without that flag is resolved
+  * here. Without it every import failed with "unbound module edge". A caller that
+  * passes the flag (jetbunny's bridge) keeps the deferred binding. */
+ if(!JS_IsException(value)&&JS_VALUE_GET_TAG(value)==JS_TAG_MODULE&&!(flags&JS_EVAL_FLAG_JETBUNNY_PREPARE)&&JS_ResolveModule(ctx,value)<0)value=JS_EXCEPTION;
  if(!JS_IsException(value)&&direct&&(flags&JS_EVAL_FLAG_COMPILE_ONLY)){JS_FreeValue(ctx,value);value=JS_ThrowTypeError(ctx,"direct eval compiled objects cannot escape their lease");}
  if(!JS_IsException(value)&&!direct&&JS_VALUE_GET_TAG(value)==JS_TAG_FUNCTION_BYTECODE&&((JSFunctionBytecode*)JS_VALUE_GET_PTR(value))->closure_var_count){JS_FreeValue(ctx,value);value=JS_ThrowTypeError(ctx,"global compiler image has root captures");}
  if(!JS_IsException(value)&&!(flags&JS_EVAL_FLAG_COMPILE_ONLY)){
@@ -159,15 +194,6 @@ static JSValue jetbunny_debug_compile(JSContext *ctx,uint64_t lease,void *opaque
 JSValue JS_JetbunnyDebugEvalUTF16(JSContext *ctx,int level,const uint16_t *source,size_t units,const char *filename){
  if(!jetbunny_owner(ctx))return JS_EXCEPTION;
  if((!source&&units)||units>16*1024*1024)return JS_ThrowRangeError(ctx,"eval source size");
- /* lunarstorm patch: the C parser is restored and no Rust compiler callback is
-  * registered, so frame evaluation compiles with the C compiler
-  * (JS_DebugEvalInFrame) instead of failing with "callback is not installed".
-  * The source arrives as UTF-16 and the C compiler reads UTF-8. */
- if(!ctx->jetbunny_compiler){
-  JSValue string=JS_NewStringUTF16(ctx,source,units);if(JS_IsException(string))return string;
-  size_t len;const char *text=JS_ToCStringLen(ctx,&len,string);JS_FreeValue(ctx,string);if(!text)return JS_EXCEPTION;
-  JSValue result=JS_DebugEvalInFrame(ctx,level,text,len,filename);JS_FreeCString(ctx,text);return result;
- }
  JetbunnyDebugSource input={source,units,filename};return JS_JetbunnyWithFrame(ctx,level,jetbunny_debug_compile,&input);
 }
 static JSValue jetbunny_debug_eval(JSContext *ctx,int level,const char *source,size_t len,const char *filename){

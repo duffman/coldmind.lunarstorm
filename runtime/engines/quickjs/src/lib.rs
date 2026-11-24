@@ -45,6 +45,7 @@ use lunarstorm_debug::debug::{DebugLimits, DebugSessionOptions, VmDebugHandle};
 use lunarstorm_debug::engines::quickjs_ng::Debugger;
 use std::any::Any;
 use std::cell::RefCell;
+use std::sync::Mutex;
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
 use std::num::NonZeroU64;
@@ -97,14 +98,46 @@ impl Vm for QuickJs {
     }
 }
 
-/// The debugger of an instance, once one is attached; shared with the engine hooks
-/// (interrupt, rejection tracker) and, through context userdata, with compiles.
+/// The bridge wrapper of every context of an instance, keyed by the context's
+/// `JSContext` address; shared with the engine hooks (interrupt, rejection tracker)
+/// and, through context userdata, with compiles.
 ///
-/// Decision: a `RefCell<Option<_>>` rather than a cell that is only ever set, so
-/// [`QuickInstance`]'s drop can take the debugger out and release its context
-/// reference before the runtime goes.
+/// Decision: each context is wrapped when it is created, because the wrapper is
+/// what makes jetbunny's Rust compiler the context's compiler
+/// ([`Debugger::wrap`]). A debugger session is opened on a wrapper later, by
+/// [`Instance::debug`]. The list sits in a `RefCell` so [`QuickInstance`]'s drop can
+/// empty it and release the context references before the runtime goes.
 #[derive(Clone, Default)]
-struct DebugSlot(Rc<RefCell<Option<Debugger>>>);
+struct DebugSlot(Rc<RefCell<Vec<(usize, Debugger)>>>);
+
+impl DebugSlot {
+    /// Runs `f` on the wrapper of one context.
+    ///
+    /// # Arguments
+    /// * `context` - the `JSContext` address.
+    /// * `f` - what to do with the wrapper.
+    ///
+    /// # Returns
+    /// `f`'s result, or `None` for a context this instance did not create.
+    fn with<R>(&self, context: usize, f: impl FnOnce(&Debugger) -> R) -> Option<R> {
+        self.0.borrow().iter().find(|(key, _)| *key == context).map(|(_, debugger)| f(debugger))
+    }
+
+    /// Runs `f` on the wrapper a debugger session is open on.
+    ///
+    /// # Arguments
+    /// * `f` - what to do with the wrapper.
+    ///
+    /// # Returns
+    /// `f`'s result, or `None` while no session is open.
+    fn attached<R>(&self, f: impl FnOnce(&Debugger) -> R) -> Option<R> {
+        self.0.borrow().iter().find(|(_, debugger)| debugger.compiling()).map(|(_, debugger)| f(debugger))
+    }
+}
+
+/// Wakes the owner's loop for the debugger; empty until [`Instance::debug`] supplies
+/// the owner's waker, because the wrappers exist before any session does.
+type Waker = Arc<Mutex<Option<Arc<dyn Fn() + Send + Sync>>>>;
 
 // SAFETY: `DebugSlot` holds no JS values and no `'js` lifetime.
 unsafe impl<'js> JsLifetime<'js> for DebugSlot {
@@ -116,8 +149,10 @@ static DEBUG_EPOCH: AtomicU64 = AtomicU64::new(1);
 
 /// A QuickJS runtime: heap, GC, job queue, limits and interrupt.
 pub struct QuickInstance {
-    /// The debugger, if attached. Taken first in `drop`.
+    /// The contexts' bridge wrappers. Emptied first in `drop`.
     debugger: DebugSlot,
+    /// The owner's waker, handed to every wrapper; set by [`Instance::debug`].
+    waker: Waker,
     /// The engine runtime.
     runtime: rquickjs::Runtime,
     /// Shared with the engine's interrupt hook.
@@ -156,17 +191,17 @@ impl Instance<QuickJs> for QuickInstance {
         let tracker = callbacks.clone();
         let slot = debugger.clone();
         let tracker: RejectionTracker = Box::new(move |ctx, promise, reason, handled| {
-            if let Some(debugger) = &*slot.0.borrow() {
-                let (promise, reason) = (promise.as_raw(), reason.as_raw());
+            let (raw_promise, raw_reason) = (promise.as_raw(), reason.as_raw());
+            slot.with(ctx.as_raw().as_ptr() as usize, |debugger| {
                 // SAFETY: both values are live for this call of the tracker.
                 unsafe {
                     debugger.rejection(
-                        (&promise as *const qjs::JSValue).cast(),
-                        (&reason as *const qjs::JSValue).cast(),
+                        (&raw_promise as *const qjs::JSValue).cast(),
+                        (&raw_reason as *const qjs::JSValue).cast(),
                         handled,
                     )
                 };
-            }
+            });
             tracker.rejection(&ctx, Scope::identity(&ctx, &promise), reason, handled);
         });
         runtime.set_host_promise_rejection_tracker(Some(tracker));
@@ -176,18 +211,40 @@ impl Instance<QuickJs> for QuickInstance {
         // The debugger's pause requests and evaluation deadlines arrive through the
         // same poll; jetbunny's bridge installed it as its own interrupt handler.
         runtime.set_interrupt_handler(Some(Box::new(move || {
-            flag.take() || callbacks.interrupt() || slot.0.borrow().as_ref().is_some_and(Debugger::poll)
+            flag.take() || callbacks.interrupt() || slot.0.borrow().iter().any(|(_, debugger)| debugger.poll())
         })));
-        Ok(Self { debugger, runtime, interrupt, memory: limits.memory })
+        Ok(Self { debugger, waker: Waker::default(), runtime, interrupt, memory: limits.memory })
     }
 
     /// # Returns
-    /// A context with the full standard library.
+    /// A context with the full standard library, compiling with jetbunny's Rust
+    /// compiler.
     ///
     /// # Errors
-    /// The engine's message when allocation fails.
+    /// The engine's message when allocation fails, or the bridge's when the context
+    /// cannot be wrapped.
     fn context(&self) -> Result<QuickContext, String> {
         let context = rquickjs::Context::full(&self.runtime).map_err(|error| error.to_string())?;
+        let epoch = NonZeroU64::new(DEBUG_EPOCH.fetch_add(1, Ordering::Relaxed)).expect("the counter starts at 1");
+        let pointer: NonNull<c_void> = context.as_raw().cast();
+        let waker = self.waker.clone();
+        // SAFETY: the context is live on this thread; the wrapper holds a reference to
+        // it and `QuickInstance::drop` releases every wrapper before the runtime.
+        let debugger = unsafe {
+            Debugger::wrap(
+                pointer,
+                DebugLimits::default(),
+                Arc::new(move || {
+                    if let Some(wake) = &*waker.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) {
+                        wake();
+                    }
+                    Ok(())
+                }),
+                epoch,
+            )
+        }
+        .map_err(|error| error.to_string())?;
+        self.debugger.0.borrow_mut().push((pointer.as_ptr() as usize, debugger));
         // Compiles reach the debugger through the context: `declare` has only a `Ctx`.
         context.with(|ctx| ctx.store_userdata(self.debugger.clone()).map(|_| ()).map_err(|error| error.to_string()))?;
         Ok(QuickContext(context))
@@ -210,69 +267,47 @@ impl Instance<QuickJs> for QuickInstance {
         self.interrupt.clone()
     }
 
-    /// Wraps the context in jetbunny's bridge and debug backend
-    /// (`lunarstorm_debug::engines::quickjs_ng::Debugger`) and opens a session.
+    /// Opens a debugger session on the context's bridge wrapper
+    /// (`lunarstorm_debug::engines::quickjs_ng::Debugger`).
     fn debug(
         &self,
         context: &QuickContext,
         wake: Arc<dyn Fn() + Send + Sync>,
         options: DebugSessionOptions,
     ) -> Result<VmDebugHandle, String> {
-        if self.debugger.0.borrow().is_some() {
+        if self.debugger.attached(|_| ()).is_some() {
             return Err(String::from("a debugger is already attached"));
         }
-        let epoch = NonZeroU64::new(DEBUG_EPOCH.fetch_add(1, Ordering::Relaxed)).expect("the counter starts at 1");
-        let pointer: NonNull<c_void> = context.0.as_raw().cast();
-        // SAFETY: the context is live on this thread and outlives the debugger, which
-        // `QuickInstance::drop` releases first; the debugger also holds a reference.
-        let debugger = unsafe {
-            Debugger::wrap(
-                pointer,
-                DebugLimits::default(),
-                Arc::new(move || {
-                    wake();
-                    Ok(())
-                }),
-                epoch,
-            )
-        }
-        .map_err(|error| error.to_string())?;
-        let handle = debugger.attach(options).map_err(|error| error.to_string())?;
-        *self.debugger.0.borrow_mut() = Some(debugger);
-        Ok(handle)
+        *self.waker.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(wake);
+        self.debugger
+            .with(context.0.as_raw().as_ptr() as usize, |debugger| debugger.attach(options).map_err(|error| error.to_string()))
+            .unwrap_or_else(|| Err(String::from("the context does not belong to this instance")))
     }
 
     fn debug_entry(&self) -> Result<(), String> {
-        match &*self.debugger.0.borrow() {
-            Some(debugger) => debugger.before_entry().map_err(|error| error.to_string()),
-            None => Ok(()),
-        }
+        self.debugger.attached(|debugger| debugger.before_entry().map_err(|error| error.to_string())).unwrap_or(Ok(()))
     }
 
     fn debug_service(&self) -> Result<bool, String> {
-        match &*self.debugger.0.borrow() {
-            Some(debugger) => {
+        self.debugger
+            .attached(|debugger| {
                 debugger.service().map_err(|error| error.to_string())?;
                 Ok(debugger.is_stopping())
-            }
-            None => Ok(false),
-        }
+            })
+            .unwrap_or(Ok(false))
     }
 
     fn debug_checkpoint(&self) -> Result<(), String> {
-        match &*self.debugger.0.borrow() {
-            Some(debugger) => debugger.checkpoint(true).map_err(|error| error.to_string()),
-            None => Ok(()),
-        }
+        self.debugger.attached(|debugger| debugger.checkpoint(true).map_err(|error| error.to_string())).unwrap_or(Ok(()))
     }
 }
 
 impl Drop for QuickInstance {
-    /// Releases the debugger, and with it its context reference and hooks, while
-    /// the runtime is still alive.
+    /// Releases the bridge wrappers, and with them their context references, hooks
+    /// and compilers, while the runtime is still alive.
     fn drop(&mut self) {
-        let debugger = self.debugger.0.borrow_mut().take();
-        drop(debugger);
+        let wrappers = std::mem::take(&mut *self.debugger.0.borrow_mut());
+        drop(wrappers);
     }
 }
 
@@ -368,26 +403,26 @@ fn declare<'js>(ctx: &Ctx<'js>, name: &str, source: ModuleSource) -> rquickjs::R
         // registered with a debugger.
         unsafe { Module::load(ctx.clone(), &source.source)? }
     } else {
+        // While a session is open the source is staged, so jetbunny's compiler
+        // callback registers it under its file URI and source map; the callback then
+        // compiles it with statement markers and hands the root to the debugger.
         let slot = ctx.userdata::<DebugSlot>().map(|slot| slot.clone());
-        let debugger = slot.as_ref().map(|slot| slot.0.borrow());
-        match debugger.as_deref().and_then(Option::as_ref).filter(|debugger| debugger.compiling()) {
-            // What jetbunny's compiler callback did: register the source, compile it
-            // with statement markers, hand the compiled root to the backend.
-            Some(debugger) => {
+        let staged = slot.as_ref().and_then(|slot| {
+            slot.with(ctx.as_raw().as_ptr() as usize, |debugger| {
+                if !debugger.compiling() {
+                    return Ok(());
+                }
                 let text = std::str::from_utf8(&source.source)
                     .map_err(|_| Error::new_loading_message(name, "module source is not UTF-8"))?;
-                let registration = debugger
-                    .register(text, name, true, source.source_map.clone())
-                    .map_err(|error| Error::new_loading_message(name, error.to_string()))?;
-                let module = Module::declare_with_flags(ctx.clone(), name, source.source, Debugger::EVAL_FLAG)?;
-                let root = module.as_raw_value();
-                // SAFETY: `root` is the live module just compiled in this context.
-                unsafe { debugger.loaded((&root as *const qjs::JSValue).cast(), registration) }
-                    .map_err(|error| Error::new_loading_message(name, error.to_string()))?;
-                module
-            }
-            None => Module::declare(ctx.clone(), name, source.source)?,
+                debugger
+                    .stage(text, name, true, source.source_map.clone())
+                    .map_err(|error| Error::new_loading_message(name, error.to_string()))
+            })
+        });
+        if let Some(staged) = staged {
+            staged?;
         }
+        Module::declare(ctx.clone(), name, source.source)?
     };
     if let Some(meta) = source.meta {
         let object = module.meta()?;

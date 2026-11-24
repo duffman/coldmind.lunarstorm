@@ -9,20 +9,25 @@
 //! `jbq_context_wrap`, and a [`DebugCoordinator`] over them, so the backend runs
 //! unchanged.
 //!
+//! Decision: the owner wraps every context when it creates it, not when a debugger
+//! attaches. [`Debugger::wrap`] installs jetbunny's Rust compiler (`compiler.rs`,
+//! crates `qjs-*`) as the context's only compiler, exactly as jetbunny's own context
+//! creation does; a context without the wrapper would compile with the engine's C
+//! parser, which emits none of the handler and scope metadata the debugger reads.
+//!
 //! What jetbunny's runtime hooks did, the owner now does by calling in:
 //! - its interrupt handler calls [`Debugger::poll`] (pause requests, evaluation
 //!   deadlines);
 //! - its rejection tracker calls [`Debugger::rejection`];
-//! - its compile path calls [`Debugger::register`] and [`Debugger::loaded`] (what
-//!   jetbunny's Rust compiler callback did) and compiles with
-//!   [`Debugger::EVAL_FLAG`] so the engine emits statement markers;
+//! - its compile path calls [`Debugger::stage`] before a module compile, so the
+//!   compiler callback registers the source under its file URI and source map;
 //! - its loop calls [`Debugger::before_entry`], [`Debugger::service`] and
 //!   [`Debugger::checkpoint`] where jetbunny's `EngineBridge` did.
 
 use super::{RawContext, debug::QuickJsDebug, ffi};
 use crate::debug::{
     DebugBackend, DebugCoordinator, DebugError, DebugExecutionState, DebugLimits, DebugSessionOptions, ScriptKind,
-    ScriptRegistration, VmDebugHandle,
+    VmDebugHandle,
 };
 use crate::engine::{
     ContextLimits, EngineIdentity, FailureClass, FailureCode, FailureReport, JsString, ScriptSource, SourceMapAttachment,
@@ -40,7 +45,19 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// The debugger of one context, owned by that context's thread.
 pub struct Debugger {
     /// Protocol coordinator over the backend; serviced by the owner's loop.
-    coordinator: Rc<DebugCoordinator>,
+    ///
+    /// Decision: created by [`Debugger::attach`], not by [`Debugger::wrap`], as
+    /// jetbunny's `EngineBridge::initialize` creates it only when debugging is
+    /// enabled. The coordinator installs the backend's port, and a backend with a
+    /// port compiles everything with statement markers and registers every source;
+    /// a wrapped context that is never debugged must not pay for that.
+    coordinator: RefCell<Option<Rc<DebugCoordinator>>>,
+    /// The bounds the coordinator is created with.
+    limits: DebugLimits,
+    /// Wakes the owner's loop; handed to the coordinator.
+    wake_owner: Arc<dyn Fn() -> Result<(), FailureReport> + Send + Sync>,
+    /// Identity of the owner's run; handed to the coordinator.
+    vm_epoch: NonZeroU64,
     /// jetbunny's backend: hooks, breakpoints, stepping, inspection.
     backend: Rc<QuickJsDebug>,
     /// The bridge context around the owner's `JSContext`.
@@ -52,11 +69,8 @@ pub struct Debugger {
 }
 
 impl Debugger {
-    /// `JS_EVAL_FLAG_DEBUG`: compile with statement markers and debugger-reachable
-    /// variables. The owner adds it to every compile while [`Debugger::compiling`].
-    pub const EVAL_FLAG: i32 = 1 << 8;
-
-    /// Builds the debugger around a live context.
+    /// Builds the debugger around a live context and makes jetbunny's Rust compiler
+    /// that context's compiler.
     ///
     /// # Arguments
     /// * `js_context` - the owner's `JSContext`; one reference is taken until drop.
@@ -69,7 +83,8 @@ impl Debugger {
     /// The debugger, initialized and ready to [`Debugger::attach`].
     ///
     /// # Errors
-    /// Bridge allocation failed or the limits are invalid.
+    /// Bridge allocation failed, the compiler could not be installed, or the limits
+    /// are invalid.
     ///
     /// # Safety
     /// `js_context` is live, belongs to the calling thread and outlives the returned
@@ -103,9 +118,28 @@ impl Debugger {
             atoms: RefCell::new(HashMap::default()),
         });
         let backend = QuickJsDebug::new(context, Rc::downgrade(&raw));
-        let coordinator = DebugCoordinator::new(backend.clone(), context, limits, wake_owner, vm_epoch)
-            .map_err(super::debug::failure)?;
-        Ok(Self { coordinator, backend, raw, _values: values, _identity: identity })
+        // jetbunny's context creation (`mod.rs`) does the same: the backend is the
+        // compiler's opaque, so each compile registers its source and markers.
+        // SAFETY: `pointer` is the live bridge context; `Self` keeps `backend` alive
+        // until `raw.close()` frees the bridge context, which unsets the compiler.
+        if !unsafe { super::compiler::install(pointer.as_ptr(), Rc::as_ptr(&backend).cast_mut().cast()) } {
+            raw.close();
+            return Err(FailureReport::new(
+                FailureClass::Engine,
+                FailureCode::Capacity,
+                "the Rust compiler could not be installed on the context",
+            ));
+        }
+        Ok(Self {
+            coordinator: RefCell::new(None),
+            limits,
+            wake_owner,
+            vm_epoch,
+            backend,
+            raw,
+            _values: values,
+            _identity: identity,
+        })
     }
 
     /// Opens a debugger session; the protocol side drives the returned handle.
@@ -117,18 +151,39 @@ impl Debugger {
     /// The session controller, usable from any thread.
     ///
     /// # Errors
-    /// A session is already open or the debugger is closed.
+    /// A session is already open, the debugger is closed, or the limits are invalid.
     pub fn attach(&self, options: DebugSessionOptions) -> Result<VmDebugHandle, DebugError> {
-        self.coordinator.attach(options)
+        let coordinator = match self.coordinator() {
+            Some(coordinator) => coordinator,
+            None => {
+                let created = DebugCoordinator::new(
+                    self.backend.clone(),
+                    self._values.context(),
+                    self.limits.clone(),
+                    self.wake_owner.clone(),
+                    self.vm_epoch,
+                )?;
+                *self.coordinator.borrow_mut() = Some(created.clone());
+                created
+            }
+        };
+        coordinator.attach(options)
     }
 
     /// # Returns
-    /// Whether compiles must carry [`Debugger::EVAL_FLAG`] and be registered.
+    /// The coordinator, once [`Debugger::attach`] created it.
+    fn coordinator(&self) -> Option<Rc<DebugCoordinator>> {
+        self.coordinator.borrow().clone()
+    }
+
+    /// # Returns
+    /// Whether a session is open, so module sources must be [`Debugger::stage`]d.
     pub fn compiling(&self) -> bool {
         self.backend.is_development()
     }
 
-    /// Registers a source before it is compiled, as jetbunny's compiler callback did.
+    /// Stages a module source for the compile that follows: the compiler callback
+    /// takes the staged registration instead of registering the engine's file name.
     ///
     /// Decision: an absolute path name is registered as its `file://` URI, the form
     /// the DAP side turns client paths into, so breakpoints set on the file match.
@@ -136,62 +191,33 @@ impl Debugger {
     /// file: the client's breakpoints and stack frames then land in the original.
     ///
     /// # Arguments
-    /// * `text` - the source text.
+    /// * `text` - the source text, exactly as it is handed to the engine.
     /// * `name` - the name the engine records (module name or file).
     /// * `module` - whether it compiles as a module.
     /// * `source_map` - Source Map v3 JSON from `text` to the file `name` names.
     ///
-    /// # Returns
-    /// The registration to hand to [`Debugger::loaded`]; `None` while not debugging.
-    ///
     /// # Errors
     /// The protocol side refused the source (limits, or an invalid map).
-    pub fn register(
-        &self,
-        text: &str,
-        name: &str,
-        module: bool,
-        source_map: Option<String>,
-    ) -> Result<Option<ScriptRegistration>, DebugError> {
+    pub fn stage(&self, text: &str, name: &str, module: bool, source_map: Option<String>) -> Result<(), FailureReport> {
         let kind = if module { ScriptKind::Module } else { ScriptKind::Script };
         let origin = if name.starts_with('/') {
             url::Url::from_file_path(name).map_or_else(|()| name.to_owned(), String::from)
         } else {
             name.to_owned()
         };
-        let units: Vec<u16> = text.encode_utf16().collect();
-        match source_map {
-            Some(json) => self.backend.register_host_source(&ScriptSource {
-                text: JsString::from_units(units),
-                origin: format!("{origin}.js"),
-                source_map: Some(SourceMapAttachment {
+        let mapped = source_map.is_some();
+        self.backend.stage_host_script(
+            &ScriptSource {
+                text: JsString::from_units(text.encode_utf16().collect()),
+                origin: if mapped { format!("{origin}.js") } else { origin },
+                source_map: source_map.map(|json| SourceMapAttachment {
                     json: json.into_bytes(),
                     originals: Vec::new(),
                     preceding_maps: Vec::new(),
                 }),
-            }, kind),
-            // jetbunny's path: debugger evaluations and staged host sources too.
-            None => self.backend.register_source(&units, &origin, kind),
-        }
-    }
-
-    /// Records the compiled root of a registered source: its statement markers
-    /// become breakpoint locations.
-    ///
-    /// # Arguments
-    /// * `root` - the compiled module or function, as the engine's `JSValue`.
-    /// * `registration` - what [`Debugger::register`] returned.
-    ///
-    /// # Errors
-    /// The engine could not enumerate markers.
-    ///
-    /// # Safety
-    /// `root` points at a live `JSValue` of this context; it is borrowed.
-    pub unsafe fn loaded(&self, root: *const c_void, registration: Option<ScriptRegistration>) -> Result<(), DebugError> {
-        // SAFETY: the bridge packs a `JSValue` into these words byte for byte, and the
-        // caller lends a live one.
-        let value = unsafe { std::ptr::read_unaligned(root.cast::<ffi::Value>()) };
-        self.backend.loaded(value, registration)
+            },
+            kind,
+        )
     }
 
     /// Before each JS entry: holds the entry while a break-on-start pause is pending.
@@ -199,7 +225,7 @@ impl Debugger {
     /// # Errors
     /// The session failed.
     pub fn before_entry(&self) -> Result<(), DebugError> {
-        self.coordinator.before_entry()
+        self.coordinator().map_or(Ok(()), |coordinator| coordinator.before_entry())
     }
 
     /// At a loop boundary: services pause, resume and inspection requests.
@@ -207,7 +233,7 @@ impl Debugger {
     /// # Errors
     /// The session failed.
     pub fn service(&self) -> Result<(), DebugError> {
-        self.coordinator.service()
+        self.coordinator().map_or(Ok(()), |coordinator| coordinator.service())
     }
 
     /// After the owner drained its microtask queue: qualifies unhandled rejections.
@@ -255,19 +281,19 @@ impl Debugger {
     /// # Returns
     /// Whether the client asked the program to stop.
     pub fn is_stopping(&self) -> bool {
-        self.coordinator.is_stopping()
+        self.coordinator().is_some_and(|coordinator| coordinator.is_stopping())
     }
 
     /// # Returns
     /// The session's execution state.
     pub fn state(&self) -> DebugExecutionState {
-        self.coordinator.state()
+        self.coordinator().map_or(DebugExecutionState::Detached, |coordinator| coordinator.state())
     }
 
     /// # Returns
     /// Whether requests wait for [`Debugger::service`].
     pub fn pending(&self) -> bool {
-        self.coordinator.pending()
+        self.coordinator().is_some_and(|coordinator| coordinator.pending())
     }
 }
 
@@ -275,7 +301,9 @@ impl Drop for Debugger {
     /// Ends the session, removes the hooks and releases the bridge context; the
     /// owner's context and runtime stay.
     fn drop(&mut self) {
-        let _ = self.coordinator.shutdown();
+        if let Some(coordinator) = self.coordinator() {
+            let _ = coordinator.shutdown();
+        }
         self.backend.close();
         self.raw.close();
     }

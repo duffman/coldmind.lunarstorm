@@ -175,9 +175,6 @@ fn main() {
     builder
         .extra_warnings(false)
         .flag_if_supported("-Wno-implicit-const-int-float-conversion")
-        // lunarstorm patch: with jetbunny's opcodes all 256 dispatch slots are
-        // taken, so the interpreter's `case_default` label is never jumped to.
-        .flag_if_supported("-Wno-unused-label")
         //.flag("-Wno-array-bounds")
         //.flag("-Wno-format-truncation")
         ;

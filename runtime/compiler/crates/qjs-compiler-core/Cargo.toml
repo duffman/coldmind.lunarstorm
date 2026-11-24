@@ -1,0 +1,10 @@
+[package]
+name="qjs-compiler-core"
+version="0.1.0"
+edition="2024"
+rust-version="1.99"
+license="MIT"
+[dependencies]
+qjs-ir={path="../qjs-ir"}
+qjs-frontend={path="../qjs-frontend"}
+qjs-bytecode={path="../qjs-bytecode"}

@@ -314,3 +314,138 @@ fn debug_stops_at_a_typescript_breakpoint_on_its_original_line() {
     assert!(stderr.contains("total 2"), "script output goes to stderr: {stderr}");
     assert_eq!(status.code(), Some(0), "{stderr}");
 }
+
+/// Runs `lunarstorm debug` on a TypeScript program with one exception filter set, and
+/// continues past every stop until the program ends.
+///
+/// # Arguments
+/// * `name` - scratch directory name.
+/// * `source` - the program's `main.ts`.
+/// * `filter` - the DAP exception filter: `all` or `uncaught`.
+///
+/// # Returns
+/// The `stopped` events in order, the program's stderr and its exit code (`None` when a
+/// signal ended it).
+#[cfg(feature = "runtime")]
+fn debug_with_exception_filter(name: &str, source: &str, filter: &str) -> (Vec<String>, String, Option<i32>) {
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::process::Stdio;
+    use std::sync::mpsc::{self, RecvTimeoutError};
+    use std::time::Duration;
+
+    let dir = scratch(name);
+    let main = dir.join("main.ts");
+    std::fs::write(&main, source).expect("main");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lunarstorm"))
+        .args(["debug", main.to_str().expect("utf-8 path")])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn lunarstorm debug");
+    let mut stdin = child.stdin.take().expect("stdin");
+    let stdout = child.stdout.take().expect("stdout");
+    let (sender, messages) = mpsc::channel::<String>();
+    std::thread::spawn(move || {
+        let mut reader = BufReader::new(stdout);
+        loop {
+            let mut length = 0usize;
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).unwrap_or(0) == 0 {
+                    return;
+                }
+                let line = line.trim_end();
+                if line.is_empty() {
+                    break;
+                }
+                if let Some(value) = line.strip_prefix("Content-Length: ") {
+                    length = value.parse().expect("length");
+                }
+            }
+            let mut body = vec![0; length];
+            if reader.read_exact(&mut body).is_err() {
+                return;
+            }
+            if sender.send(String::from_utf8_lossy(&body).into_owned()).is_err() {
+                return;
+            }
+        }
+    });
+    // Reads messages until one contains every needle.
+    let until = |needles: &[&str]| -> String {
+        loop {
+            let message = messages.recv_timeout(Duration::from_secs(30)).unwrap_or_else(|_| panic!("no message with {needles:?}"));
+            if needles.iter().all(|needle| message.contains(needle)) {
+                return message;
+            }
+        }
+    };
+
+    stdin.write_all(&dap(1, "initialize", r#"{"adapterID":"lunarstorm","linesStartAt1":true,"columnsStartAt1":true,"pathFormat":"path"}"#)).expect("write");
+    until(&[r#""command":"initialize""#, r#""success":true"#]);
+    stdin.write_all(&dap(2, "attach", "{}")).expect("write");
+    stdin.write_all(&dap(3, "setExceptionBreakpoints", &format!(r#"{{"filters":["{filter}"]}}"#))).expect("write");
+    until(&[r#""command":"setExceptionBreakpoints""#, r#""success":true"#]);
+    stdin.write_all(&dap(4, "configurationDone", "{}")).expect("write");
+    let mut stops = Vec::new();
+    let mut seq = 5;
+    // Every message until the adapter closes its output; each stop is continued.
+    loop {
+        match messages.recv_timeout(Duration::from_secs(30)) {
+            Ok(message) if message.contains(r#""event":"stopped""#) => {
+                let thread = message
+                    .split(r#""threadId":"#)
+                    .nth(1)
+                    .and_then(|rest| rest.split(|c: char| !c.is_ascii_digit()).next())
+                    .expect("threadId")
+                    .to_owned();
+                stops.push(message);
+                // The adapter may already be gone; the exit status below reports that.
+                let _ = stdin.write_all(&dap(seq, "continue", &format!(r#"{{"threadId":{thread}}}"#)));
+                seq += 1;
+            }
+            Ok(_) => {}
+            Err(RecvTimeoutError::Disconnected) => break,
+            Err(RecvTimeoutError::Timeout) => {
+                let _ = child.kill();
+                panic!("lunarstorm debug neither stopped nor exited");
+            }
+        }
+    }
+    drop(stdin);
+    let status = child.wait().expect("wait");
+    let mut stderr = String::new();
+    child.stderr.take().expect("stderr").read_to_string(&mut stderr).expect("stderr");
+    (stops, stderr, status.code())
+}
+
+/// A program whose only throw is handled by a `try`/`catch`.
+#[cfg(feature = "runtime")]
+const HANDLED_THROW: &str = "function risky(): void {\n  throw new Error(\"handled\");\n}\ntry {\n  risky();\n} catch (error) {\n  console.log(`caught ${(error as Error).message}`);\n}\nconsole.log(\"done\");\n";
+
+/// Under the "uncaught" filter a throw that a `try`/`catch` handles is not a stop.
+/// Runs the real binary.
+#[cfg(feature = "runtime")]
+#[test]
+fn debug_uncaught_filter_does_not_stop_at_a_caught_throw() {
+    let (stops, stderr, code) = debug_with_exception_filter("debug-caught", HANDLED_THROW, "uncaught");
+    assert!(stops.is_empty(), "stopped at a handled throw: {stops:?}");
+    assert!(stderr.contains("caught handled") && stderr.contains("done"), "script output goes to stderr: {stderr}");
+    assert_eq!(code, Some(0), "{stderr}");
+}
+
+/// Defect: with the "all" exception filter set, `lunarstorm debug` died with SIGSEGV
+/// before the program printed anything, on any program.
+///
+/// Runs the real binary: a handled throw stops once with reason `exception`, and after
+/// `continue` the program finishes normally.
+#[cfg(feature = "runtime")]
+#[test]
+fn debug_all_filter_stops_at_a_caught_throw_and_continues() {
+    let (stops, stderr, code) = debug_with_exception_filter("debug-all", HANDLED_THROW, "all");
+    assert_eq!(code, Some(0), "lunarstorm debug did not exit normally (stops: {stops:?}): {stderr}");
+    assert_eq!(stops.len(), 1, "{stops:?}");
+    assert!(stops[0].contains(r#""reason":"exception""#), "{stops:?}");
+    assert!(stderr.contains("caught handled") && stderr.contains("done"), "script output goes to stderr: {stderr}");
+}

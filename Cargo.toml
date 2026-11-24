@@ -21,6 +21,12 @@
 #                     package.json resolution (no VM)
 #     jbn             signed .jbn packages: compiled modules, resources, import table
 #     debug           debugger: DAP, breakpoints, stepping, inspection, source maps (from jetbunny)
+#     compiler        jetbunny's Rust JavaScript compiler: crates/qjs-* and
+#                     scripts/build-reference.sh copied byte for byte from
+#                     coldmind.jetbunny ced69b3; vendor/quickjs-ng is a symlink to the
+#                     engine sources in engines/rquickjs/sys/quickjs, so the crates'
+#                     jetbunny-relative paths resolve unchanged. The only compiler of
+#                     Lunarstorm contexts.
 #     vm              the VM interface, callbacks, capabilities and conformance suite
 #     engines/quickjs   VM adapter wrapping QuickJS
 #     engines/rquickjs  the engine binding (rquickjs + quickjs-ng C source), adopted
@@ -64,6 +70,11 @@ members = [
     "runtime/modules",
     "runtime/jbn",
     "runtime/debug",
+    "runtime/compiler/crates/qjs-ir",
+    "runtime/compiler/crates/qjs-frontend",
+    "runtime/compiler/crates/qjs-bytecode",
+    "runtime/compiler/crates/qjs-compiler-core",
+    "runtime/compiler/crates/qjs-reference",
     "runtime/hosts/cli",
     "runtime/hosts/desktop",
     "platform/desktop",

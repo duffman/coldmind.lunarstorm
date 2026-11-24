@@ -21,6 +21,8 @@ typedef JSValue JSJetbunnyCompiler(JSContext *,uint64_t lease,
  const uint16_t *source,size_t units,const char *filename,int line,int flags,void *);
 typedef JSValue JSJetbunnyFrameCallback(JSContext *,uint64_t lease,void *);
 JS_EXTERN int JS_JetbunnySetCompiler(JSContext *,JSJetbunnyCompiler *,void *);
+/* lunarstorm patch: the context's base compiler; see jetbunny-eval.inc. */
+JS_EXTERN int JS_JetbunnySetBaseCompiler(JSContext *,JSJetbunnyCompiler *,void *,void (*)(void *));
 JS_EXTERN JSValue JS_JetbunnyWithFrame(JSContext *,int,JSJetbunnyFrameCallback *,void *);
 JS_EXTERN int JS_JetbunnyEnvView(JSContext *,uint64_t,JSJetbunnyEnvView *);
 JS_EXTERN int JS_JetbunnyEnvBinding(JSContext *,uint64_t,uint32_t,uint32_t,JSJetbunnyEnvBinding *);

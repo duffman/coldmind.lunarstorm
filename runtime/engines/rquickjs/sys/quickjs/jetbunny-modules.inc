@@ -23,14 +23,11 @@ JSValue JS_JetbunnyModuleImport(JSContext *ctx, JSValueConst value, int index) {
     if (!m) return JS_EXCEPTION;
     if (index < 0 || index >= m->req_module_entries_count)
         return JS_ThrowRangeError(ctx, "module import index");
-    if (!JS_IsUndefined(m->req_module_entries[index].attributes)) {
-        JSPropertyEnum *properties = NULL; uint32_t count = 0;
-        if (JS_GetOwnPropertyNames(ctx, &properties, &count,
-                                  m->req_module_entries[index].attributes,
-                                  JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK) < 0) return JS_EXCEPTION;
-        JS_FreePropertyEnum(ctx, properties, count);
-        if (count) return JS_ThrowTypeError(ctx, "import attributes unsupported");
-    }
+    /* lunarstorm patch: import attributes now reach the module (rquickjs
+       loaders receive them). Lunarstorm's host picks a module's kind from
+       its file, so they are ignored here, as they were when jetbunny's
+       compiler dropped them; jetbunny's "import attributes unsupported"
+       rejection was unreachable then and would break such imports now. */
     return JS_AtomToString(ctx, m->req_module_entries[index].module_name);
 }
 int JS_JetbunnyModuleBind(JSContext *ctx, JSValueConst value, int index, JSValueConst target) {

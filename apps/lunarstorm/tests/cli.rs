@@ -474,3 +474,24 @@ args:2 none:0 A B A-child A-grandchild micro tick-after-micro
     assert_eq!(stdout(&out), expected, "stderr: {}", stderr(&out));
     assert!(out.status.success());
 }
+
+/// A JSON import with `with { type: "json" }` runs. Import attributes now
+/// reach the engine; Lunarstorm's module graph ignores them (the host picks a
+/// module's kind from its file) instead of rejecting the import.
+#[test]
+fn json_import_with_attributes_runs() {
+    let dir = scratch("import-attributes");
+    std::fs::write(dir.join("d.json"), r#"{"a":42}"#).expect("write json");
+    let main = dir.join("main.mjs");
+    std::fs::write(
+        &main,
+        "import d from './d.json' with { type: 'json' };\nconsole.log(d.a);\n",
+    )
+    .expect("write module");
+    let out = Command::new(env!("CARGO_BIN_EXE_lunarstorm"))
+        .arg(&main)
+        .output()
+        .expect("spawn lunarstorm");
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "42\n");
+}

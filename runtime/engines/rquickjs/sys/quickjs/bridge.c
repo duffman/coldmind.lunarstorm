@@ -532,15 +532,7 @@ static jbq_value source(jbq_context *c,const uint16_t *text,size_t n,const char 
    buf[length++]=(char)(0x80|((u>>6)&63)); buf[length++]=(char)(0x80|(u&63)); }
  }
  buf[length]=0;
- /* lunarstorm patch: with the C parser restored, no compiler callback adds
-  * JS_EVAL_FLAG_DEBUG while a debugger is installed (jetbunny's
-  * compiler_callback did: debug_enabled && !lease). Without it the C parser
-  * emits no `debugger` pause and leaves locals uncaptured, so a debugger
-  * evaluation wrote to a detached copy (`x = 99` in a paused block scope was
-  * lost). Same rule here: every compile under an installed hook is a debug
-  * compile. */
- int debug=compile==3||c->debug_enabled;
- JSValue r=JS_Eval(c->ctx,buf,length,origin,(compile==2?JS_EVAL_TYPE_MODULE:JS_EVAL_TYPE_GLOBAL)|(compile?JS_EVAL_FLAG_COMPILE_ONLY:0)|(compile==2?JS_EVAL_FLAG_JETBUNNY_PREPARE:0)|(debug?JS_EVAL_FLAG_DEBUG:0));
+ JSValue r=JS_Eval(c->ctx,buf,length,origin,(compile==2?JS_EVAL_TYPE_MODULE:JS_EVAL_TYPE_GLOBAL)|(compile?JS_EVAL_FLAG_COMPILE_ONLY:0)|(compile==2?JS_EVAL_FLAG_JETBUNNY_PREPARE:0)|(compile==3?JS_EVAL_FLAG_DEBUG:0));
  js_free(c->ctx,buf); return pack(r);
 }
 jbq_value jbq_eval(jbq_context *c,const uint16_t *s,size_t n,const char *origin) { return source(c,s,n,origin,0); }
@@ -780,6 +772,29 @@ static JSValue compiler_callback(JSContext *ctx,uint64_t lease,const uint16_t *s
  if(!c->compiler||ctx!=c->ctx)return JS_ThrowTypeError(ctx,"compiler context mismatch");
  return unpack(c->compiler(c->compiler_opaque,c,lease,source,units,filename,line,
    flags|((c->debug_enabled&&!lease)?JS_EVAL_FLAG_DEBUG:0)));
+}
+/**
+ * lunarstorm patch: install `compiler` as the base compiler of a context the
+ * bridge does not own (one rquickjs created).
+ *
+ * The callback still receives a bridge context, so a minimal one is allocated:
+ * the engine context pointer and the compiler only. It holds no context
+ * reference, values or classes, is never the context opaque, and is freed by
+ * the engine when the context is freed (JS_JetbunnySetBaseCompiler).
+ *
+ * @param js_context engine context on its owner thread
+ * @param compiler Rust compiler callback
+ * @param opaque passed to `compiler`; not owned
+ * @return 0, or -1 on allocation failure or a refused install
+ */
+int jbq_set_base_compiler(void *js_context,jbq_compiler compiler,void *opaque){
+ JSContext *ctx=js_context; if(!ctx||!compiler) return -1;
+ jbq_context *c=calloc(1,sizeof(*c)); if(!c) return -1;
+ c->ctx=ctx; c->rt=JS_GetRuntime(ctx); c->borrowed=1;
+ c->object_proto=JS_UNDEFINED; c->error_stack_getter=JS_UNDEFINED;
+ c->compiler=compiler; c->compiler_opaque=opaque;
+ if(JS_JetbunnySetBaseCompiler(ctx,compiler_callback,c,free)<0){free(c);return -1;}
+ return 0;
 }
 int jbq_set_compiler(jbq_context *c,jbq_compiler compiler,void *opaque){
  if(JS_JetbunnySetCompiler(c->ctx,compiler?compiler_callback:NULL,compiler?c:NULL)<0)return -1;

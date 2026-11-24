@@ -1568,11 +1568,6 @@ impl QuickJsDebug {
             raw: raw.clone(),
             previous_fault,
         };
-        // lunarstorm patch: jetbunny counted compiles for tests in its Rust compiler
-        // callback (`compiler.rs`, not taken); the C parser has no callback, so the
-        // count is taken where source is handed to it.
-        #[cfg(test)]
-        self.lookup_observation.compilations.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let origin = CString::new("quickjs-debugger-eval.js").unwrap();
         let mut value = std::mem::MaybeUninit::uninit();
         // SAFETY: the owner pause and frame lease remain live throughout this

@@ -19,13 +19,18 @@ serde_json = { workspace = true, features = ["raw_value"] }
 sha2 = "0.10.9"
 url = "2"
 rquickjs-sys = { path = "../engines/rquickjs/sys", optional = true }
-rquickjs-core = { path = "../engines/rquickjs/core", optional = true, features = ["loader", "dyn-load", "futures"] }
+# lunarstorm patch: `std` carries `rquickjs_core::compiler`, the Rust compiler.
+rquickjs-core = { path = "../engines/rquickjs/core", optional = true, features = ["std", "loader", "dyn-load", "futures"] }
+# jetbunny's Rust compiler: `engines::quickjs_ng::compiler` registers it on every context.
+qjs-compiler-core = { path = "../compiler/crates/qjs-compiler-core", optional = true }
+qjs-frontend = { path = "../compiler/crates/qjs-frontend", optional = true }
+qjs-bytecode = { path = "../compiler/crates/qjs-bytecode", optional = true }
 
 [features]
 default = ["quickjs-ng"]
 # jetbunny's QuickJS-NG adapter and debug backend (`engines::quickjs_ng`) over the
 # vendored engine and its `jbq_*` bridge, both compiled by `rquickjs-sys`.
-quickjs-ng = ["dep:rquickjs-sys", "dep:rquickjs-core"]
+quickjs-ng = ["dep:rquickjs-sys", "dep:rquickjs-core", "dep:qjs-compiler-core", "dep:qjs-frontend", "dep:qjs-bytecode"]
 # jetbunny's builtin facades; not taken, declared so its cfg names stay known.
 builtin-facades = []
 # jetbunny's `.jbn` packaging hooks in the adapter; Lunarstorm packages live in `lunarstorm-jbn`.

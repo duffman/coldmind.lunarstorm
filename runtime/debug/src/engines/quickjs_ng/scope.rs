@@ -107,47 +107,6 @@ impl Scope<'_, '_> {
             _ => ValueKind::Object,
         }
     }
-    /// lunarstorm patch: compiles a host script with the C parser and does what
-    /// jetbunny's Rust compiler callback (`compiler.rs`, not taken) did around each
-    /// compile: it takes the staged debugger registration and hands the compiled
-    /// root's statement markers to the debugger. Without this, breakpoints set on a
-    /// host script never bound on the C path (a conditional breakpoint never ran).
-    ///
-    /// # Arguments
-    /// * `source` - the script; [`QuickJsDebug::stage_host_script`] has staged it.
-    /// * `origin` - its origin as the engine records it.
-    /// * `debug_info` - keep debug info in the compiled image.
-    ///
-    /// # Returns
-    /// The compiled root, owned by this scope; nothing has run.
-    ///
-    /// # Errors
-    /// The source does not compile, or the debugger refused it.
-    fn compile_registered<'s>(
-        &'s self,
-        source: &ScriptSource,
-        origin: &CString,
-        debug_info: bool,
-    ) -> JsResult<'s, Rc<NativeValue>> {
-        let units = source.text.as_units();
-        let registration = self
-            .state
-            .debug
-            .register_source(units, &source.origin, crate::debug::ScriptKind::Script)
-            .map_err(|e| ScopedError::Fault(super::debug::failure(e)))?;
-        // jetbunny counted compiles for tests in its compiler callback; the count is
-        // taken here, where source is handed to the C parser.
-        #[cfg(test)]
-        self.state.debug.lookup_observation.compilations.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        let compile = if debug_info { ffi::jbq_compile_debug } else { ffi::jbq_compile };
-        // SAFETY: compilation borrows valid source buffers and runs no application code.
-        let compiled = self.owned(unsafe { compile(self.ptr(), units.as_ptr(), units.len(), origin.as_ptr()) })?;
-        self.state
-            .debug
-            .loaded(compiled.value, registration)
-            .map_err(|e| ScopedError::Fault(super::debug::failure(e)))?;
-        Ok(compiled)
-    }
     pub(super) fn owned<'s>(&'s self, value: ffi::Value) -> JsResult<'s, Rc<NativeValue>> {
         if value.is_exception() {
             return Err(self.exception());
@@ -942,9 +901,15 @@ impl SourceApi for Scope<'_, '_> {
         self.state
             .debug
             .stage_host_script(source, crate::debug::ScriptKind::Script)?;
-        let compiled = self.compile_registered(source, &origin, false)?;
-        // SAFETY: the scope owns `compiled`; the bridge runs a duplicate of it.
-        self.put(unsafe { ffi::jbq_eval_compiled(self.ptr(), compiled.value) })
+        // SAFETY: Source units/origin remain borrowed until synchronous evaluation returns.
+        self.put(unsafe {
+            ffi::jbq_eval(
+                self.ptr(),
+                source.text.as_units().as_ptr(),
+                source.text.as_units().len(),
+                origin.as_ptr(),
+            )
+        })
     }
 }
 impl CompilerApi for Scope<'_, '_> {
@@ -958,8 +923,21 @@ impl CompilerApi for Scope<'_, '_> {
         self.state
             .debug
             .stage_host_script(source, crate::debug::ScriptKind::Script)?;
+        // SAFETY: Compilation borrows valid source buffers and executes no application code.
         let compiled = self
-            .compile_registered(source, &origin, options.debug_info == DebugInfo::Required)
+            .owned(unsafe {
+                let compile = if options.debug_info == DebugInfo::Required {
+                    ffi::jbq_compile_debug
+                } else {
+                    ffi::jbq_compile
+                };
+                compile(
+                    self.ptr(),
+                    source.text.as_units().as_ptr(),
+                    source.text.as_units().len(),
+                    origin.as_ptr(),
+                )
+            })
             .map_err(|e| self.detach(e))?;
         let payload =
             self.compiled_payload(&compiled, options.debug_info == DebugInfo::Required)?;

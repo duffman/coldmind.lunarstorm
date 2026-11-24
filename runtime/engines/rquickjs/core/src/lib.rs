@@ -28,6 +28,9 @@ mod safe_ref;
 mod util;
 mod value;
 pub(crate) use safe_ref::*;
+/// lunarstorm patch: the Rust compiler, the engine's only JavaScript compiler.
+#[cfg(feature = "std")]
+pub mod compiler;
 pub mod runtime;
 pub use runtime::Runtime;
 pub mod context;

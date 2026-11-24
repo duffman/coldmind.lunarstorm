@@ -141,6 +141,13 @@ impl AsyncContext {
             .ok_or(Error::Allocation)?;
         unsafe { qjs::JS_AddIntrinsicBaseObjects(ctx.as_ptr()) };
         unsafe { I::add_intrinsic(ctx) };
+        // lunarstorm patch: the C parser is removed; without the Rust
+        // compiler the context could not evaluate any source.
+        #[cfg(feature = "std")]
+        if !unsafe { crate::compiler::install_base(ctx.as_ptr()) } {
+            unsafe { qjs::JS_FreeContext(ctx.as_ptr()) };
+            return Err(Error::Allocation);
+        }
         let res = unsafe { ContextOwner::new(ctx, runtime.clone()) };
         guard.runtime.drain_pending_free();
         mem::drop(guard);
@@ -155,6 +162,13 @@ impl AsyncContext {
         let guard = runtime.inner.lock().await;
         let ctx = NonNull::new(unsafe { qjs::JS_NewContext(guard.runtime.rt.as_ptr()) })
             .ok_or(Error::Allocation)?;
+        // lunarstorm patch: the C parser is removed; without the Rust
+        // compiler the context could not evaluate any source.
+        #[cfg(feature = "std")]
+        if !unsafe { crate::compiler::install_base(ctx.as_ptr()) } {
+            unsafe { qjs::JS_FreeContext(ctx.as_ptr()) };
+            return Err(Error::Allocation);
+        }
         let res = unsafe { ContextOwner::new(ctx, runtime.clone()) };
         // Explicitly drop the guard to ensure it is valid during the entire use of runtime
         guard.runtime.drain_pending_free();

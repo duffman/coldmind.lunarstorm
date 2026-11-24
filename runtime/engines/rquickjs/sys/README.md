@@ -13,15 +13,17 @@ __NOTE:__ Usually you shouldn't use this crate directly, instead use [rquickjs](
 
 The engine is QuickJS-NG 0.17.0 with jetbunny's changes and Lunarstorm's, all edited
 in the sources in `quickjs/` (no patch files); `quickjs/PATCHES.md` lists every
-change and `quickjs/REVISION` the file hashes. In short:
+change, `quickjs/REVISION` the hash of every file and `quickjs/JETBUNNY-SHA256`
+the files still byte-identical to jetbunny `ced69b3`. Both are written by
+`scripts/provenance.sh` and checked by `tests/provenance.rs`. In short:
 
 - jetbunny: sticky out-of-memory flag (`JS_JetbunnyTakeOutOfMemory`), module
   images, the debug API (`JS_SetDebugHook`, `JS_DebugGetFrame`,
   `JS_DebugEvalInFrame`, `JS_EVAL_FLAG_DEBUG` statement markers) and its C bridge
   `bridge.c` / `bridge.h` (`jbq_*`, compiled by `build.rs`), which
   `lunarstorm-debug` drives.
-- Lunarstorm: the C parser restored (jetbunny compiled through a Rust callback;
-  the debugger's in-frame evaluation falls back to the C compiler), the
+- Lunarstorm: the C parser removed as in jetbunny, with jetbunny's Rust compiler
+  installed as the base compiler of every rquickjs context, the
   promise/module fixes marked `lunarstorm patch`, `jbq_context_wrap` (the bridge
   around a context rquickjs created), and the bindings regenerated for 0.17.0
   (`JS_ATOM_concat` is gone, so `PredefinedAtom::Concat` is too).

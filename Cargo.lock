@@ -3073,6 +3073,9 @@ dependencies = [
 name = "lunarstorm-debug"
 version = "0.1.0"
 dependencies = [
+ "qjs-bytecode",
+ "qjs-compiler-core",
+ "qjs-frontend",
  "rquickjs-core",
  "rquickjs-sys",
  "serde",
@@ -4976,6 +4979,48 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
 
 [[package]]
+name = "qjs-bytecode"
+version = "0.1.0"
+dependencies = [
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "qjs-compiler-core"
+version = "0.1.0"
+dependencies = [
+ "qjs-bytecode",
+ "qjs-frontend",
+ "qjs-ir",
+]
+
+[[package]]
+name = "qjs-frontend"
+version = "0.1.0"
+dependencies = [
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_ast_visit",
+ "oxc_diagnostics",
+ "oxc_parser",
+ "oxc_regular_expression",
+ "oxc_semantic",
+ "oxc_span",
+ "oxc_syntax",
+ "qjs-ir",
+ "qjs-reference",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "qjs-ir"
+version = "0.1.0"
+
+[[package]]
+name = "qjs-reference"
+version = "0.1.0"
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5762,6 +5807,9 @@ dependencies = [
  "hashbrown 0.17.2",
  "indexmap 2.14.2",
  "phf 0.14.0",
+ "qjs-bytecode",
+ "qjs-compiler-core",
+ "qjs-frontend",
  "relative-path",
  "rquickjs",
  "rquickjs-sys",
@@ -5793,6 +5841,7 @@ dependencies = [
  "bindgen",
  "cc",
  "pretty_env_logger",
+ "sha2 0.10.9",
 ]
 
 [[package]]

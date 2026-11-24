@@ -178,6 +178,8 @@ int jbq_import_finish(jbq_context *,uint64_t,jbq_value module,jbq_value evaluati
  * Never execute JS or unwind from the callback. No lease may escape it. */
 typedef jbq_value (*jbq_compiler)(void *,jbq_context *,uint64_t,const uint16_t *,size_t,const char *,int,int);
 int jbq_set_compiler(jbq_context *,jbq_compiler,void *);
+/* lunarstorm patch: base compiler of a context the bridge does not own; see bridge.c. */
+int jbq_set_base_compiler(void *js_context,jbq_compiler,void *);
 int jbq_eval_environment(jbq_context *,uint64_t,JSJetbunnyEnvView *);
 int jbq_eval_binding(jbq_context *,uint64_t,uint32_t,uint32_t,JSJetbunnyEnvBinding *);
 jbq_value jbq_eval_binding_name(jbq_context *,uint64_t,uint32_t,uint32_t);

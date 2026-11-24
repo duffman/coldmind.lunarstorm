@@ -735,3 +735,20 @@ fn native_module_admission_and_lifecycle_guards_use_real_prepared_objects() {
         );
     });
 }
+/// Import attributes now reach the native module; Lunarstorm's graph lists the
+/// request by specifier and ignores its attributes (the host picks a module's
+/// kind from its file) instead of failing the import.
+#[test]
+fn native_module_request_with_attributes_is_listed_by_specifier() {
+    live_scope(QuickJsNgConfig::default(), |s| {
+        let text = ScriptSource::new(
+            JsString::from_utf8("import d from 'dep' with { type: 'json' };export const x=d;"),
+            "file:///attributes.js".into(),
+        );
+        let id = ModuleApi::prepare(s, &text, &JsString::from_utf8("attributes")).unwrap();
+        assert_eq!(
+            ModuleApi::imports(s, &id).unwrap(),
+            vec![JsString::from_utf8("dep")]
+        );
+    });
+}
