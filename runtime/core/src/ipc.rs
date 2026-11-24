@@ -15,9 +15,9 @@
 //!   delivered in a later loop turn, never from inside `onMessage` itself.
 //!
 //! Decisions:
-//! - This is a native module (`Scope::native_module`), not a builtin on the hidden
-//!   `__lunarstorm` global: nothing of it is reachable except through `import`, and
-//!   the JS glue knows nothing about it.
+//! - This is a native module (`Scope::native_module`), like every builtin: no hidden
+//!   global carries it, nothing of it is reachable except through `import`, and the
+//!   JS glue knows nothing about it.
 //! - The receiver is a persistent handle in [`Ipc`], and the loop calls it directly;
 //!   there is no event code in the glue's `dispatch`.
 //! - Only the host type decides whether the module exists ([`Host::IPC`]).

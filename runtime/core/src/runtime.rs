@@ -53,7 +53,7 @@ use crate::worker::{Link, WorkerEvent, Workers};
 use crate::host::{Access, Host, Log};
 use lunarstorm_http1::{self as http, Body, Step};
 use crate::io::{flag, Deferred, Entry, Fault, Io, Shared, Wake, WAKER};
-use crate::modules::{Loader, Rejections};
+use crate::modules::{Loader, Registry, Rejections};
 use crate::ops;
 use crate::pool::{Pool, ResultMsg};
 use bytes::Buf;
@@ -251,6 +251,9 @@ pub struct Runtime<V: Vm, H: Host> {
     shared: Rc<Shared<H>>,
     /// Unhandled promise rejections, filled by the VM callbacks.
     rejections: Rejections<V>,
+    /// The builtin modules and internals the glue returned; handles into the heap,
+    /// cleared before the instance is destroyed.
+    registry: Rc<Registry<V>>,
     /// The readiness source.
     reactor: Poll,
     /// Readiness events of the current step.
@@ -282,6 +285,7 @@ impl<V: Vm, H: Host> Drop for Runtime<V, H> {
     /// Releases the rejection reasons before the instance whose heap they live in.
     fn drop(&mut self) {
         self.rejections.borrow_mut().clear();
+        self.registry.clear();
         // Workers end first: their listeners are persistent handles into the heap.
         self.workers.shutdown(&self.shared.refs);
         // The receiver is a persistent handle into the instance's heap.
@@ -331,6 +335,7 @@ impl<V: Vm, H: Host> Runtime<V, H> {
             engine: None,
             shared,
             rejections: Rc::default(),
+            registry: Rc::default(),
             reactor,
             events: Events::with_capacity(EVENT_BATCH),
             scratch: vec![0u8; SCRATCH].into_boxed_slice(),
@@ -464,7 +469,7 @@ impl<V: Vm, H: Host> Runtime<V, H> {
             return Err(String::from("the runtime is already started"));
         }
         let (installers, modules) = self.bindings.take();
-        let loader = Loader::new(self.shared.clone(), self.rejections.clone(), modules, self.ipc.clone(), self.workers.clone());
+        let loader = Loader::new(self.shared.clone(), self.rejections.clone(), modules, self.ipc.clone(), self.workers.clone(), self.registry.clone());
         let instance = V::Instance::new(&self.limits, loader)?;
         let context = instance.context()?;
         let shared = &self.shared;
@@ -479,6 +484,9 @@ impl<V: Vm, H: Host> Runtime<V, H> {
                 let bootstrap = scope.eval(BOOTSTRAP)?;
                 let hooks = scope.call(&bootstrap, &[ops])?;
                 let hook = |name: &str| scope.get(&hooks, name).map(|value| scope.persist(&value));
+                // The builtin modules and internals stay with the loader; nothing
+                // of them is published on the global object.
+                self.registry.set(hook("modules")?, hook("internal")?, hook("exportsOf")?);
                 Ok(Hooks {
                     dispatch: hook("dispatch")?,
                     ticks: hook("ticks")?,
@@ -652,6 +660,7 @@ impl<V: Vm, H: Host> Runtime<V, H> {
         });
         self.shared.io.borrow_mut().flush_stdout(&self.shared.host);
         self.rejections.borrow_mut().clear();
+        self.registry.clear();
         self.workers.shutdown(&self.shared.refs);
         self.ipc.clear(&self.shared.refs);
         self.ipc.channel.close();
