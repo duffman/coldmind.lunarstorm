@@ -1,0 +1,24 @@
+# The CLI app host, as a package of the `lunarstorm` command line.
+#
+# It owns a Runtime bound to the QuickJS adapter, implements the host services
+# with the process's own argv, stdio, environment and exit, and registers the
+# terminal bindings behind the `lunarstorm:ui` module. It exports the `run` command
+# (the default command, so `lunarstorm app.js` still runs a script); the binary that
+# mounts it is `apps/lunarstorm`.
+#
+# Decision: a library, not a binary. The former `lunarstorm` binary of this crate is
+# archived in `.archive/2026-11-24/runtime/hosts/cli/src/main.rs` and its end-to-end
+# tests now run against `apps/lunarstorm`, which keeps its command line unchanged.
+[package]
+name = "lunarstorm-host-cli"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Lunarstorm runtime CLI host: the `run` command of the lunarstorm command line"
+
+[dependencies]
+lunarstorm-runtime = { path = "../../core" }
+lunarstorm-vm-quickjs = { path = "../../engines/quickjs" }
+lunarstorm-cliui = { path = "../../../crates/cliui" }
+lunarstorm-cli-contract = { path = "../../../crates/cli-contract" }
+libc = "0.2"

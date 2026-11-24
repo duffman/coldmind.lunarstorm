@@ -1,0 +1,14 @@
+# The contract between the `lunarstorm` command line and the packages mounted on it.
+#
+# A package (the runtime, the build pipeline, ...) depends only on this crate: it
+# describes its commands and arguments as data and receives a parsed `Invocation`.
+# Parsing, help screens, completions and dispatch live in `lunarstorm-cli-host`.
+#
+# Decision: no dependencies at all, so any crate in the repo can export a package
+# without pulling in a parser, a terminal library or serde.
+[package]
+name = "lunarstorm-cli-contract"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Command-line package contract: command trees, argument specs, invocations and contexts"

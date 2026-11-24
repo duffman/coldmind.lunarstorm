@@ -1,0 +1,20 @@
+{
+  "name": "@coldmind/http-routes",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "HTTP route contracts in the shape of rpc contracts: path compiler, route table with precedence, decorators and describe",
+  "exports": {
+    ".": "./src/routes.ts",
+    "./*": "./*"
+  },
+  "dependencies": {
+    "@coldmind/model": "workspace:*",
+    "@coldmind/rpc": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  }
+}

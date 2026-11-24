@@ -1,0 +1,8 @@
+[package]
+name = "lunarstorm-cliui"
+version = "0.1.0"
+edition = "2021"
+description = "Terminal UI for Lunarstorm command-line tools: colors, help screens, error frames, progress bars"
+
+[dependencies]
+libc = "0.2"

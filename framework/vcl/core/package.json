@@ -1,0 +1,28 @@
+{
+  "name": "@coldmind/vcl.core",
+  "version": "0.1.0",
+  "description": "VCL core: Kernel, Component (owner tree, @prop, change notification), Control and ControlHost, the one bridge to React",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./jsx-runtime": "./src/vcl.jsx.ts",
+    "./jsx-dev-runtime": "./src/vcl.jsx.ts",
+    "./*": "./*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@coldmind/inject": "workspace:*",
+    "@coldmind/bus": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=19"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0"
+  }
+}

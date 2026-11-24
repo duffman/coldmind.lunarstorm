@@ -1,0 +1,16 @@
+# Browser host of spec 6.3: a project in a browser tab, its backend in a Worker.
+# A developer tool; the shipped desktop process never links it.
+[package]
+name = "lunarstorm-web"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Lunarstorm platform: serves an application to a browser tab"
+
+[[bin]]
+name = "lunarstorm-web"
+path = "src/main.rs"
+
+[dependencies]
+lunarstorm-platform = { path = "../desktop", default-features = false }
+serde_json = "1"

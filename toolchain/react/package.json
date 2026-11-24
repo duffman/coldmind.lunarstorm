@@ -1,0 +1,27 @@
+{
+  "name": "@coldmind/devtools-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cargo run -p devtools-cli -- dev",
+    "build": "cargo build -p devtools-cli --release",
+    "build:native": "bun run --cwd packages/bun build:native",
+    "test:rust": "cargo test --workspace",
+    "test:bun": "bun run --cwd packages/bun test",
+    "test:shell": "bun run --cwd packages/shell test",
+    "test:adapters": "bun run build:native && bun run test:bun && bun run test:shell",
+    "test": "bun run test:integration",
+    "typecheck": "bun run --cwd packages/bun typecheck && bun run --cwd packages/shell typecheck && bun run typecheck:scripts",
+    "check": "cargo clippy --workspace --all-targets && bun run typecheck",
+    "test:integration": "bun scripts/test-integration.ts",
+    "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json"
+  },
+  "devDependencies": {
+    "@coldmind/devtools": "workspace:*",
+    "@coldmind/devtools-shell": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  }
+}

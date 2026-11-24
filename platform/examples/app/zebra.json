@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "application": {
+    "id": "dev.zebra.example",
+    "name": "Project Register",
+    "version": "0.1.0",
+    "mainForm": "MainForm",
+    "events": ["onReady"]
+  },
+  "forms": [
+    {
+      "name": "MainForm",
+      "props": {
+        "caption": "Project Register",
+        "width": 760,
+        "height": 500,
+        "minWidth": 480,
+        "minHeight": 320,
+        "position": "screenCenter",
+        "menu": "MainMenu"
+      },
+      "events": ["onCreate", "onCloseQuery", "onResize"],
+      "controls": {
+        "Root": { "type": "panel", "props": ["visible"], "events": [] },
+        "CommandBar": { "type": "panel", "props": ["visible"], "events": [] },
+        "SaveButton": { "type": "button", "props": ["caption", "enabled", "visible"], "events": ["onClick"] },
+        "RevertButton": { "type": "button", "props": ["caption", "enabled", "visible"], "events": ["onClick"] },
+        "Workspace": { "type": "panel", "props": ["visible"], "events": [] },
+        "ProjectList": { "type": "listbox", "props": ["items", "itemIndex", "enabled", "visible"], "events": ["onChange"] },
+        "Editor": { "type": "panel", "props": ["visible"], "events": [] },
+        "NameLabel": { "type": "label", "props": ["caption", "visible"], "events": [] },
+        "NameEdit": { "type": "edit", "props": ["text", "placeholder", "enabled", "visible"], "events": ["onChange"] },
+        "ClockLabel": { "type": "label", "props": ["caption", "visible"], "events": [] },
+        "StatusBar": { "type": "statusbar", "props": ["caption", "visible"], "events": [] },
+        "SaveItem": { "type": "menuitem", "props": ["caption", "enabled", "checked"], "events": ["onClick"] },
+        "ClockTimer": { "type": "timer", "props": ["interval", "enabled"], "events": ["onTimer"] }
+      }
+    }
+  ],
+  "menus": [
+    {
+      "name": "MainMenu",
+      "owner": "MainForm",
+      "kind": "main",
+      "items": [
+        {
+          "name": "AppMenu",
+          "caption": "Project Register",
+          "items": [
+            { "name": "AboutItem", "role": "about" },
+            { "name": "AppSep", "caption": "-" },
+            { "name": "QuitItem", "role": "quit" }
+          ]
+        },
+        {
+          "name": "FileMenu",
+          "caption": "File",
+          "items": [{ "name": "SaveItem", "caption": "Save", "shortcut": "CmdOrCtrl+S", "enabled": false, "events": ["onClick"] }]
+        },
+        {
+          "name": "EditMenu",
+          "caption": "Edit",
+          "items": [
+            { "name": "UndoItem", "role": "undo" },
+            { "name": "RedoItem", "role": "redo" },
+            { "name": "EditSep", "caption": "-" },
+            { "name": "CutItem", "role": "cut" },
+            { "name": "CopyItem", "role": "copy" },
+            { "name": "PasteItem", "role": "paste" },
+            { "name": "SelectAllItem", "role": "selectAll" }
+          ]
+        }
+      ]
+    }
+  ],
+  "timers": [{ "name": "ClockTimer", "owner": "MainForm", "interval": 1000, "enabled": true }],
+  "permissions": { "native": ["os.*", "window.setTitle", "clipboard.writeText"] }
+}

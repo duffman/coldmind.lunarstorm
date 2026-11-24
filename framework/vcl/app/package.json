@@ -1,0 +1,32 @@
+{
+  "name": "@coldmind/vcl.app",
+  "version": "0.1.0",
+  "description": "VCL application layer: Form (show, showModal, close, error boundary) and Application (forms, main form, React root)",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@coldmind/vcl.core": "workspace:*",
+    "@coldmind/inject": "workspace:*",
+    "@coldmind/rpc": "workspace:*",
+    "@coldmind/net.client": "workspace:*",
+    "@coldmind/wire": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

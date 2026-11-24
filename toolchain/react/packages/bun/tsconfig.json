@@ -1,0 +1,6 @@
+{
+  "extends": "@coldmind/config/tsconfig.base.json",
+  "include": ["src", "tests", "scripts", "examples"],
+  // Plugin inputs: they reference `__MODE__`, which only exists after the native hook runs.
+  "exclude": ["tests/fixtures/build", "tests/fixtures/define", "tests/fixtures/serve/app.ts", "examples/app"]
+}

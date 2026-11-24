@@ -1,0 +1,13 @@
+# HTTP/1.1 on bytes: request framing and response-head serialization.
+#
+# Its own crate, under the repo's reusable `crates/`, because it has no sockets,
+# no event loop and no JS: the Runtime uses it for its `http` module, and any
+# other server in the monorepo can use it the same way.
+[package]
+name = "lunarstorm-http1"
+version = "0.1.0"
+edition = "2021"
+description = "HTTP/1.1 request framing and response-head serialization on borrowed bytes; no sockets, no JS"
+
+[dependencies]
+httparse = "1.10"

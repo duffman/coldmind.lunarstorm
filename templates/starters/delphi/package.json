@@ -1,0 +1,10 @@
+{
+  "name": "delphi-desktop-starter",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build ./src/main.tsx --outdir ./dist --target browser",
+    "dev": "bun run build && bun run serve.ts",
+    "typecheck": "tsc --noEmit"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "extends": "@coldmind/config/tsconfig.base.json",
+  "include": [
+    "."
+  ],
+  "exclude": [
+    "node_modules",
+    "src/index.test.ts"
+  ]
+}

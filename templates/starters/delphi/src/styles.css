@@ -1,0 +1,110 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  color: #202a36;
+  background: #c4cdd7;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, input, textarea, select { font: inherit; }
+#app { min-height: 100vh; padding: 36px; display: grid; place-items: center; }
+
+.desktop-form {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  max-height: calc(100vh - 72px);
+  overflow: hidden;
+  background: #f3f5f7;
+  border: 1px solid #76889b;
+  border-radius: 7px;
+  box-shadow: 0 18px 55px #26374c35, 0 2px 8px #26374c20;
+}
+
+.desktop-titlebar {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  color: #fff;
+  background: #243d5c;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.desktop-titlebar button {
+  background: transparent;
+  color: inherit;
+  border: 0;
+  min-width: 32px;
+  min-height: 30px;
+}
+.desktop-titlebar button:hover { background: #ffffff20; }
+.desktop-client { display: flex; flex: 1; min-height: 0; }
+.desktop-panel { min-width: 0; min-height: 0; }
+.desktop-label { display: block; color: #465364; }
+
+.desktop-button {
+  min-height: 31px;
+  padding: 5px 15px;
+  color: #253b55;
+  background: linear-gradient(#fff, #f0f3f6);
+  border: 1px solid #a6b3c0;
+  border-radius: 3px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.desktop-button:hover:enabled { border-color: #567da8; background: #edf4fc; }
+.desktop-button:active:enabled { background: #dae7f5; }
+.desktop-button:disabled { color: #8d97a2; cursor: default; opacity: .7; }
+
+.desktop-edit, .desktop-memo, .desktop-combobox, .desktop-listbox {
+  display: block;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 9px;
+  background: #fff;
+  color: #202a36;
+  border: 1px solid #adb9c7;
+  border-radius: 3px;
+}
+.desktop-memo { resize: none; line-height: 1.6; min-height: 90px; }
+.desktop-listbox { padding: 5px; min-height: 200px; }
+.desktop-listbox option { padding: 10px 7px; border-radius: 2px; }
+.desktop-listbox option:checked { color: #183e68; background: #dce9f7 linear-gradient(#dce9f7, #dce9f7); }
+:focus-visible { outline: 2px solid #467aa9; outline-offset: 2px; }
+
+.desktop-statusbar {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 5px 14px;
+  color: #536274;
+  background: #e8edf2;
+  border-top: 1px solid #c5ced8;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+[data-name="MainLayout"] { flex: 1; }
+[data-name="CommandBar"] { border-bottom: 1px solid #c5ced8; background: #eaf0f5; flex-shrink: 0; }
+[data-name="Workspace"] { flex: 1; overflow: auto; }
+[data-name="ProjectPane"] { flex-shrink: 0; padding-right: 20px; border-right: 1px solid #d4dce5; }
+[data-name="EditorPane"] { flex: 1; }
+[data-name="ProjectsLabel"], [data-name="RecordLabel"] { font-weight: 650; color: #263f5d; font-size: 14px; margin-bottom: 8px; }
+[data-name="CountLabel"] { font-size: 11px; color: #748295; }
+[data-name="SaveButton"]:enabled { color: #fff; background: #2d5c8d; border-color: #214c78; }
+[data-name="SaveButton"]:enabled:hover { background: #264f7b; }
+
+@media (max-width: 700px) {
+  #app { padding: 12px; place-items: start center; }
+  .desktop-form { max-height: none; min-height: calc(100vh - 24px); height: auto !important; }
+  [data-name="Workspace"] { flex-direction: column !important; }
+  [data-name="ProjectPane"] { width: 100% !important; padding-right: 0; border-right: 0; }
+  .desktop-listbox { min-height: 120px; max-height: 150px; }
+  [data-name="NotesMemo"] { min-height: 130px; }
+}

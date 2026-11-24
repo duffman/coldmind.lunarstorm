@@ -1,0 +1,4 @@
+{
+  "extends": "@coldmind/config/tsconfig.base.json",
+  "include": ["src", "tests", "examples"]
+}

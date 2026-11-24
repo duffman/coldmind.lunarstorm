@@ -1,0 +1,181 @@
+# Lunarstorm monorepo: the one Cargo workspace for every Rust crate in the repo.
+#
+#   apps/        product binaries that mount packages:
+#     lunarstorm      the `lunarstorm` command line: `run` (runtime) and `build` (pipeline),
+#                     one Cargo feature per package; see doc/cli.md
+#   crates/      reusable crates with no tie to one product; anything in the repo
+#                may depend on them:
+#     cliui           terminal UI: colors, help screens, error frames, progress bars
+#     cli-contract    what a package exports to the `lunarstorm` command line: command
+#                     trees, argument specs, invocations, contexts (no dependencies)
+#     cli-host        parses, documents and dispatches the commands of mounted packages
+#     http1           HTTP/1.1 request framing and response heads; no sockets, no JS
+#   runtime/     the Lunarstorm runtime, as the layers of spec section 5:
+#     hosts/cli       CLI app host: process, argv, stdio, exit code; the `run` command
+#                     package mounted by apps/lunarstorm
+#     hosts/desktop   desktop app host: a desktop application's backend on the Runtime,
+#                     and the tao shell around it (binary `lunarstorm-desktop`)
+#     core            the Runtime: event loop, timers, modules, fs and net; generic
+#                     over the VM and the host
+#     vm              the VM interface, callbacks, capabilities and conformance suite
+#     engines/quickjs   VM adapter wrapping QuickJS
+#     engines/rquickjs  the engine binding (rquickjs + quickjs-ng C source), adopted
+#                       from upstream 0.14.0 and owned here: core, macro, sys, examples
+#   platform/    the Lunarstorm platform, spec section 6 (the product):
+#     desktop         native desktop process: lib + `lunarstorm-debug`, `lunarstorm-release`
+#     pack            `lunarstorm-pack`: archive, attach, package and sign per OS
+#     web             `lunarstorm-web`: the app in a browser tab, backend in a Worker
+#     examples/app    a complete generated project (not a crate)
+#   toolchain/   the build toolchain (devtools crates and the vendored oj_* compiler)
+#
+# Decision: one workspace at the repo root instead of the former `runtime/` and
+# `toolchain/` workspaces, so one lock file and one `cargo build` cover everything.
+# The JS/TS side is the pnpm workspace in `pnpm-workspace.yaml`.
+#
+# Decision: rquickjs and jetpack are first-party members, not vendored or standalone.
+# Each had its own workspace or lock file; their crates now build, test and lint with
+# the rest, and rquickjs's former `[workspace.dependencies]` live below.
+#
+# Excluded:
+#   runtime/engines/rquickjs/wasm-test   builds only for wasm32-unknown-unknown and is
+#                      driven by its runner.ts; its own workspace by design
+#   _trash, .archive   parked code, never built
+[workspace]
+resolver = "2"
+members = [
+    "apps/lunarstorm",
+    "runtime/vm",
+    "runtime/engines/quickjs",
+    "runtime/engines/rquickjs",
+    "runtime/engines/rquickjs/core",
+    "runtime/engines/rquickjs/macro",
+    "runtime/engines/rquickjs/sys",
+    "runtime/engines/rquickjs/examples/native-module",
+    "runtime/engines/rquickjs/examples/module-loader",
+    "runtime/engines/rquickjs/examples/import-attributes",
+    "runtime/engines/rquickjs/examples/rquickjs-cli",
+    "runtime/engines/rquickjs/examples/class-methods",
+    "runtime/engines/rquickjs/examples/exotic",
+    "runtime/core",
+    "runtime/hosts/cli",
+    "runtime/hosts/desktop",
+    "platform/desktop",
+    "platform/pack",
+    "platform/web",
+    "crates/cliui",
+    "crates/cli-contract",
+    "crates/cli-host",
+    "crates/http1",
+    "toolchain/crates/build-server",
+    "toolchain/crates/model",
+    "toolchain/crates/pipeline",
+    "toolchain/crates/core",
+    "toolchain/crates/server",
+    "toolchain/crates/transform",
+    "toolchain/crates/bundler",
+    "toolchain/crates/cli",
+    "toolchain/crates/tauri",
+    "toolchain/jetpack",
+    "toolchain/vendor/oj_compiler",
+    "toolchain/vendor/oj_env",
+    "toolchain/vendor/oj_graph",
+    "toolchain/vendor/oj_resolver",
+]
+exclude = ["runtime/engines/rquickjs/wasm-test", "_trash", ".archive"]
+
+# Inherited by the toolchain crates (`version.workspace = true` etc.); the runtime
+# crates set their own package fields.
+[workspace.package]
+version = "0.2.29"
+edition = "2021"
+rust-version = "1.99"
+license = "MIT"
+repository = "https://github.com/lovablelabs/oj"
+
+# Shared dependency versions, used by the toolchain crates via `workspace = true`.
+[workspace.dependencies]
+oj_compiler = { path = "toolchain/vendor/oj_compiler" }
+oj_env = { path = "toolchain/vendor/oj_env" }
+oj_graph = { path = "toolchain/vendor/oj_graph" }
+oj_resolver = { path = "toolchain/vendor/oj_resolver" }
+# The engine binding's crates, inherited by rquickjs, rquickjs-core and rquickjs-macro
+# (moved from the former rquickjs workspace; features stay opt-in per dependent).
+rquickjs-core = { version = "0.14.0", path = "runtime/engines/rquickjs/core", default-features = false }
+rquickjs-macro = { version = "0.14.0", path = "runtime/engines/rquickjs/macro", default-features = false }
+rquickjs-sys = { version = "0.14.0", path = "runtime/engines/rquickjs/sys", default-features = false }
+devtools_core = { path = "toolchain/crates/core" }
+devtools_server = { path = "toolchain/crates/server" }
+devtools_bundler = { path = "toolchain/crates/bundler" }
+
+oxc_allocator = "=0.157.0"
+oxc_parser = "=0.157.0"
+oxc_ast = "=0.157.0"
+oxc_ast_visit = "=0.157.0"
+oxc_span = "=0.157.0"
+oxc_semantic = "=0.157.0"
+oxc_transformer = "=0.157.0"
+oxc_transformer_plugins = "=0.157.0"
+oxc_minifier = "=0.157.0"
+oxc_ecmascript = "=0.157.0"
+oxc_syntax = "=0.157.0"
+oxc_str = "=0.157.0"
+oxc_codegen = "=0.157.0"
+oxc_diagnostics = "=0.157.0"
+oxc_sourcemap = "9.0.0"
+oxc_resolver = "11.24.3"
+base64 = "0.22"
+
+anyhow = "1.0.104"
+memchr = "2.8.3"
+thiserror = "2.0.20"
+serde_json = "1.0.154"
+
+proptest = "1.9.0"
+tempfile = "3.24.0"
+
+# Release profile of the runtime (`cargo build --release -p lunarstorm`), unchanged
+# from the former runtime workspace. Profiles are workspace-wide, so toolchain
+# release builds now also get fat LTO, one codegen unit, abort-on-panic and stripping.
+#
+# Fix: no integer values in any [profile] table here. trybuild (rquickjs's
+# `tests/compile.rs`) copies these tables through `serde_json::Value`, and
+# `rolldown_common` (via lunarstorm-pipeline) turns on serde_json's
+# `arbitrary_precision`, so under `cargo test --workspace` every integer was written
+# into trybuild's manifest as a `$serde_json::private::Number` table and cargo failed
+# with "invalid type: map, expected u32". Decision: `opt-level = 3` is the release
+# default, so it and the former per-package `oj_compiler`/`oj_graph`/`oj_resolver`
+# `opt-level = 3` overrides are dropped; the former `devtools-native`
+# `codegen-units = 1` override repeated release's own value and is dropped too;
+# `codegen-units = 1` itself lives in `.cargo/config.toml`, which Cargo merges into
+# this profile and trybuild does not copy. Resulting flags are unchanged:
+# opt-level=3, codegen-units=1, fat LTO, panic=abort, stripped.
+[profile.release]
+lto = "fat"
+panic = "abort"
+strip = true
+
+# Release build for Node-API addons (`devtools-native`, built with
+# `--profile release-node`). Decision: `panic` cannot be overridden per package, and
+# under the runtime's `panic = "abort"` a panic inside the addon would kill the
+# host Node/Bun process instead of surfacing as a JS exception (napi-rs relies on
+# unwinding for that). Keeping unwind here preserves the toolchain's old behaviour.
+[profile.release-node]
+inherits = "release"
+panic = "unwind"
+
+# Release build of the platform binaries (`cargo build --profile platform -p
+# lunarstorm-platform -p lunarstorm-pack -p lunarstorm-web`). Decision: `release`
+# aborts on panic, but the platform catches panics on purpose (a compiler panic
+# becomes a diagnostic in `pipeline::run_guarded`; a failed native job must not take
+# the worker pool down), so it keeps unwinding. Otherwise the same as `release`, which
+# matches the former standalone `_output` profile.
+[profile.platform]
+inherits = "release"
+panic = "unwind"
+
+# Release code with symbols kept, for profilers (`sample`, Instruments). Cargo
+# builds it into the `profiling` subdirectory of the shared target directory.
+[profile.profiling]
+inherits = "release"
+strip = false
+debug = "line-tables-only"

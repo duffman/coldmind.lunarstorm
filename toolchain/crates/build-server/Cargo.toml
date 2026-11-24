@@ -1,0 +1,23 @@
+[package]
+name = "ls-build-server"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Generic build server using the toolchain compiler, development server and bundler"
+
+[lib]
+name = "ls_build_server"
+
+[[bin]]
+name = "ls-build-server"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+devtools_server = { path = "../server" }
+devtools_bundler = { path = "../bundler" }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync", "signal"] }
+
+[dev-dependencies]
+tempfile.workspace = true

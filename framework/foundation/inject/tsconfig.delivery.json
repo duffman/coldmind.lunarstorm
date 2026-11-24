@@ -1,0 +1,95 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "customConditions": [
+      "bun"
+    ],
+    "jsx": "react-jsx",
+    "types": [
+      "node",
+      "bun"
+    ],
+    "paths": {
+      "@coldmind/inject": [
+        "./src/core/cminject.core.ts"
+      ],
+      "@coldmind/inject/server": [
+        "./src/server/cminject.server.ts"
+      ],
+      "@coldmind/inject/hot": [
+        "./src/cminject.hot.ts"
+      ],
+      "@coldmind/inject/inspect": [
+        "./src/cminject.inspect.ts"
+      ],
+      "@coldmind/inject/react": [
+        "./src/cminject.react.ts"
+      ],
+      "@coldmind/inject/testing": [
+        "./src/cminject.testing.ts"
+      ],
+      "@coldmind/inject/contracts": [
+        "./src/core/cminject.contracts.ts"
+      ],
+      "@coldmind/inject/token": [
+        "./src/core/cminject.token.ts"
+      ],
+      "@coldmind/inject/errors": [
+        "./src/core/cminject.errors.ts"
+      ],
+      "@coldmind/inject/graph": [
+        "./src/core/cminject.graph.ts"
+      ],
+      "@coldmind/inject/decorators": [
+        "./src/core/cminject.decorators.ts"
+      ],
+      "@coldmind/inject/container": [
+        "./src/core/cminject.container.ts"
+      ],
+      "@coldmind/inject/module": [
+        "./src/core/cminject.module.ts"
+      ],
+      "@coldmind/inject/lazy": [
+        "./src/core/cminject.lazy.ts"
+      ],
+      "@coldmind/inject/internal/async": [
+        "./src/core/cminject.async.ts"
+      ],
+      "@coldmind/inject/internal/binding": [
+        "./src/core/cminject.binding.ts"
+      ],
+      "@coldmind/inject/internal/view": [
+        "./src/core/cminject.view.ts"
+      ],
+      "@coldmind/inject/internal/observe": [
+        "./src/core/cminject.observe.ts"
+      ],
+      "@coldmind/inject/internal/construction": [
+        "./src/core/cminject.construction.ts"
+      ],
+      "@coldmind/inject/internal/resolution": [
+        "./src/core/cminject.resolution.ts"
+      ],
+      "@coldmind/inject/internal/mutation": [
+        "./src/core/cminject.mutation.ts"
+      ],
+      "@coldmind/inject/internal/host": [
+        "./src/core/cminject.host.ts"
+      ],
+      "@coldmind/inject/internal/server/context": [
+        "./src/server/cminject.context.ts"
+      ],
+      "@coldmind/inject/internal/server/runtime": [
+        "./src/server/cminject.runtime.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "examples/cminject.*.ts",
+    "tests/bun/core/delivery.test.ts",
+    "tests/bun/server/ambient.test.ts",
+    "tests/bun/docs/examples.test.ts"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "extends": "@coldmind/config/tsconfig.base.json",
+  "include": [
+    "src/**/*.ts",
+    "tests/*.typing.ts"
+  ]
+}
