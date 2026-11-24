@@ -10,7 +10,7 @@ errors, and calls the handlers.
 apps/lunarstorm                 the binary: picks packages (one Cargo feature each)
   ├─ crates/cli-host            lunarstorm-cli-host: parse, help, describe, completions, dispatch
   │    └─ crates/cliui          lunarstorm-cliui: colors, help layout, error frames
-  ├─ runtime/hosts/cli          lunarstorm-host-cli: package "runtime" → `run`
+  ├─ runtime/hosts/cli          lunarstorm-host-cli: package "runtime" → `run`, `debug`, `jbn key`, `jbn build`
   ├─ toolchain/crates/pipeline  lunarstorm-pipeline: package "build"  → `build`, `build types`, `build check`
   └─ toolchain/crates/cli       devtools-cli: package "frontend" → `serve`, `bundle`, `preview`, `transpile`
            all packages depend on
@@ -28,6 +28,10 @@ lunarstorm [options] <file.js> [args...]        # `run` is the default command
 
 lunarstorm app.js --port 8080                   # = lunarstorm run app.js --port 8080
 lunarstorm -e 'console.log(1)'                  # = lunarstorm run -e '...'
+lunarstorm jbn key signing.der > trust.json     # new signing key, and a trust file for it
+lunarstorm jbn build src/main.ts -o app.jbn --key signing.der
+lunarstorm run --trust trust.json app.jbn       # run a signed package (or LUNARSTORM_TRUST)
+lunarstorm debug app.ts --port 8080             # Debug Adapter Protocol on stdin/stdout; script stdout → stderr
 lunarstorm build -p templates/starters/desktop  # build into <project>/dist
 lunarstorm build -p app -o out                  # build into out/
 lunarstorm build types -p app                   # write app/src/desktop.d.ts

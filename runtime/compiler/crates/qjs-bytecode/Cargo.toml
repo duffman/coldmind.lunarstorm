@@ -1,0 +1,14 @@
+[package]
+name = "qjs-bytecode"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+description = "Bounded structural inspection of pinned QuickJS-NG final instructions"
+build = "build.rs"
+
+[dependencies]
+sha2="0.10.9"
+
+[build-dependencies]
+sha2="0.10.9"

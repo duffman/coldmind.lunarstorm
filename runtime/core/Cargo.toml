@@ -6,6 +6,10 @@ description = "The Lunarstorm Runtime: event loop, timers, modules, fs and net, 
 
 [dependencies]
 lunarstorm-vm = { path = "../vm" }
+# Files and packages as ES modules: TypeScript, JSON, CommonJS, package.json.
+lunarstorm-modules = { path = "../modules" }
+# Signed .jbn packages: built from a module graph, run as bytecode.
+lunarstorm-jbn = { path = "../jbn" }
 mio = { version = "1.2", default-features = false, features = ["os-poll", "net"] }
 crossbeam-channel = "0.5"
 bytes = "1"
@@ -17,3 +21,4 @@ libc = "0.2"
 [dev-dependencies]
 # Tests need a real engine; the library itself names none.
 lunarstorm-vm-quickjs = { path = "../engines/quickjs" }
+tempfile.workspace = true

@@ -13,6 +13,10 @@ repository = "https://github.com/DelSkayn/rquickjs.git"
 [build-dependencies]
 cc = "1"
 
+# tests/provenance.rs hashes the engine sources against quickjs/REVISION.
+[dev-dependencies]
+sha2 = "0.10"
+
 [build-dependencies.bindgen-rs]
 package = "bindgen"
 version = "0.72"

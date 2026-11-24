@@ -540,6 +540,21 @@ fn a_held_loop_sleeps_until_work_is_posted() {
     assert_eq!(runtime.poll(Wait::Block), State::Idle);
 }
 
+/// Defect: under a memory limit, a script that caught the out-of-memory error went
+/// on running on an exhausted heap and the program ended normally.
+#[test]
+#[should_panic(expected = "the engine ran out of memory")]
+fn a_caught_out_of_memory_error_still_ends_the_program() {
+    let mut runtime = Runtime::<QuickJs, MemoryHost>::new(MemoryHost::default()).expect("event loop");
+    runtime.limits(Limits { memory: Some(8 << 20), stack: None });
+    runtime.start().expect("start");
+    let code = "const hoard = [];\n\
+                try { for (;;) hoard.push(new Array(65536).fill(1)); } catch { hoard.length = 0; }\n\
+                console.log('survived');";
+    runtime.load(Source::Text { name: String::from("main.js"), code: String::from(code) }).expect("load");
+    runtime.run();
+}
+
 #[test]
 fn a_watchdog_ends_a_script_that_overruns_its_budget() {
     use std::sync::atomic::Ordering;

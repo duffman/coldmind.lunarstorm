@@ -25,16 +25,39 @@ const DEBOUNCE: Duration = Duration::from_millis(80);
 /// The OS watcher could not start.
 fn watch(root: &Path) -> notify::Result<(RecommendedWatcher, Receiver<()>)> {
     let (tx, rx) = unbounded();
+    // Fix: `ignored` used to see the absolute path, so a root under any hidden
+    // ancestor (`~/.config/app`, a `.scratch` checkout) dropped every event and
+    // the dev loop never rebuilt. Only the part below the root is matched now.
+    // The root is canonicalized because macOS reports `/private/var/...` for a
+    // root given as `/var/...`; the given spelling is kept as a second prefix.
+    let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let given = root.to_path_buf();
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
         let Ok(event) = event else { return };
         let relevant = matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_))
-            && event.paths.iter().any(|p| !ignored(p));
+            && event.paths.iter().any(|p| !ignored(below_root(p, &canonical, &given)));
         if relevant {
             let _ = tx.send(());
         }
     })?;
     watcher.watch(root, RecursiveMode::Recursive)?;
     Ok((watcher, rx))
+}
+
+/// The part of an event path below the watched root.
+///
+/// # Arguments
+/// * `path` - path reported by the OS watcher.
+/// * `canonical` - canonicalized watch root.
+/// * `given` - watch root as passed to [`watch`].
+///
+/// # Returns
+/// `path` relative to whichever root spelling prefixes it, or `path` unchanged
+/// when neither does.
+fn below_root<'a>(path: &'a Path, canonical: &Path, given: &Path) -> &'a Path {
+    path.strip_prefix(canonical)
+        .or_else(|_| path.strip_prefix(given))
+        .unwrap_or(path)
 }
 
 /// Paths a build never depends on: hidden files and directories, editor swap and backup
@@ -153,5 +176,20 @@ mod tests {
         std::fs::write(dir.join("backend.js"), "x").unwrap();
         assert!(rx.recv_timeout(Duration::from_secs(5)).is_ok(), "no file event within 5 s");
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A project under a hidden ancestor directory (`~/.config/app`, a
+    /// `.scratch` checkout) still reports changes: only names below the
+    /// watched root are matched against the hidden-file rule.
+    #[test]
+    fn watcher_reports_a_change_under_a_hidden_ancestor() {
+        let base = std::env::temp_dir().join(format!("lunarstorm-watch-hidden-{}", std::process::id()));
+        let dir = base.join(".hidden-ancestor").join("project");
+        std::fs::create_dir_all(&dir).unwrap();
+        let (_w, rx) = watch(&dir).unwrap();
+        std::thread::sleep(Duration::from_millis(100));
+        std::fs::write(dir.join("backend.js"), "x").unwrap();
+        assert!(rx.recv_timeout(Duration::from_secs(5)).is_ok(), "no file event within 5 s");
+        std::fs::remove_dir_all(&base).unwrap();
     }
 }

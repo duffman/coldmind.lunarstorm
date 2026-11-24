@@ -253,6 +253,16 @@ impl<'js, T> Module<'js, T> {
     pub fn ctx(&self) -> &Ctx<'js> {
         &self.ctx
     }
+
+    /// lunarstorm patch: the module as an engine value (`JS_TAG_MODULE`), borrowed;
+    /// for native code that walks a compiled module, such as the debugger's marker
+    /// enumeration.
+    ///
+    /// # Returns
+    /// The value; valid while this module is alive. Its reference is not counted.
+    pub fn as_raw_value(&self) -> qjs::JSValue {
+        qjs::JS_MKPTR(qjs::JS_TAG_MODULE, self.as_ptr().cast())
+    }
 }
 
 impl<'js> Module<'js, Declared> {
@@ -262,11 +272,33 @@ impl<'js> Module<'js, Declared> {
         N: Into<Vec<u8>>,
         S: Into<Vec<u8>>,
     {
+        Self::declare_with_flags(ctx, name, source, 0)
+    }
+
+    /// lunarstorm patch: [`Module::declare`] with extra `JS_Eval` flags, such as
+    /// `JS_EVAL_FLAG_DEBUG` (statement markers for the debugger).
+    ///
+    /// # Arguments
+    /// * `ctx` - the context.
+    /// * `name` - the module name.
+    /// * `source` - the module source.
+    /// * `flags` - OR-ed into the module, strict and compile-only flags.
+    ///
+    /// # Returns
+    /// The declared, not yet evaluated module.
+    ///
+    /// # Errors
+    /// The engine's syntax error, or a name or source holding a NUL byte.
+    pub fn declare_with_flags<N, S>(ctx: Ctx<'js>, name: N, source: S, flags: i32) -> Result<Module<'js, Declared>>
+    where
+        N: Into<Vec<u8>>,
+        S: Into<Vec<u8>>,
+    {
         let name = CString::new(name)?;
         let flag =
             qjs::JS_EVAL_TYPE_MODULE | qjs::JS_EVAL_FLAG_STRICT | qjs::JS_EVAL_FLAG_COMPILE_ONLY;
 
-        let module_val = unsafe { ctx.eval_raw(source, name.as_c_str(), flag as i32)? };
+        let module_val = unsafe { ctx.eval_raw(source, name.as_c_str(), flag as i32 | flags)? };
         let module_val = unsafe { ctx.handle_exception(module_val)? };
         debug_assert_eq!(qjs::JS_TAG_MODULE, unsafe {
             qjs::JS_VALUE_GET_TAG(module_val)
@@ -433,7 +465,9 @@ impl<'js> Module<'js, Declared> {
             let base_name_c_str =
                 qjs::JS_AtomToCStringLen(ctx.as_ptr(), null_mut(), base_name.atom);
 
-            let res = qjs::JS_LoadModule(ctx.as_ptr(), base_name_c_str, specifier.as_ptr());
+            // lunarstorm patch: QuickJS-NG 0.17.0 takes the import attributes;
+            // `import(specifier)` from Rust has none.
+            let res = qjs::JS_LoadModule(ctx.as_ptr(), base_name_c_str, specifier.as_ptr(), qjs::JS_UNDEFINED);
 
             qjs::JS_FreeCString(ctx.as_ptr(), base_name_c_str);
 
