@@ -15,7 +15,7 @@
 //! - Call [`term::init`] once at startup; everything else reads the depths it set.
 //! - The script-facing half is shipped as source ([`UI_SOURCE`]) for the host to
 //!   compile as an ES module. It expects the host to provide, on
-//!   `__lunarstorm.internal`:
+//!   `lunarstorm:internal`:
 //!   - `ops.color` and `ops.tty` - `[stdout, stderr]` color depths ([`term::Depth`]
 //!     as integers) and tty flags;
 //!   - `ops.columns()`, `ops.live(on)` - [`term::columns`] and [`term::live`];

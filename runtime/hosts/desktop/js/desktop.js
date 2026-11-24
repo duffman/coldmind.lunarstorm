@@ -15,7 +15,7 @@
 //   after an `await` is sent without the host having to ask for a flush.
 // - Timers, `console` and the rest of the globals are the Runtime's own; this
 //   file adds nothing to the global object.
-const { ops } = __lunarstorm.internal;
+import { ops } from 'lunarstorm:internal';
 
 /** @type {Map<number, {resolve: Function, reject: Function}>} native calls in flight */
 const pending = new Map();

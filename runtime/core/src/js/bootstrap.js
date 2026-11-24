@@ -1,8 +1,9 @@
 // lunarstorm JS glue: the Node-compatible surface, built on the native `ops` object.
 //
 // This file is one function expression. The Runtime evaluates it once at startup,
-// calls it with `ops`, and keeps the returned hooks ({ dispatch, ticks, describe,
-// exitCode, invoke }). Every event the loop delivers enters through `dispatch`.
+// calls it with `ops`, and keeps what it returns: the hooks ({ dispatch, ticks,
+// describe, exitCode, invoke }) and the module registry ({ modules, internal,
+// exportsOf }). Every event the loop delivers enters through `dispatch`.
 //
 // `ops` holds the Runtime's own natives plus whatever the host registered. Host
 // natives are optional here: the glue reads them defensively (`ops.color`), so it
@@ -12,8 +13,9 @@
 // - Handles (sockets, servers) are identified by the reactor's slab key and looked up
 //   in the dense `handles` array.
 // - Hot paths (data, request, timers) avoid rest arrays and closures.
-// - Builtin modules are plain objects registered on the hidden `__lunarstorm` global; the
-//   module loader turns each into an ES module by re-exporting its keys.
+// - Builtin modules are plain objects in the returned `modules` registry; the module
+//   loader declares each as a native module (`default` is the object, every key a
+//   named export). Nothing is published on the global object.
 (function (ops) {
   'use strict';
 
@@ -1422,32 +1424,29 @@
     clearInterval: clearTimer,
     clearImmediate: globalThis.clearImmediate,
   };
-  Object.defineProperty(globalThis, '__lunarstorm', {
-    value: {
-      events: EventEmitter,
-      net,
-      http,
-      fs,
-      'fs/promises': fsPromises,
-      path,
-      process,
-      buffer: { Buffer },
-      timers: timersModule,
-      // Not importable: the builtin loader only serves the names above. Host
-      // modules reach their natives through it (`lunarstorm:ui` does), and the
-      // module loader asks `exportsOf` for a builtin's export names.
-      internal: {
-        ops,
-        live,
-        /**
-         * Lists the named exports of a builtin module.
-         * @param {string} name builtin name without the `node:` prefix
-         * @return {string} its keys, comma separated
-         */
-        exportsOf: (name) => Object.keys(globalThis.__lunarstorm[name]).join(', '),
-      },
-    },
-  });
+  /**
+   * The builtin modules by name (without the `node:` prefix). Decision: they are
+   * returned to the Runtime, not published on a global, so a script can reach them
+   * only through `import`, exactly like `lunarstorm:ipc`.
+   */
+  const modules = {
+    events: EventEmitter,
+    net,
+    http,
+    fs,
+    'fs/promises': fsPromises,
+    path,
+    process,
+    buffer: { Buffer },
+    timers: timersModule,
+  };
+
+  /**
+   * What `lunarstorm:internal` exports, for host modules only: the Runtime's natives
+   * plus whatever the host registered (`ops`), and the glue's live-region slot
+   * (`live`).
+   */
+  const internal = { ops, live };
 
   /**
    * Reduces a value to what crosses the host boundary: null, boolean, number,
@@ -1471,6 +1470,14 @@
   }
 
   return {
+    modules,
+    internal,
+    /**
+     * Lists the named exports of a builtin module.
+     * @param {string} name builtin name without the `node:` prefix
+     * @return {string} its keys, comma separated
+     */
+    exportsOf: (name) => Object.keys(modules[name]).join(','),
     dispatch,
     ticks,
     /**

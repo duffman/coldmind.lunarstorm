@@ -72,6 +72,18 @@ pub trait Host: 'static {
     /// (the CLI host) instead of being paid on every event.
     const PULSE: bool = false;
 
+    /// Whether scripts may `import` `lunarstorm:ipc`, the byte channel between the
+    /// program and the application that embeds it.
+    ///
+    /// Decision: a constant of the host type, `false` by default. A host that gives
+    /// its program no channel (the CLI host) does not see the specifier resolve at
+    /// all, which is a clearer failure than a module whose `send` always throws.
+    const IPC: bool = false;
+
+    /// Whether scripts may `import` `lunarstorm:worker` and start workers. A host
+    /// that sets it must also implement [`Host::worker_host`].
+    const WORKERS: bool = false;
+
     /// # Returns
     /// `process.argv`: by Node's convention the runtime's name, the script's name,
     /// then the script's arguments.
@@ -134,6 +146,31 @@ pub trait Host: 'static {
     /// # Arguments
     /// * `record` - the record.
     fn log(&self, record: Log<'_>);
+
+    /// Builds the host of a worker, on the worker's own thread.
+    ///
+    /// The Runtime calls this on the loop thread when a script calls `spawn`, and
+    /// calls the returned factory on the new thread, so the worker's host can hold
+    /// things that are not `Send`. A worker's host should make [`Host::exit`] end
+    /// that thread only.
+    ///
+    /// # Returns
+    /// The factory, or `None` when this host has no workers.
+    fn worker_host(&self) -> Option<Box<dyn FnOnce() -> Self + Send>>
+    where
+        Self: Sized,
+    {
+        None
+    }
+
+    /// Receives the bytes a script sends with `lunarstorm:ipc`'s `send`. Called on
+    /// the loop thread before `send` returns; only reached when [`Host::IPC`] is set.
+    ///
+    /// # Arguments
+    /// * `bytes` - the message; valid for the call only.
+    fn ipc_send(&self, bytes: &[u8]) {
+        let _ = bytes;
+    }
 
     /// Decides what an uncaught script error does: an exception thrown out of a
     /// callback, or a promise rejection nobody handled.

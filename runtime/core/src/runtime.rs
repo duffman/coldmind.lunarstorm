@@ -47,10 +47,13 @@
 //!   per [`POLL_GAP`], not once per step.
 
 use crate::bindings::Bindings;
+use crate::channel::{Channel, Inbox, Nudge};
+use crate::ipc::Ipc;
+use crate::worker::{Link, WorkerEvent, Workers};
 use crate::host::{Access, Host, Log};
 use lunarstorm_http1::{self as http, Body, Step};
 use crate::io::{flag, Deferred, Entry, Fault, Io, Shared, Wake, WAKER};
-use crate::modules::{Loader, Rejections};
+use crate::modules::{Loader, Registry, Rejections};
 use crate::ops;
 use crate::pool::{Pool, ResultMsg};
 use bytes::Buf;
@@ -248,6 +251,9 @@ pub struct Runtime<V: Vm, H: Host> {
     shared: Rc<Shared<H>>,
     /// Unhandled promise rejections, filled by the VM callbacks.
     rejections: Rejections<V>,
+    /// The builtin modules and internals the glue returned; handles into the heap,
+    /// cleared before the instance is destroyed.
+    registry: Rc<Registry<V>>,
     /// The readiness source.
     reactor: Poll,
     /// Readiness events of the current step.
@@ -260,6 +266,10 @@ pub struct Runtime<V: Vm, H: Host> {
     tasks: Receiver<Task<V>>,
     /// The sending side, cloned for each [`Runtime::poster`].
     poster: Poster<V>,
+    /// The `lunarstorm:ipc` channel and receiver.
+    ipc: Rc<Ipc<V>>,
+    /// The `lunarstorm:worker` children and, for a worker, the link to its parent.
+    workers: Rc<Workers<V>>,
     /// Limits for the instance `start` creates.
     limits: Limits,
     /// Id of the next `call`.
@@ -275,6 +285,15 @@ impl<V: Vm, H: Host> Drop for Runtime<V, H> {
     /// Releases the rejection reasons before the instance whose heap they live in.
     fn drop(&mut self) {
         self.rejections.borrow_mut().clear();
+        self.registry.clear();
+        // Workers end first: their listeners are persistent handles into the heap.
+        self.workers.shutdown(&self.shared.refs);
+        // The receiver is a persistent handle into the instance's heap.
+        self.ipc.clear(&self.shared.refs);
+        // Fix: an `Inbox` outliving the Runtime kept accepting messages nobody would
+        // ever read, so `post` returned `true` for them. Decision: dropping the
+        // Runtime closes the channel, so the host sees `false` from then on.
+        self.ipc.channel.close();
         self.engine = None;
     }
 }
@@ -303,18 +322,28 @@ impl<V: Vm, H: Host> Runtime<V, H> {
             host,
             calls: RefCell::new(Vec::new()),
             held: Cell::new(false),
+            refs: Cell::new(0),
+            stop: Cell::new(false),
+            terminated: Arc::default(),
+            entry_dir: RefCell::new(String::new()),
             pulse: Arc::default(),
         });
+        let pending = Arc::new(AtomicBool::new(false));
+        let ipc = Ipc::new(Nudge::new(waker.clone(), pending.clone()));
+        let workers = Workers::new(ipc.nudge_handle());
         Ok(Self {
             engine: None,
             shared,
             rejections: Rc::default(),
+            registry: Rc::default(),
             reactor,
             events: Events::with_capacity(EVENT_BATCH),
             scratch: vec![0u8; SCRATCH].into_boxed_slice(),
             bindings: Bindings::new(),
             tasks,
-            poster: Poster { tasks: sender, waker, pending: Arc::new(AtomicBool::new(false)) },
+            poster: Poster { tasks: sender, waker, pending },
+            ipc,
+            workers,
             limits: Limits::default(),
             next_call: 0,
             polls: 0,
@@ -356,6 +385,36 @@ impl<V: Vm, H: Host> Runtime<V, H> {
     /// A handle that posts tasks to this loop from any thread.
     pub fn poster(&self) -> Poster<V> {
         self.poster.clone()
+    }
+
+    /// Makes this Runtime a worker. Must run before [`Runtime::start`].
+    ///
+    /// # Arguments
+    /// * `link` - the way back to the parent.
+    /// * `inbound` - the channel the parent's messages arrive on; it replaces the
+    ///   Runtime's own `lunarstorm:ipc` queue, so a worker's `onMessage` reads it.
+    /// * `terminated` - the flag the parent sets to end this Runtime.
+    ///
+    /// # Panics
+    /// When the Runtime has already started: the state is shared with the VM then.
+    pub(crate) fn as_worker(&mut self, link: Link, inbound: Arc<Channel>, terminated: Arc<AtomicBool>) {
+        Rc::get_mut(&mut self.ipc).expect("a Runtime becomes a worker before it starts").channel = inbound;
+        Rc::get_mut(&mut self.shared).expect("a Runtime becomes a worker before it starts").terminated = terminated;
+        self.workers.attach(link);
+    }
+
+    /// # Returns
+    /// A handle that wakes this Runtime's loop from another thread.
+    pub(crate) fn nudge(&self) -> Nudge {
+        self.ipc.nudge_handle()
+    }
+
+    /// # Returns
+    /// The host's side of the program's `lunarstorm:ipc` channel, usable from any
+    /// thread. It exists whether or not the host type enables the module
+    /// ([`Host::IPC`]); a program that cannot import the module never reads it.
+    pub fn inbox(&self) -> Inbox {
+        self.ipc.inbox()
     }
 
     /// Queues a task for the next loop step. See [`Poster::post`].
@@ -410,7 +469,7 @@ impl<V: Vm, H: Host> Runtime<V, H> {
             return Err(String::from("the runtime is already started"));
         }
         let (installers, modules) = self.bindings.take();
-        let loader = Loader::new(self.shared.clone(), self.rejections.clone(), modules);
+        let loader = Loader::new(self.shared.clone(), self.rejections.clone(), modules, self.ipc.clone(), self.workers.clone(), self.registry.clone());
         let instance = V::Instance::new(&self.limits, loader)?;
         let context = instance.context()?;
         let shared = &self.shared;
@@ -425,6 +484,9 @@ impl<V: Vm, H: Host> Runtime<V, H> {
                 let bootstrap = scope.eval(BOOTSTRAP)?;
                 let hooks = scope.call(&bootstrap, &[ops])?;
                 let hook = |name: &str| scope.get(&hooks, name).map(|value| scope.persist(&value));
+                // The builtin modules and internals stay with the loader; nothing
+                // of them is published on the global object.
+                self.registry.set(hook("modules")?, hook("internal")?, hook("exportsOf")?);
                 Ok(Hooks {
                     dispatch: hook("dispatch")?,
                     ticks: hook("ticks")?,
@@ -469,6 +531,9 @@ impl<V: Vm, H: Host> Runtime<V, H> {
                 (Path::new(&base).join(name).to_string_lossy().into_owned(), code.into_bytes())
             }
         };
+        // Worker paths resolve against the directory of the entry module.
+        let directory = Path::new(&name).parent().map_or_else(|| String::from("/"), |parent| parent.to_string_lossy().into_owned());
+        *self.shared.entry_dir.borrow_mut() = directory;
         let namespace = self.enter(|turn, _, _, _| {
             let source = ModuleSource { source: code, meta: Some(ModuleMeta { filename: name.clone(), main: true }) };
             // The evaluation promise is dropped on purpose: a rejection (a throw at
@@ -595,6 +660,10 @@ impl<V: Vm, H: Host> Runtime<V, H> {
         });
         self.shared.io.borrow_mut().flush_stdout(&self.shared.host);
         self.rejections.borrow_mut().clear();
+        self.registry.clear();
+        self.workers.shutdown(&self.shared.refs);
+        self.ipc.clear(&self.shared.refs);
+        self.ipc.channel.close();
         self.engine = None;
         code.unwrap_or(0)
     }
@@ -614,7 +683,7 @@ impl<V: Vm, H: Host> Runtime<V, H> {
         &mut self,
         f: impl for<'a, 's> FnOnce(&mut Turn<'a, 's, V, H>, &mut Poll, &mut Events, &'a Hooks<V>) -> R,
     ) -> Result<R, String> {
-        let Self { engine, shared, rejections, reactor, events, scratch, tasks, poster, polls, polled, .. } = self;
+        let Self { engine, shared, rejections, reactor, events, scratch, tasks, poster, polls, polled, ipc, workers, .. } = self;
         let engine = engine.as_ref().ok_or_else(|| String::from("the runtime is not started"))?;
         let hooks = &engine.hooks;
         Ok(engine.context.enter(|scope| {
@@ -627,6 +696,8 @@ impl<V: Vm, H: Host> Runtime<V, H> {
                 rejections: &*rejections,
                 scratch,
                 tasks: &*tasks,
+                ipc: &**ipc,
+                workers: &**workers,
                 pending: &poster.pending,
                 polls,
                 polled,
@@ -695,6 +766,10 @@ struct Turn<'a, 's, V: Vm, H: Host> {
     scratch: &'a mut [u8],
     /// Tasks posted from other threads.
     tasks: &'a Receiver<Task<V>>,
+    /// The `lunarstorm:ipc` channel and receiver.
+    ipc: &'a Ipc<V>,
+    /// The `lunarstorm:worker` children.
+    workers: &'a Workers<V>,
     /// Set by a poster when the task queue became non-empty.
     pending: &'a AtomicBool,
     /// Kernel readiness polls made so far.
@@ -715,6 +790,11 @@ impl<'s, V: Vm, H: Host> Turn<'_, 's, V, H> {
     /// [`State::Idle`] when there was nothing to wait for; otherwise
     /// [`State::Running`] after the step.
     fn step(&mut self, reactor: &mut Poll, events: &mut Events, wait: Wait) -> State {
+        // A worker that called `close()` or was terminated ends at its next step,
+        // whatever is still armed or open.
+        if self.shared.stop.get() || self.shared.terminated.load(Ordering::Relaxed) {
+            return State::Idle;
+        }
         // Phase 1: timers.
         self.run_timers();
 
@@ -728,7 +808,7 @@ impl<'s, V: Vm, H: Host> Turn<'_, 's, V, H> {
                 (Some(Duration::ZERO), true)
             } else if let Some(deadline) = io.next_deadline() {
                 (Some(deadline.saturating_duration_since(host.monotonic())), false)
-            } else if io.alive() || self.shared.held.get() {
+            } else if io.alive() || self.shared.held.get() || self.shared.refs.get() > 0 {
                 (None, false)
             } else {
                 return State::Idle;
@@ -913,6 +993,11 @@ impl<'s, V: Vm, H: Host> Turn<'_, 's, V, H> {
     ///   exception.
     /// * `description` - the error as `console` would show it.
     fn uncaught(&self, in_promise: bool, description: &str) {
+        // The interrupt that ends a terminated worker surfaces as an uncaught error;
+        // that is the requested outcome, not a script error to report.
+        if self.shared.terminated.load(Ordering::Relaxed) {
+            return;
+        }
         let host = &self.shared.host;
         self.shared.io.borrow_mut().flush_stdout(host);
         host.uncaught(in_promise, description);
@@ -1012,6 +1097,59 @@ impl<'s, V: Vm, H: Host> Turn<'_, 's, V, H> {
             self.settle();
             self.beat();
             self.drain_deferred();
+        }
+        self.drain_messages();
+        self.drain_workers();
+    }
+
+    /// Hands the messages and exits of the workers this Runtime started to the
+    /// listeners and `exited` callbacks that wait for them, one JS entry each.
+    fn drain_workers(&mut self) {
+        while let Some(event) = self.workers.next_event(&self.scope, &self.shared.refs) {
+            let (function, args) = match event {
+                WorkerEvent::Message { listener, bytes } => match self.scope.bytes(bytes) {
+                    Ok(message) => (listener, vec![message]),
+                    Err(Thrown) => self.fatal(),
+                },
+                WorkerEvent::Exit { callback, state, message } => {
+                    let mut args = vec![self.text(state)];
+                    if let Some(message) = message {
+                        args.push(self.text(&message));
+                    }
+                    (callback, args)
+                }
+            };
+            self.beat();
+            if self.scope.call(&function, &args).is_err() {
+                self.raise();
+            }
+            self.settle();
+            self.beat();
+            self.drain_deferred();
+        }
+    }
+
+    /// Hands the messages the host posted to the script's receiver, one JS entry
+    /// each, in arrival order. With no receiver set they stay queued. Once the host
+    /// has closed the channel and the queue is empty, the receiver is released so it
+    /// no longer keeps the loop alive.
+    fn drain_messages(&mut self) {
+        while let Some(receiver) = self.ipc.receiver(&self.scope) {
+            let Some(bytes) = self.ipc.channel.take() else { break };
+            let message = match self.scope.bytes(bytes) {
+                Ok(message) => message,
+                Err(Thrown) => self.fatal(),
+            };
+            self.beat();
+            if self.scope.call(&receiver, &[message]).is_err() {
+                self.raise();
+            }
+            self.settle();
+            self.beat();
+            self.drain_deferred();
+        }
+        if self.ipc.channel.is_closed() && !self.ipc.channel.has_messages() {
+            self.ipc.clear(&self.shared.refs);
         }
     }
 
