@@ -1,0 +1,15 @@
+# Repository-wide Cargo configuration. Cargo merges `[profile.*]` here into the
+# profiles of the root `Cargo.toml`.
+#
+# Decision: integer-valued profile settings live here instead of in `Cargo.toml`.
+# trybuild (rquickjs's compile tests) copies the workspace manifest's `[profile]`
+# tables into its generated project through `serde_json::Value`; with serde_json's
+# `arbitrary_precision` on (rolldown_common enables it, and `cargo test --workspace`
+# unifies it into trybuild) integers come out as tables and cargo rejects the
+# manifest. Settings here never reach that copy. See the note on `[profile.release]`
+# in the root `Cargo.toml`.
+
+# One codegen unit for the release build and every profile that inherits it
+# (`release-node`, `platform`, `profiling`): slower to compile, faster code.
+[profile.release]
+codegen-units = 1
