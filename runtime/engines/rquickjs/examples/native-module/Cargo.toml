@@ -11,12 +11,7 @@ crate-type = ["cdylib"]
 [dependencies.rquickjs]
 path = "../.."
 default-features = false
-# lunarstorm patch: no `rust-alloc`. These examples are workspace members, so the
-# feature was unified into every engine of a workspace build and routed QuickJS's
-# malloc through the Rust global allocator there, which no Lunarstorm build does
-# (lunarstorm-debug's allocation-failure tests then failed only under
-# `cargo test --workspace`). The examples run the same on the libc allocator.
-features = ["futures", "std"]
+features = ["futures", "rust-alloc", "std"]
 
 [features]
 default = ["macro"]

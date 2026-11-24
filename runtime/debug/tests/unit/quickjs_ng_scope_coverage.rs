@@ -485,7 +485,17 @@ fn owner_copy_allocation_failures_release_native_string_and_compiler_buffers() {
         let (result, fired) =
             crate::vm::test_allocator::fail_nth(0, || scope.compiled_payload(&compiled, false));
         assert!(fired);
-        assert_eq!(result.unwrap_err().code, FailureCode::Capacity);
+        // lunarstorm patch (expectation approved by the user, 2026-11-24): with
+        // rquickjs-core's `rust-alloc`, QuickJS allocates through the Rust global
+        // allocator, so allocation #0 is the native writer's and reports jetbunny's
+        // class for a native allocation failure, EngineFailure (`pending_fault`).
+        // On the libc allocator #0 is the Rust copy buffer: Capacity.
+        let expected = if rquickjs_core::RUST_ALLOC {
+            FailureCode::EngineFailure
+        } else {
+            FailureCode::Capacity
+        };
+        assert_eq!(result.unwrap_err().code, expected);
         assert!(!scope.compiled_payload(&compiled, false).unwrap().is_empty());
     });
 }

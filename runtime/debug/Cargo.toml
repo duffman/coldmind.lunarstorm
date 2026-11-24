@@ -26,6 +26,11 @@ qjs-compiler-core = { path = "../compiler/crates/qjs-compiler-core", optional = 
 qjs-frontend = { path = "../compiler/crates/qjs-frontend", optional = true }
 qjs-bytecode = { path = "../compiler/crates/qjs-bytecode", optional = true }
 
+# jetbunny's allocator test needs its own binary; see the file.
+[[test]]
+name = "jetbunny_copy_alloc"
+path = "tests/jetbunny_copy_alloc.rs"
+
 [features]
 default = ["quickjs-ng"]
 # jetbunny's QuickJS-NG adapter and debug backend (`engines::quickjs_ng`) over the
