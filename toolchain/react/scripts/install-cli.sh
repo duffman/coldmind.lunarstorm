@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the unified `devtools` CLI and symlink it onto PATH.
+# Build the `lunarstorm` CLI (frontend tools included) and symlink it onto PATH.
 # Usage: scripts/install-cli.sh [--debug]
 # Env:   BIN_DIR (default ~/.local/bin)
 # The link points into cargo's target dir, so later `cargo build`s update the command in place.
@@ -16,15 +16,15 @@ fi
 
 bin_dir="${BIN_DIR:-$HOME/.local/bin}"
 
-cargo build $flag -p devtools-cli --bin devtools
+cargo build $flag -p lunarstorm --bin lunarstorm
 
 target_dir="$(cargo metadata --format-version 1 --no-deps | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')"
-binary="$target_dir/$profile/devtools"
+binary="$target_dir/$profile/lunarstorm"
 [[ -x "$binary" ]] || { echo "install-cli.sh: $binary not found" >&2; exit 1; }
 
 mkdir -p "$bin_dir"
-ln -sfn "$binary" "$bin_dir/devtools"
-echo "devtools -> $binary"
+ln -sfn "$binary" "$bin_dir/lunarstorm"
+echo "lunarstorm -> $binary"
 
 case ":$PATH:" in
   *":$bin_dir:"*) ;;

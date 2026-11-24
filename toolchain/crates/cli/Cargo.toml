@@ -3,16 +3,21 @@ name = "devtools-cli"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
-description = "jetbunny --serve, --build, --preview and --transpile: development server, production build, preview, and standalone transpilation"
-# tests/ run against the jetbunny binary as targets of the root crate.
-autotests = false
-
+description = "lunarstorm serve, bundle, preview and transpile: frontend development server, production bundles, preview and standalone transpilation"
+# The frontend tools as a package of the `lunarstorm` command line (`serve`, `bundle`,
+# `preview`, `transpile`), mounted by apps/lunarstorm behind its `frontend` feature.
+#
+# Decision: the former `jetbunny` binary (and the root crate of the old toolchain
+# workspace that built it) did not survive the monorepo merge; the crate was left
+# library-only and its end-to-end tests could not compile. Its commands now live on
+# `lunarstorm`, and those tests run against that binary in apps/lunarstorm/tests.
 [lib]
 name = "devtools_cli"
 path = "src/lib.rs"
 
 [dependencies]
 anyhow.workspace = true
+lunarstorm-cli-contract = { path = "../../../crates/cli-contract" }
 devtools_core.workspace = true
 devtools_server.workspace = true
 devtools_bundler.workspace = true

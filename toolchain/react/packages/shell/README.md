@@ -117,7 +117,7 @@ On the server, a page's `app:<name>` message goes to every other page and to the
 
 ```sh
 cd packages/tools/devtools
-PATH="$HOME/.cargo/bin:$PATH" cargo run -p devtools-cli -- dev examples/react-shell
+PATH="$HOME/.cargo/bin:$PATH" cargo run -p lunarstorm -- serve examples/react-shell
 ```
 
 Edit `examples/react-shell/src/App.tsx` while the server runs: component state survives. Throw in render and

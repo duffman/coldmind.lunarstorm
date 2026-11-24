@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "cargo run -p devtools-cli -- dev",
-    "build": "cargo build -p devtools-cli --release",
+    "dev": "cargo run -p lunarstorm -- serve",
+    "build": "cargo build -p lunarstorm --release",
     "build:native": "bun run --cwd packages/bun build:native",
     "test:rust": "cargo test --workspace",
     "test:bun": "bun run --cwd packages/bun test",
@@ -19,9 +19,12 @@
   "devDependencies": {
     "@coldmind/devtools": "workspace:*",
     "@coldmind/devtools-shell": "workspace:*",
+    "@tailwindcss/node": "^4.3.5",
+    "@tailwindcss/oxide": "^4.3.5",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "tailwindcss": "^4.3.5"
   }
 }

@@ -126,7 +126,7 @@ fn completion_follows_the_tree() {
     let (_, script, _) = run(&["completions", "zsh"], None);
     assert!(script.starts_with("autoload -U +X bashcompinit"), "{script}");
 
-    assert_eq!(run(&["__complete", "bu"], None).1, "build\n");
+    assert_eq!(run(&["__complete", "bui"], None).1, "build\n");
     assert_eq!(run(&["__complete", "build", ""], None).1, "types\ncheck\n");
     assert_eq!(run(&["__complete", "build", "types", "--pro"], None).1, "--project\n");
     assert_eq!(run(&["__complete", "--color", ""], None).1, "auto\nalways\nnever\n");
