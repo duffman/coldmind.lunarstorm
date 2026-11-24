@@ -34,13 +34,15 @@ use lunarstorm_vm::{
 use rquickjs::class::{JsClass, Readable, Trace, Tracer};
 use rquickjs::function::{Constructor, IntoJsFunc, ParamRequirement, Params};
 use rquickjs::loader::{ImportAttributes, Loader, Resolver};
-use rquickjs::module::Declared;
+use rquickjs::module::{Declarations, Declared, ModuleDef};
 use rquickjs::runtime::RejectionTracker;
 use rquickjs::{
     qjs, Array, Class, Ctx, Error, Exception, Function, JsLifetime, Module, Object, Persistent,
     String as JsString, Type, TypedArray, Value,
 };
 use std::any::Any;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::mem::MaybeUninit;
 use std::path::Path;
 use std::rc::Rc;
@@ -212,8 +214,78 @@ impl<C: Callbacks<QuickJs>> Loader for Loading<C> {
         match self.0.load(ctx, name) {
             Ok(Load::Ready(source)) => declare(ctx, name, source),
             Ok(Load::Later(_)) => Err(Error::new_loading_message(name, "QuickJS loads modules synchronously")),
+            Ok(Load::Native) => Module::declare_def::<NativeDef, _>(ctx.clone(), name),
             Err(message) => Err(Error::new_loading_message(name, message)),
         }
+    }
+}
+
+/// The exports of native modules that were declared by [`Scope::native_module`] and
+/// not yet evaluated, by canonical module name.
+///
+/// Decision: rquickjs's `ModuleDef` is a static trait (no `self`), so the values of
+/// one module cannot travel in the definition. They wait here, in the context's
+/// userdata, between the callback that built them (`Loader::load`) and the engine's
+/// evaluation of the module (`NativeDef::evaluate`), which takes them out. Dropped
+/// alternative: building the C module by hand with `JS_NewCModule`, which needs the
+/// binding's private `Module::from_ptr` to return the module to the loader.
+#[derive(Default)]
+struct NativePending(RefCell<HashMap<String, Exports>>);
+
+/// The `(export name, value)` pairs of one native module.
+type Exports = Vec<(String, Persistent<Value<'static>>)>;
+
+// SAFETY: `NativePending` holds no scoped handles: persistent handles are `'static`
+// and everything else is owned text, so it is the same type under any lifetime.
+unsafe impl<'js> JsLifetime<'js> for NativePending {
+    type Changed<'to> = NativePending;
+}
+
+/// The one native module definition: it declares and fills whatever
+/// [`Scope::native_module`] stored under the module's name.
+struct NativeDef;
+
+impl ModuleDef for NativeDef {
+    /// Declares the export names stored for this module.
+    ///
+    /// # Arguments
+    /// * `decl` - the module being declared.
+    ///
+    /// # Errors
+    /// An error when nothing is stored for the module's name (a `Load::Native` answer
+    /// without a prior `native_module` call).
+    fn declare<'js>(decl: &Declarations<'js>) -> rquickjs::Result<()> {
+        let module = decl.module();
+        let name = module.name::<String>()?;
+        let ctx = module.ctx();
+        let pending = ctx.userdata::<NativePending>().ok_or(Error::Unknown)?;
+        let pending = pending.0.borrow();
+        let exports = pending.get(&name).ok_or_else(|| Error::new_loading_message(&name, "no native module was declared under this name"))?;
+        for (export, _) in exports {
+            decl.declare(export.as_str())?;
+        }
+        Ok(())
+    }
+
+    /// Sets the export values; each importer then sees the same values.
+    ///
+    /// # Arguments
+    /// * `ctx` - the context.
+    /// * `exports` - the module being evaluated.
+    ///
+    /// # Errors
+    /// An error when the stored values are gone or belong to another instance.
+    fn evaluate<'js>(ctx: &Ctx<'js>, exports: &rquickjs::module::Exports<'js>) -> rquickjs::Result<()> {
+        let name = exports.module().name::<String>()?;
+        let values = {
+            let pending = ctx.userdata::<NativePending>().ok_or(Error::Unknown)?;
+            let taken = pending.0.borrow_mut().remove(&name);
+            taken.ok_or_else(|| Error::new_loading_message(&name, "native module evaluated twice"))?
+        };
+        for (export, value) in values {
+            exports.export(export, value.restore(ctx)?)?;
+        }
+        Ok(())
     }
 }
 
@@ -564,6 +636,21 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
             Ok((module.namespace()?.into_value(), promise.into_value()))
         };
         run().map_err(|error| thrown(self, error))
+    }
+
+    /// Stores the exports under the module's name; the loader then declares the C
+    /// module from them (`Load::Native`).
+    fn native_module(&self, name: &str, exports: &[(&str, Value<'s>)]) -> Outcome<()> {
+        let stored = exports.iter().map(|(export, value)| ((*export).to_owned(), Persistent::save(self, value.clone()))).collect();
+        let store = || -> Result<(), Error> {
+            if self.userdata::<NativePending>().is_none() {
+                self.store_userdata(NativePending::default()).map_err(|_| Error::Unknown)?;
+            }
+            let pending = self.userdata::<NativePending>().ok_or(Error::Unknown)?;
+            pending.0.borrow_mut().insert(name.to_owned(), stored);
+            Ok(())
+        };
+        store().map_err(|error| thrown(self, error))
     }
 
     /// QuickJS never hands out a ticket, so there is nothing to complete.

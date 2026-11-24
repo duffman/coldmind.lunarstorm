@@ -192,6 +192,16 @@ pub enum Load {
     /// The source will be delivered with [`Scope::complete_load`] under this ticket.
     /// Only valid when [`Capabilities::async_module_load`] is set.
     Later(u64),
+    /// The module is native: the callback has already declared it with
+    /// [`Scope::native_module`] under the name it was asked to load, and the engine
+    /// takes it from there. Its exports are values the host built, not source text.
+    ///
+    /// Decision: the answer carries no payload because the values belong to a scope
+    /// (`V::Value<'s>`), which would make [`Load`] generic over the VM and break its
+    /// derives. The alternative that was dropped, `Load::Native(Vec<export names>)`
+    /// plus a second callback to fill them in, needs a module handle type in the
+    /// contract for no gain: `load` already holds the scope.
+    Native,
 }
 
 /// One invocation of a native function: the context handle and the arguments.
@@ -640,6 +650,26 @@ pub trait Scope<'s, V: Vm>: Clone {
     /// # Errors
     /// [`Thrown`] on a syntax error or a failed import.
     fn module(&self, name: &str, source: ModuleSource) -> Outcome<(V::Value<'s>, V::Value<'s>)>;
+
+    /// Declares a native module: an ES module whose exports are values the host built
+    /// (usually functions made with [`Scope::function`]) instead of source text.
+    ///
+    /// Call it from [`Callbacks::load`] for the module being loaded and answer
+    /// [`Load::Native`]. The module is evaluated like any other, once per instance, so
+    /// every importer sees the same export values.
+    ///
+    /// # Arguments
+    /// * `name` - the canonical name [`Callbacks::load`] was asked for.
+    /// * `exports` - `(export name, value)` pairs; the values are kept alive by the
+    ///   engine for the life of the module.
+    ///
+    /// # Errors
+    /// [`Thrown`] when the engine cannot declare the module, or (the default) when
+    /// the adapter has no native modules.
+    fn native_module(&self, name: &str, exports: &[(&str, V::Value<'s>)]) -> Outcome<()> {
+        let _ = (name, exports);
+        Err(self.throw_error(ErrorKind::Error, "this engine has no native modules"))
+    }
 
     /// Delivers the source promised by [`Load::Later`].
     ///

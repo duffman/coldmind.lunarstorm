@@ -23,6 +23,8 @@
 
 use crate::host::{Access, Host};
 use crate::io::Shared;
+use crate::ipc::{Ipc, MODULE as IPC_MODULE};
+use crate::worker::{Workers, MODULE as WORKER_MODULE, NATIVE_MODULE as WORKER_NATIVE, SOURCE as WORKER_SOURCE};
 use lunarstorm_vm::{Callbacks, Load, ModuleMeta, ModuleSource, Scope, Vm};
 use std::cell::RefCell;
 use std::path::Path;
@@ -43,6 +45,10 @@ pub struct Loader<V: Vm, H: Host> {
     rejections: Rejections<V>,
     /// `(specifier, source)` of the modules the host registered.
     modules: Vec<(&'static str, &'static str)>,
+    /// The `lunarstorm:ipc` channel, for the module's exports.
+    ipc: Rc<Ipc<V>>,
+    /// The `lunarstorm:worker` state, for the module's natives.
+    workers: Rc<Workers<V>>,
 }
 
 impl<V: Vm, H: Host> Loader<V, H> {
@@ -50,11 +56,13 @@ impl<V: Vm, H: Host> Loader<V, H> {
     /// * `shared` - loop state and host.
     /// * `rejections` - list the loop drains after each JS entry.
     /// * `modules` - host modules from the registered bindings.
+    /// * `ipc` - the Runtime's `lunarstorm:ipc` state.
+    /// * `workers` - the Runtime's `lunarstorm:worker` state.
     ///
     /// # Returns
     /// The callbacks to hand to the VM instance.
-    pub fn new(shared: Rc<Shared<H>>, rejections: Rejections<V>, modules: Vec<(&'static str, &'static str)>) -> Self {
-        Self { shared, rejections, modules }
+    pub fn new(shared: Rc<Shared<H>>, rejections: Rejections<V>, modules: Vec<(&'static str, &'static str)>, ipc: Rc<Ipc<V>>, workers: Rc<Workers<V>>) -> Self {
+        Self { shared, rejections, modules, ipc, workers }
     }
 
     /// Generates the source of a builtin module from the glue's export object.
@@ -93,6 +101,14 @@ impl<V: Vm, H: Host> Callbacks<V> for Loader<V, H> {
         if self.modules.iter().any(|(specifier, _)| *specifier == name) {
             return Ok(name.to_owned());
         }
+        // Only a host that gave its program a channel serves `lunarstorm:ipc`.
+        if H::IPC && name == IPC_MODULE {
+            return Ok(name.to_owned());
+        }
+        // `lunarstorm:worker` is JS over natives that only it may import.
+        if H::WORKERS && (name == WORKER_MODULE || (name == WORKER_NATIVE && base == WORKER_MODULE)) {
+            return Ok(name.to_owned());
+        }
         let bare = name.strip_prefix("node:").unwrap_or(name);
         if BUILTINS.contains(&bare) {
             return Ok(format!("node:{bare}"));
@@ -125,6 +141,32 @@ impl<V: Vm, H: Host> Callbacks<V> for Loader<V, H> {
     fn load<'s>(&self, scope: &V::Scope<'s>, name: &str) -> Result<Load, String> {
         if let Some((_, source)) = self.modules.iter().find(|(specifier, _)| *specifier == name) {
             return Ok(Load::Ready(ModuleSource { source: source.as_bytes().to_vec(), meta: None }));
+        }
+        if H::IPC && name == IPC_MODULE {
+            // A native module: its exports are closures over this Runtime's state.
+            let exports = self.ipc.exports(scope, &self.shared).map_err(|_| {
+                let _ = scope.exception();
+                String::from("cannot create the exports of lunarstorm:ipc")
+            })?;
+            scope.native_module(name, &exports).map_err(|_| {
+                let _ = scope.exception();
+                String::from("cannot declare lunarstorm:ipc")
+            })?;
+            return Ok(Load::Native);
+        }
+        if H::WORKERS && name == WORKER_MODULE {
+            return Ok(Load::Ready(ModuleSource { source: WORKER_SOURCE.as_bytes().to_vec(), meta: None }));
+        }
+        if H::WORKERS && name == WORKER_NATIVE {
+            let exports = self.workers.exports(scope, &self.shared, &self.ipc).map_err(|_| {
+                let _ = scope.exception();
+                String::from("cannot create the exports of lunarstorm:worker")
+            })?;
+            scope.native_module(name, &exports).map_err(|_| {
+                let _ = scope.exception();
+                String::from("cannot declare lunarstorm:worker")
+            })?;
+            return Ok(Load::Native);
         }
         if let Some(builtin) = name.strip_prefix("node:") {
             let source = Self::builtin_source(scope, builtin).ok_or_else(|| String::from("builtin is unavailable"))?;
