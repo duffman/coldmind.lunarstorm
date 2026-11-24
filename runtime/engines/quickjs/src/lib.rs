@@ -410,12 +410,12 @@ impl<C: Callbacks<QuickJs>> Loader for Loading<C> {
 /// # Errors
 /// The engine's syntax error.
 fn declare<'js>(ctx: &Ctx<'js>, name: &str, source: ModuleSource) -> rquickjs::Result<Module<'js, Declared>> {
-    let module = if source.bytecode {
-        // SAFETY: the contract makes bytecode trusted input written by
+    let module = if let Some(image) = &source.image {
+        // SAFETY: an `Image` comes only from a verified package or from
         // `Scope::compile` of this same adapter and engine (same `Descriptor`).
         // Decision: packaged bytecode has no statement markers, so it is not
         // registered with a debugger.
-        unsafe { Module::load(ctx.clone(), &source.source)? }
+        unsafe { Module::load(ctx.clone(), image.bytes())? }
     } else {
         // While a session is open the source is staged, so jetbunny's compiler
         // callback registers it under its file URI and source map; the callback then

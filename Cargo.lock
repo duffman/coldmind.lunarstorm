@@ -3320,6 +3320,7 @@ name = "lunarstorm-vm"
 version = "0.1.0"
 dependencies = [
  "lunarstorm-debug",
+ "lunarstorm-jbn",
 ]
 
 [[package]]

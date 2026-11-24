@@ -196,6 +196,43 @@ fn jbn_packages_are_built_signed_and_run_only_when_trusted() {
     assert!(err.contains("untrusted package"), "{err}");
 }
 
+/// A package whose bytecode was altered after signing is refused by `run` before
+/// any of it is loaded: the blob digest no longer matches the signed manifest.
+/// Plan step 9 (bytecode trust): the engine does not validate bytecode, so the
+/// package check is the only thing between a file and `Module::load`.
+#[cfg(feature = "runtime")]
+#[test]
+fn a_package_with_a_flipped_bytecode_byte_is_refused_before_it_runs() {
+    let dir = scratch("jbn-tampered");
+    let source = dir.join("src");
+    std::fs::create_dir_all(&source).expect("src");
+    std::fs::write(source.join("main.js"), "console.log('ran');\n").expect("main");
+    let (key, trust, package) = (dir.join("signing.der"), dir.join("trust.json"), dir.join("app.jbn"));
+    let text = |p: &Path| p.to_str().expect("utf-8 path").to_owned();
+    let (status, trust_file, err) = run(&["jbn", "key", &text(&key)], None);
+    assert_eq!(status, 0, "{err}");
+    std::fs::write(&trust, &trust_file).expect("trust file");
+    let (status, _, err) = run(&["jbn", "build", &text(&source.join("main.js")), "-o", &text(&package), "--key", &text(&key)], None);
+    assert_eq!(status, 0, "{err}");
+    let (status, out, err) = run(&["run", "--trust", &text(&trust), &text(&package)], None);
+    assert_eq!((status, out.as_str()), (0, "ran\n"), "the untampered package runs: {err}");
+
+    // Container layout (runtime/jbn): a 64-byte header with the manifest and
+    // signature lengths at 8 and 16, then manifest, signature, zero padding to 8,
+    // and the payload, whose first blob is the entry module's bytecode.
+    let mut bytes = std::fs::read(&package).expect("package");
+    let length = |at: usize| u64::from_le_bytes(bytes[at..at + 8].try_into().expect("8 bytes")) as usize;
+    let payload = (64 + length(8) + length(16)).next_multiple_of(8);
+    assert!(payload < bytes.len(), "the package has a payload");
+    bytes[payload] ^= 0x01;
+    std::fs::write(&package, &bytes).expect("tampered package");
+
+    let (status, out, err) = run(&["run", "--trust", &text(&trust), &text(&package)], None);
+    assert_ne!(status, 0, "a tampered package must not run: {out}{err}");
+    assert_eq!(out, "", "nothing of the tampered package ran");
+    assert!(err.contains("digest does not match"), "{err}");
+}
+
 /// One DAP message on the wire: `Content-Length` framing around JSON.
 ///
 /// # Arguments

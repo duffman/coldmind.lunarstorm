@@ -178,20 +178,61 @@ pub struct ModuleMeta {
     pub main: bool,
 }
 
-/// A module as handed to the engine: source text, or bytecode the same engine
-/// wrote with [`Scope::compile`].
+/// Bytecode an engine may load as a module ([`ModuleSource::image`]).
+///
+/// Decision (lunarstorm patch, bytecode trust): the engine does not validate
+/// bytecode, so the type admits only two trusted origins and its bytes are
+/// private: a module of a `.jbn` package, which exists only after
+/// `Package::open` checked its signature and every blob digest, and an image
+/// this process's engine wrote with [`Image::compile`]. An unverified buffer
+/// cannot reach the engine's bytecode loader. Before, `ModuleSource` carried a
+/// `bytecode: bool` that any caller could set over any bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Image(Vec<u8>);
+
+impl Image {
+    /// A module's bytecode from a verified package.
+    ///
+    /// # Arguments
+    /// * `package` - a package `Package::open` verified.
+    /// * `module` - the module's name in its manifest.
+    ///
+    /// # Returns
+    /// The image, or `None` when the package has no such module.
+    pub fn from_package(package: &lunarstorm_jbn::Package, module: &str) -> Option<Image> {
+        package.bytecode(module).map(|bytes| Image(bytes.to_vec()))
+    }
+
+    /// Compiles a module with [`Scope::compile`] and keeps its bytecode as an image.
+    ///
+    /// # Arguments
+    /// * `scope` - the engine that writes the image.
+    /// * `name` - the canonical name the module will be loaded under.
+    /// * `source` - its source text.
+    ///
+    /// # Errors
+    /// What [`Scope::compile`] reports.
+    pub fn compile<'s, V: Vm, S: Scope<'s, V>>(scope: &S, name: &str, source: ModuleSource) -> Outcome<Image> {
+        scope.compile(name, source).map(Image)
+    }
+
+    /// # Returns
+    /// The bytecode.
+    pub fn bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+/// A module as handed to the engine: source text, or an [`Image`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModuleSource {
-    /// The source bytes (UTF-8), or bytecode when `bytecode` is set.
+    /// The source bytes (UTF-8); ignored when `image` is set.
     pub source: Vec<u8>,
     /// `import.meta` contents; `None` for generated modules.
     pub meta: Option<ModuleMeta>,
-    /// `source` is bytecode from [`Scope::compile`] of an engine with the same
+    /// Bytecode to load instead of `source`, written by an engine with the same
     /// [`Descriptor`]. Only valid when [`Capabilities::bytecode_cache`] is set.
-    ///
-    /// Decision: bytecode is trusted input; the engine does not validate it.
-    /// Whoever hands it over (a signed package) has verified where it came from.
-    pub bytecode: bool,
+    pub image: Option<Image>,
     /// Source Map v3 JSON from `source` to the file it was made from (TypeScript),
     /// for an attached debugger; `None` when `source` is the file itself.
     pub source_map: Option<String>,
@@ -733,7 +774,7 @@ pub trait Scope<'s, V: Vm>: Clone {
     /// * `source` - its source text.
     ///
     /// # Returns
-    /// The bytecode, loadable with [`ModuleSource::bytecode`] set.
+    /// The bytecode; [`Image::compile`] makes it loadable as [`ModuleSource::image`].
     ///
     /// # Errors
     /// [`Thrown`] on a syntax error, or when the engine lacks

@@ -8,3 +8,5 @@ description = "The VM interface of the Lunarstorm runtime: the contract a JavaSc
 # The debugger protocol types an engine adapter hands out (`VmDebugHandle`), without
 # any engine: the QuickJS backend is enabled by the adapter, not here.
 lunarstorm-debug = { path = "../debug", default-features = false }
+# `Image::from_package`: bytecode reaches an engine only from a verified package.
+lunarstorm-jbn = { path = "../jbn" }

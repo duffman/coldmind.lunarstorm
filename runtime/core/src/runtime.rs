@@ -56,7 +56,7 @@ use crate::pool::{Pool, ResultMsg};
 use bytes::Buf;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use lunarstorm_vm::{
-    Context, Instance, Interrupt, Kind, Limits, ModuleMeta, ModuleSource, Outcome, Scope, Thrown, Vm,
+    Context, Image, Instance, Interrupt, Kind, Limits, ModuleMeta, ModuleSource, Outcome, Scope, Thrown, Vm,
 };
 use mio::event::Event;
 use mio::{Events, Poll, Waker};
@@ -505,16 +505,16 @@ impl<V: Vm, H: Host> Runtime<V, H> {
     /// host's policy refuses it, or a package is for another engine or a second
     /// package is loaded.
     pub fn load(&mut self, source: Source) -> Result<(), String> {
-        let (name, code, bytecode) = match source {
+        let (name, code, image) = match source {
             Source::File(path) => {
                 let (name, code) = self.read(&path)?;
                 // TypeScript, JSON and CommonJS entries become ES modules like any import.
-                (name.clone(), self.sources.entry(&name, code, true, &loader::builtin).map_err(|e| e.to_string())?, false)
+                (name.clone(), self.sources.entry(&name, code, true, &loader::builtin).map_err(|e| e.to_string())?, None)
             }
             Source::Text { name, code } => {
                 let base = self.shared.host.working_directory();
                 let name = Path::new(&base).join(name).to_string_lossy().into_owned();
-                (name.clone(), self.sources.entry(&name, code.into_bytes(), false, &loader::builtin).map_err(|e| e.to_string())?, false)
+                (name.clone(), self.sources.entry(&name, code.into_bytes(), false, &loader::builtin).map_err(|e| e.to_string())?, None)
             }
             Source::Package(package) => {
                 let manifest = package.manifest();
@@ -522,14 +522,14 @@ impl<V: Vm, H: Host> Runtime<V, H> {
                     return Err(format!("{} is built for {}, this runtime is {}", manifest.name, manifest.engine, engine::<V>()));
                 }
                 let name = manifest.entry.clone();
-                let code = package.bytecode(&name).expect("a verified package holds its entry").to_vec();
+                let image = Image::from_package(&package, &name).expect("a verified package holds its entry");
                 self.package.set(package).map_err(|_| String::from("a package is already loaded"))?;
-                (name, code, true)
+                (name, Vec::new(), Some(image))
             }
         };
-        let source_map = if bytecode { None } else { self.sources.source_map(&name) };
+        let source_map = if image.is_some() { None } else { self.sources.source_map(&name) };
         let namespace = self.enter(|turn, _, _, _| {
-            let source = ModuleSource { source: code, meta: Some(ModuleMeta { filename: name.clone(), main: true }), bytecode, source_map };
+            let source = ModuleSource { source: code, meta: Some(ModuleMeta { filename: name.clone(), main: true }), image, source_map };
             // The evaluation promise is dropped on purpose: a rejection (a throw at
             // top level) reaches the rejection callback like any other.
             turn.entry();
@@ -604,7 +604,7 @@ impl<V: Vm, H: Host> Runtime<V, H> {
             graph
                 .into_iter()
                 .map(|(module, text, table)| {
-                    let source = ModuleSource { source: text.into_bytes(), meta: None, bytecode: false, source_map: None };
+                    let source = ModuleSource { source: text.into_bytes(), meta: None, image: None, source_map: None };
                     match turn.scope.compile(&module, source) {
                         Ok(bytecode) => Ok((module, bytecode, table)),
                         Err(Thrown) => Err(format!("{module}: {}", exception_text::<V>(&turn.scope))),

@@ -29,7 +29,7 @@
 use crate::host::{Access, Host};
 use crate::io::Shared;
 use lunarstorm_modules::{FACADE, Modules, REQUIRE};
-use lunarstorm_vm::{Callbacks, Load, ModuleMeta, ModuleSource, Scope, Vm};
+use lunarstorm_vm::{Callbacks, Image, Load, ModuleMeta, ModuleSource, Scope, Vm};
 use lunarstorm_jbn::Package;
 use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
@@ -203,20 +203,20 @@ impl<V: Vm, H: Host> Callbacks<V> for Loader<V, H> {
     /// A message when the host's policy refuses the file or it cannot be read.
     fn load<'s>(&self, scope: &V::Scope<'s>, name: &str) -> Result<Load, String> {
         if let Some((_, source)) = self.modules.iter().find(|(specifier, _)| *specifier == name) {
-            return Ok(Load::Ready(ModuleSource { source: source.as_bytes().to_vec(), meta: None, bytecode: false, source_map: None }));
+            return Ok(Load::Ready(ModuleSource { source: source.as_bytes().to_vec(), meta: None, image: None, source_map: None }));
         }
         if let Some(builtin) = name.strip_prefix("node:") {
             let source = Self::builtin_source(scope, builtin).ok_or_else(|| String::from("builtin is unavailable"))?;
-            return Ok(Load::Ready(ModuleSource { source: source.into_bytes(), meta: None, bytecode: false, source_map: None }));
+            return Ok(Load::Ready(ModuleSource { source: source.into_bytes(), meta: None, image: None, source_map: None }));
         }
         let filename = name.strip_suffix(FACADE).unwrap_or(name).to_owned();
-        if let Some(bytecode) = self.package.get().and_then(|package| package.bytecode(name)) {
+        if let Some(image) = self.package.get().and_then(|package| Image::from_package(package, name)) {
             let meta = Some(ModuleMeta { filename, main: false });
-            return Ok(Load::Ready(ModuleSource { source: bytecode.to_vec(), meta, bytecode: true, source_map: None }));
+            return Ok(Load::Ready(ModuleSource { source: Vec::new(), meta, image: Some(image), source_map: None }));
         }
         let source = self.sources.load(name, &|specifier| self.native(specifier)).map_err(|e| e.to_string())?;
         let source_map = self.sources.source_map(name);
-        Ok(Load::Ready(ModuleSource { source, meta: Some(ModuleMeta { filename, main: false }), bytecode: false, source_map }))
+        Ok(Load::Ready(ModuleSource { source, meta: Some(ModuleMeta { filename, main: false }), image: None, source_map }))
     }
 
     /// Tracks unhandled promise rejections.
