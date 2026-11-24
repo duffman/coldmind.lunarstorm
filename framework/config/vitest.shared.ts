@@ -2,6 +2,7 @@
  * Shared vitest configuration. Tests run on Bun (`bun --bun vitest run`) and on Node (`vitest run`); the
  * runtime is whichever one runs vitest. Each package's vitest.config.ts is `defineConfig(shared(...))`.
  */
+import { join } from "node:path";
 import { transform } from "esbuild";
 import type { Plugin } from "vite";
 import { mergeConfig, type ViteUserConfig } from "vitest/config";
@@ -49,6 +50,12 @@ export function shared(overrides: ViteUserConfig = {}): ViteUserConfig {
     plugins: [standardDecorators(), bunImportMeta()],
     test: {
       server: { deps: { external: [/^bun:/] } },
+      // Fix: vitest's default module cache is `<workspace root>/node_modules/.vitest-cache`,
+      // shared by every package and cleared on each run, so parallel `pnpm -r test` runs
+      // failed with ENOTEMPTY. Decision: one cache per package, in the package's own
+      // node_modules (the directory vitest runs in, which pnpm sets per package), so a
+      // reinstall still invalidates it.
+      fsModuleCachePath: join(process.cwd(), "node_modules", ".vitest-cache"),
     },
   } satisfies ViteUserConfig, overrides);
 }

@@ -26,7 +26,7 @@ impl Fixture {
             .unwrap()
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("devtools-cli-{}-{stamp}-{id}", std::process::id()));
+            std::env::temp_dir().join(format!("lunarstorm-frontend-{}-{stamp}-{id}", std::process::id()));
         std::fs::create_dir_all(&path).unwrap();
         Self(path)
     }
@@ -79,7 +79,7 @@ impl Cli {
         input: Option<&[u8]>,
         directory: Option<&Path>,
     ) -> Self {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_jetbunny"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_lunarstorm"));
         command
             .args(args)
             .stdin(if input.is_some() {

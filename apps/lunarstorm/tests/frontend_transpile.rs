@@ -53,7 +53,7 @@ fn file_transpilation_emits_only_javascript_without_loading_project_configuratio
     );
     fixture.write("src/entry.ts", "import {value} from './missing.ts';\ninterface Options { n: number }\nexport const answer: number = 42; console.log(value, answer);");
     let input = fixture.0.join("src/entry.ts");
-    let output = Cli::spawn_in(&["--transpile", project_arg(&input)], true, &fixture.0).finish();
+    let output = Cli::spawn_in(&["transpile", project_arg(&input)], true, &fixture.0).finish();
     assert_success(&output);
     assert!(output.stderr.is_empty(), "{}", output.stderr);
     assert!(output.stdout.contains("answer = 42"), "{}", output.stdout);
@@ -86,7 +86,7 @@ fn tsx_lowers_jsx_without_development_refresh_code() {
     let fixture = Fixture::new();
     fixture.write("App.tsx", "interface Props { label: string }\nexport default function App({label}: Props) { return <main>{label}</main>; }");
     let input = fixture.0.join("App.tsx");
-    let output = Cli::spawn(&["--transpile", project_arg(&input)], true).finish();
+    let output = Cli::spawn(&["transpile", project_arg(&input)], true).finish();
     assert_success(&output);
     assert!(
         output.stdout.contains("react/jsx-runtime"),
@@ -121,7 +121,7 @@ fn all_supported_file_extensions_are_compiled_natively() {
         };
         fixture.write(&name, source);
         let input = fixture.0.join(name);
-        let output = Cli::spawn(&["--transpile", project_arg(&input)], true).finish();
+        let output = Cli::spawn(&["transpile", project_arg(&input)], true).finish();
         assert_success(&output);
         assert!(
             output.stdout.contains("answer = 42"),
@@ -144,7 +144,7 @@ fn transpilation_does_not_claim_to_typecheck_assignments() {
         "export const mismatched: number = 'not-a-number';",
     );
     let input = fixture.0.join("typed.ts");
-    let output = Cli::spawn(&["--transpile", project_arg(&input)], true).finish();
+    let output = Cli::spawn(&["transpile", project_arg(&input)], true).finish();
     assert_success(&output);
     assert!(output.stdout.contains("not-a-number"));
     assert!(!output.stdout.contains(": number"));
@@ -161,7 +161,7 @@ fn output_file_supports_spaces_and_creates_parent_directories_without_a_default_
     let target = fixture.0.join("generated folder/nested/output.mjs");
     let output = Cli::spawn(
         &[
-            "--transpile",
+            "transpile",
             project_arg(&input),
             "-o",
             project_arg(&target),
@@ -192,7 +192,7 @@ fn external_map_follows_the_exact_output_filename_and_contains_original_source()
     let target = fixture.0.join("generated/output.mjs");
     let output = Cli::spawn(
         &[
-            "--transpile",
+            "transpile",
             project_arg(&input),
             "--out",
             project_arg(&target),
@@ -220,7 +220,7 @@ fn stdout_sourcemap_is_inline_and_keeps_the_original_typescript() {
     let source = "export const answer: number = 42;";
     fixture.write("entry.ts", source);
     let input = fixture.0.join("entry.ts");
-    let output = Cli::spawn(&["--transpile", project_arg(&input), "--sourcemap"], true).finish();
+    let output = Cli::spawn(&["transpile", project_arg(&input), "--sourcemap"], true).finish();
     assert_success(&output);
     assert_eq!(output.stdout.matches("sourceMappingURL=").count(), 1);
     let map = inline_map(&output.stdout);
@@ -235,7 +235,7 @@ fn stdout_sourcemap_is_inline_and_keeps_the_original_typescript() {
 #[test]
 fn stdin_defaults_to_typescript_and_finishes_when_the_pipe_closes() {
     let output = Cli::spawn_with_input(
-        &["--transpile", "-"],
+        &["transpile", "-"],
         true,
         b"export const stdinValue: number = 7;",
     )
@@ -269,7 +269,7 @@ fn stdin_loaders_accept_js_jsx_ts_and_tsx() {
     ] {
         let loader_arg = format!("--loader={loader}");
         let output =
-            Cli::spawn_with_input(&["--transpile", "-", &loader_arg], true, source.as_bytes())
+            Cli::spawn_with_input(&["transpile", "-", &loader_arg], true, source.as_bytes())
                 .finish();
         assert_success(&output);
         assert!(
@@ -287,7 +287,7 @@ fn stdin_can_write_a_file_and_external_sourcemap() {
     let target = fixture.0.join("stdin-output.js");
     let output = Cli::spawn_with_input(
         &[
-            "--transpile",
+            "transpile",
             "-",
             "--loader",
             "ts",
@@ -316,7 +316,7 @@ fn stdin_can_write_a_file_and_external_sourcemap() {
 #[test]
 fn explicit_stdout_output_uses_an_inline_map() {
     let output = Cli::spawn_with_input(
-        &["--transpile", "-", "--out=-", "--sourcemap"],
+        &["transpile", "-", "--out=-", "--sourcemap"],
         true,
         b"const value: number = 7;",
     )
@@ -333,7 +333,7 @@ fn equals_form_output_option_writes_the_requested_file() {
     let input = fixture.0.join("entry.ts");
     let target = fixture.0.join("equals.js");
     let out_arg = format!("--out={}", project_arg(&target));
-    let output = Cli::spawn(&["--transpile", project_arg(&input), &out_arg], true).finish();
+    let output = Cli::spawn(&["transpile", project_arg(&input), &out_arg], true).finish();
     assert_success(&output);
     assert!(output.stdout.is_empty());
     assert!(fs::read_to_string(target).unwrap().contains("answer = 42"));
@@ -343,7 +343,7 @@ fn equals_form_output_option_writes_the_requested_file() {
 fn delimiter_allows_a_dash_prefixed_source_filename() {
     let fixture = Fixture::new();
     fixture.write("-entry.ts", "export const answer: number = 42;");
-    let output = Cli::spawn_in(&["--transpile", "--", "-entry.ts"], true, &fixture.0).finish();
+    let output = Cli::spawn_in(&["transpile", "--", "-entry.ts"], true, &fixture.0).finish();
     assert_success(&output);
     assert!(output.stdout.contains("answer = 42"));
 }
@@ -351,15 +351,15 @@ fn delimiter_allows_a_dash_prefixed_source_filename() {
 #[test]
 fn malformed_transpile_arguments_fail_with_help_and_no_stdout() {
     for args in [
-        &["--transpile"][..],
-        &["--transpile", "entry.ts", "second.ts"],
-        &["--transpile", "--out"],
-        &["--transpile", "--out", "--sourcemap"],
-        &["--transpile", "-", "--loader"],
-        &["--transpile", "-", "--loader", "json"],
-        &["--transpile", "entry.ts", "--loader", "ts"],
-        &["--transpile", "-", "--port", "5000"],
-        &["--transpile", "-", "--unknown"],
+        &["transpile"][..],
+        &["transpile", "entry.ts", "second.ts"],
+        &["transpile", "--out"],
+        &["transpile", "--out", "--sourcemap"],
+        &["transpile", "-", "--loader"],
+        &["transpile", "-", "--loader", "json"],
+        &["transpile", "entry.ts", "--loader", "ts"],
+        &["transpile", "-", "--port", "5000"],
+        &["transpile", "-", "--unknown"],
     ] {
         let output = Cli::spawn(args, true).finish();
         assert_failure(&output);
@@ -383,7 +383,7 @@ fn missing_files_and_unsupported_extensions_fail_without_creating_output() {
     ] {
         let output = Cli::spawn(
             &[
-                "--transpile",
+                "transpile",
                 project_arg(&input),
                 "-o",
                 project_arg(&target),
@@ -406,7 +406,7 @@ fn parse_errors_name_the_source_and_preserve_existing_output_and_map() {
     let target = fixture.0.join("output.js");
     let output = Cli::spawn(
         &[
-            "--transpile",
+            "transpile",
             project_arg(&input),
             "-o",
             project_arg(&target),
@@ -427,7 +427,7 @@ fn parse_errors_name_the_source_and_preserve_existing_output_and_map() {
 
 #[test]
 fn invalid_stdin_source_fails_without_emitting_partial_javascript() {
-    let output = Cli::spawn_with_input(&["--transpile", "-"], true, b"export const = ;").finish();
+    let output = Cli::spawn_with_input(&["transpile", "-"], true, b"export const = ;").finish();
     assert_failure(&output);
     assert!(output.stderr.contains("stdin"), "{}", output.stderr);
 }
@@ -440,7 +440,7 @@ fn output_cannot_overwrite_the_input_file() {
     let input = fixture.0.join("entry.ts");
     let output = Cli::spawn(
         &[
-            "--transpile",
+            "transpile",
             project_arg(&input),
             "-o",
             project_arg(&input),
@@ -466,7 +466,7 @@ fn output_symlinks_and_hardlinks_cannot_alias_the_input() {
     for target in [&symlink, &hardlink] {
         let output = Cli::spawn(
             &[
-                "--transpile",
+                "transpile",
                 project_arg(&input),
                 "-o",
                 project_arg(target),
@@ -492,7 +492,7 @@ fn a_sourcemap_aliasing_the_input_is_rejected_before_output_changes() {
     std::os::unix::fs::symlink(&input, fixture.0.join("output.js.map")).unwrap();
     let output = Cli::spawn(
         &[
-            "--transpile",
+            "transpile",
             project_arg(&input),
             "-o",
             project_arg(&target),
@@ -514,7 +514,7 @@ fn output_directories_fail_without_modifying_the_source() {
     let input = fixture.0.join("entry.ts");
     let output = Cli::spawn(
         &[
-            "--transpile",
+            "transpile",
             project_arg(&input),
             "-o",
             project_arg(&fixture.0),
@@ -528,12 +528,12 @@ fn output_directories_fail_without_modifying_the_source() {
 
 #[test]
 fn version_flags_are_successful_clean_and_match_the_cli_package() {
-    for flag in ["--version", "-V"] {
+    for flag in ["--version", "-v"] {
         let output = Cli::spawn(&[flag], true).finish();
         assert_success(&output);
         assert_eq!(
             output.stdout.trim(),
-            concat!("jetbunny ", env!("CARGO_PKG_VERSION"))
+            concat!("lunarstorm ", env!("CARGO_PKG_VERSION"))
         );
         assert!(output.stderr.is_empty(), "{}", output.stderr);
     }
@@ -545,7 +545,7 @@ fn asset_url_expressions_remain_runtime_urls_without_resolving_missing_assets() 
     let source = "export const asset: URL = new URL('./missing-asset.png', import.meta.url);";
     fixture.write("asset.ts", source);
     let input = fixture.0.join("asset.ts");
-    let output = Cli::spawn(&["--transpile", project_arg(&input), "--sourcemap"], true).finish();
+    let output = Cli::spawn(&["transpile", project_arg(&input), "--sourcemap"], true).finish();
     assert_success(&output);
     let code = output.stdout.split("//# sourceMappingURL=").next().unwrap();
     assert!(code.contains("new URL("), "{code}");
@@ -571,7 +571,7 @@ fn glob_calls_are_preserved_instead_of_expanding_the_filesystem() {
     fixture.write("glob.ts", source);
     fixture.write("pages/one.ts", "export const page: string = 'one';");
     let input = fixture.0.join("glob.ts");
-    let output = Cli::spawn(&["--transpile", project_arg(&input), "--sourcemap"], true).finish();
+    let output = Cli::spawn(&["transpile", project_arg(&input), "--sourcemap"], true).finish();
     assert_success(&output);
     let code = output.stdout.split("//# sourceMappingURL=").next().unwrap();
     assert!(
@@ -596,7 +596,7 @@ fn template_dynamic_imports_keep_their_runtime_expression_and_source_map() {
     fixture.write("dynamic.ts", source);
     fixture.write("pages/one.ts", "export const page: string = 'one';");
     let input = fixture.0.join("dynamic.ts");
-    let output = Cli::spawn(&["--transpile", project_arg(&input), "--sourcemap"], true).finish();
+    let output = Cli::spawn(&["transpile", project_arg(&input), "--sourcemap"], true).finish();
     assert_success(&output);
     let code = output.stdout.split("//# sourceMappingURL=").next().unwrap();
     assert!(
@@ -619,7 +619,7 @@ fn runtime_environment_expressions_are_not_replaced_with_frontend_production_def
     let source = "export const env = import.meta.env; export const mode = process.env.NODE_ENV; export const development = import.meta.env.DEV;";
     fixture.write("environment.ts", source);
     let input = fixture.0.join("environment.ts");
-    let output = Cli::spawn(&["--transpile", project_arg(&input), "--sourcemap"], true).finish();
+    let output = Cli::spawn(&["transpile", project_arg(&input), "--sourcemap"], true).finish();
     assert_success(&output);
     let code = output.stdout.split("//# sourceMappingURL=").next().unwrap();
     for expression in [
@@ -649,7 +649,7 @@ fn commonjs_module_exports_are_preserved_for_cjs_and_cts_sources() {
         fixture.write(&name, source);
         let input = fixture.0.join(name);
         let output =
-            Cli::spawn(&["--transpile", project_arg(&input), "--sourcemap"], true).finish();
+            Cli::spawn(&["transpile", project_arg(&input), "--sourcemap"], true).finish();
         assert_success(&output);
         let code = output.stdout.split("//# sourceMappingURL=").next().unwrap();
         assert!(code.contains("module.exports"), "{extension}: {code}");
@@ -700,7 +700,7 @@ console.log(JSON.stringify({
     let target = fixture.0.join("runtime.mjs");
     let output = Cli::spawn(
         &[
-            "--transpile",
+            "transpile",
             project_arg(&input),
             "--out",
             project_arg(&target),

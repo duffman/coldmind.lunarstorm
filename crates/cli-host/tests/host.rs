@@ -93,12 +93,20 @@ impl Package for Probe {
                     Ok(3)
                 }))
                 .child(Command::new("fail", "fail").run(|_| Err(Failure::Failed { message: "no".into(), status: 9 }))),
-            Command::new("pick", "pick").arg(Arg::option("mode").choices(&["a", "b"]).env("PROBE_TEST_MODE").default("a")).run(
-                |inv| {
+            Command::new("pick", "pick").arg(Arg::option("mode").choices(&["a", "b"]).default("a")).run(|inv| {
+                log(format!("pick mode={:?}", inv.values.text("mode")));
+                Ok(0)
+            }),
+            // Fix: `pick` itself used to read PROBE_TEST_MODE, so the env test's
+            // set_var raced `values_are_checked_while_parsing` (which runs `pick` on
+            // another test thread) and made it see "b". Decision: only this command
+            // reads the variable, and only the env test runs it.
+            Command::new("pick-env", "pick from the environment")
+                .arg(Arg::option("mode").choices(&["a", "b"]).env("PROBE_TEST_MODE").default("a"))
+                .run(|inv| {
                     log(format!("pick mode={:?}", inv.values.text("mode")));
                     Ok(0)
-                },
-            ),
+                }),
         ]
     }
 }
@@ -137,9 +145,10 @@ fn values_are_checked_while_parsing() {
 
 #[test]
 fn env_variables_fill_absent_options() {
-    // The only test that reads this variable, so setting it cannot race another test.
+    // Only `pick-env` reads this variable and only this test runs it, so setting it
+    // cannot race another test.
     std::env::set_var("PROBE_TEST_MODE", "b");
-    let (status, log) = run(&["pick"]);
+    let (status, log) = run(&["pick-env"]);
     std::env::remove_var("PROBE_TEST_MODE");
     assert_eq!((status, log), (0, vec![r#"pick mode=Some("b")"#.to_owned()]));
 }
@@ -152,6 +161,17 @@ fn usage_errors_and_failures_set_the_status() {
     assert_eq!(run(&[]), (2, vec![]));
     assert_eq!(run(&["--help"]), (0, vec![]));
     assert_eq!(run(&["build", "types", "--help"]), (0, vec![]));
+}
+
+/// `help [command...]` prints the help of the named command instead of reaching the
+/// default command, which used to run a script called `help`.
+#[test]
+fn help_command_prints_help_for_the_named_path() {
+    assert_eq!(run(&["help"]), (0, vec![]));
+    assert_eq!(run(&["help", "build", "types"]), (0, vec![]));
+    assert_eq!(run(&["help", "b"]), (0, vec![]));
+    assert_eq!(run(&["help", "nope"]), (2, vec![]));
+    assert_eq!(run(&["help", "build", "nope"]), (2, vec![]));
 }
 
 /// A package that declares whatever commands it is given.
