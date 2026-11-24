@@ -34,8 +34,6 @@ pub const JS_EVAL_FLAG_UNUSED: u32 = 16;
 pub const JS_EVAL_FLAG_COMPILE_ONLY: u32 = 32;
 pub const JS_EVAL_FLAG_BACKTRACE_BARRIER: u32 = 64;
 pub const JS_EVAL_FLAG_ASYNC: u32 = 128;
-pub const JS_EVAL_FLAG_DEBUG: u32 = 256;
-pub const JS_EVAL_FLAG_JETBUNNY_FUNCTION: u32 = 1024;
 pub const JS_DUMP_BYTECODE_FINAL: u32 = 1;
 pub const JS_DUMP_BYTECODE_PASS2: u32 = 2;
 pub const JS_DUMP_BYTECODE_PASS1: u32 = 4;
@@ -60,11 +58,6 @@ pub const JS_ATOM_NULL: u32 = 0;
 pub const JS_CALL_FLAG_CONSTRUCTOR: u32 = 1;
 pub const JS_EVAL_OPTIONS_VERSION: u32 = 1;
 pub const JS_INVALID_CLASS_ID: u32 = 0;
-pub const JS_DEBUG_ATTACHED: u32 = 1;
-pub const JS_DEBUG_STEP: u32 = 2;
-pub const JS_DEBUG_PAUSE: u32 = 4;
-pub const JS_DEBUG_SCOPE_FUNCTION: u32 = 1073741824;
-pub const JS_DEBUG_SCOPE_CLOSURE: u32 = 2147483648;
 pub const JS_GPN_STRING_MASK: u32 = 1;
 pub const JS_GPN_SYMBOL_MASK: u32 = 2;
 pub const JS_GPN_PRIVATE_MASK: u32 = 4;
@@ -135,19 +128,15 @@ pub union JSValueUnion {
     pub uint64: u64,
     pub float64: f64,
     pub ptr: *mut ::core::ffi::c_void,
-    pub short_big_int: i32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
     ["Size of JSValueUnion"][::core::mem::size_of::<JSValueUnion>() - 8usize];
     ["Alignment of JSValueUnion"][::core::mem::align_of::<JSValueUnion>() - 8usize];
-    ["Offset of field: JSValueUnion::uint64"]
-        [::core::mem::offset_of!(JSValueUnion, uint64) - 0usize];
+    ["Offset of field: JSValueUnion::uint64"][::core::mem::offset_of!(JSValueUnion, uint64) - 0usize];
     ["Offset of field: JSValueUnion::float64"]
         [::core::mem::offset_of!(JSValueUnion, float64) - 0usize];
     ["Offset of field: JSValueUnion::ptr"][::core::mem::offset_of!(JSValueUnion, ptr) - 0usize];
-    ["Offset of field: JSValueUnion::short_big_int"]
-        [::core::mem::offset_of!(JSValueUnion, short_big_int) - 0usize];
 };
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -890,336 +879,6 @@ unsafe extern "C" {
     pub fn JS_ThrowOutOfMemory(ctx: *mut JSContext) -> JSValue;
 }
 unsafe extern "C" {
-    pub fn JS_JetbunnyTakeOutOfMemory(rt: *mut JSRuntime) -> bool;
-}
-unsafe extern "C" {
-    pub fn JS_JetbunnyOutOfMemoryFlag(rt: *mut JSRuntime) -> *const bool;
-}
-unsafe extern "C" {
-    pub fn JS_JetbunnyGetAsyncContext(ctx: *mut JSContext) -> JSValue;
-}
-unsafe extern "C" {
-    pub fn JS_JetbunnySetAsyncContext(ctx: *mut JSContext, value: JSValue);
-}
-pub const JSDebugEvent_JS_DEBUG_EVENT_STATEMENT: JSDebugEvent = 0;
-pub const JSDebugEvent_JS_DEBUG_EVENT_BREAKPOINT: JSDebugEvent = 1;
-pub const JSDebugEvent_JS_DEBUG_EVENT_DEBUGGER: JSDebugEvent = 2;
-pub const JSDebugEvent_JS_DEBUG_EVENT_EXCEPTION: JSDebugEvent = 3;
-pub const JSDebugEvent_JS_DEBUG_EVENT_RETURN: JSDebugEvent = 4;
-pub const JSDebugEvent_JS_DEBUG_EVENT_AWAIT: JSDebugEvent = 5;
-pub const JSDebugEvent_JS_DEBUG_EVENT_YIELD: JSDebugEvent = 6;
-pub type JSDebugEvent = ::core::ffi::c_uint;
-pub type JSDebugHook = ::core::option::Option<
-    unsafe extern "C" fn(
-        ctx: *mut JSContext,
-        event: JSDebugEvent,
-        opaque: *mut ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
-unsafe extern "C" {
-    pub fn JS_DebugStop(ctx: *mut JSContext) -> JSValue;
-}
-unsafe extern "C" {
-    pub fn JS_DebugGetException(
-        arg1: *mut JSContext,
-        arg2: *mut JSValue,
-        arg3: *mut bool,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn JS_DebugObjectClass(ctx: *mut JSContext, value: JSValue) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn JS_DebugOwnPropertyBound(
-        ctx: *mut JSContext,
-        value: JSValue,
-        out: *mut size_t,
-    ) -> ::core::ffi::c_int;
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct JSDebugCursor {
-    pub position: size_t,
-    pub skip_remaining: size_t,
-    pub collection_link: usize,
-    pub phase: ::core::ffi::c_int,
-    pub index: ::core::ffi::c_int,
-    pub depth: ::core::ffi::c_int,
-    pub last_level: ::core::ffi::c_int,
-    pub skip_args: ::core::ffi::c_int,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of JSDebugCursor"][::core::mem::size_of::<JSDebugCursor>() - 48usize];
-    ["Alignment of JSDebugCursor"][::core::mem::align_of::<JSDebugCursor>() - 8usize];
-    ["Offset of field: JSDebugCursor::position"]
-        [::core::mem::offset_of!(JSDebugCursor, position) - 0usize];
-    ["Offset of field: JSDebugCursor::skip_remaining"]
-        [::core::mem::offset_of!(JSDebugCursor, skip_remaining) - 8usize];
-    ["Offset of field: JSDebugCursor::collection_link"]
-        [::core::mem::offset_of!(JSDebugCursor, collection_link) - 16usize];
-    ["Offset of field: JSDebugCursor::phase"]
-        [::core::mem::offset_of!(JSDebugCursor, phase) - 24usize];
-    ["Offset of field: JSDebugCursor::index"]
-        [::core::mem::offset_of!(JSDebugCursor, index) - 28usize];
-    ["Offset of field: JSDebugCursor::depth"]
-        [::core::mem::offset_of!(JSDebugCursor, depth) - 32usize];
-    ["Offset of field: JSDebugCursor::last_level"]
-        [::core::mem::offset_of!(JSDebugCursor, last_level) - 36usize];
-    ["Offset of field: JSDebugCursor::skip_args"]
-        [::core::mem::offset_of!(JSDebugCursor, skip_args) - 40usize];
-};
-unsafe extern "C" {
-    pub fn JS_DebugRetainCursor(arg1: *mut JSDebugCursor);
-}
-unsafe extern "C" {
-    pub fn JS_DebugReleaseCursor(arg1: *mut JSContext, arg2: *mut JSDebugCursor);
-}
-pub type JSDebugEntryFunc = ::core::option::Option<
-    unsafe extern "C" fn(
-        opaque: *mut ::core::ffi::c_void,
-        name: JSAtom,
-        value: JSValue,
-        flags: ::core::ffi::c_int,
-        kind: u32,
-        index: u32,
-    ) -> ::core::ffi::c_int,
->;
-unsafe extern "C" {
-    pub fn JS_DebugPropertyPage(
-        arg1: *mut JSContext,
-        arg2: JSValue,
-        arg3: *mut JSDebugCursor,
-        arg4: size_t,
-        arg5: size_t,
-        arg6: JSDebugEntryFunc,
-        arg7: *mut ::core::ffi::c_void,
-        arg8: *mut size_t,
-        arg9: *mut ::core::ffi::c_int,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn JS_DebugScopePage(
-        arg1: *mut JSContext,
-        arg2: ::core::ffi::c_int,
-        arg3: u32,
-        arg4: *mut JSDebugCursor,
-        arg5: size_t,
-        arg6: size_t,
-        arg7: JSDebugEntryFunc,
-        arg8: *mut ::core::ffi::c_void,
-        arg9: *mut size_t,
-        arg10: *mut ::core::ffi::c_int,
-    ) -> ::core::ffi::c_int;
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct JSDebugValueInfo {
-    pub type_name: [::core::ffi::c_char; 32usize],
-    pub text: [u16; 512usize],
-    pub length: size_t,
-    pub expandable: ::core::ffi::c_int,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of JSDebugValueInfo"][::core::mem::size_of::<JSDebugValueInfo>() - 1072usize];
-    ["Alignment of JSDebugValueInfo"][::core::mem::align_of::<JSDebugValueInfo>() - 8usize];
-    ["Offset of field: JSDebugValueInfo::type_name"]
-        [::core::mem::offset_of!(JSDebugValueInfo, type_name) - 0usize];
-    ["Offset of field: JSDebugValueInfo::text"]
-        [::core::mem::offset_of!(JSDebugValueInfo, text) - 32usize];
-    ["Offset of field: JSDebugValueInfo::length"]
-        [::core::mem::offset_of!(JSDebugValueInfo, length) - 1056usize];
-    ["Offset of field: JSDebugValueInfo::expandable"]
-        [::core::mem::offset_of!(JSDebugValueInfo, expandable) - 1064usize];
-};
-unsafe extern "C" {
-    pub fn JS_DebugGetValueInfo(
-        arg1: *mut JSContext,
-        arg2: JSValue,
-        arg3: *mut JSDebugValueInfo,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn JS_DebugGetExceptionDescription(
-        arg1: *mut JSContext,
-        arg2: *mut JSDebugValueInfo,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn JS_DebugDescribeException(
-        arg1: *mut JSContext,
-        arg2: JSValue,
-        arg3: *mut JSDebugValueInfo,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn JS_DebugCopyString(
-        arg1: JSValue,
-        arg2: *mut u16,
-        arg3: size_t,
-        arg4: *mut size_t,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn JS_DebugSetExceptionPolicy(ctx: *mut JSContext, policy: ::core::ffi::c_int);
-}
-unsafe extern "C" {
-    pub fn JS_DebugNewThrow(ctx: *mut JSContext);
-}
-unsafe extern "C" {
-    pub fn JS_SetDebugHook(
-        ctx: *mut JSContext,
-        hook: JSDebugHook,
-        opaque: *mut ::core::ffi::c_void,
-    );
-}
-unsafe extern "C" {
-    pub fn JS_SetDebugFlags(ctx: *mut JSContext, flags: ::core::ffi::c_int);
-}
-unsafe extern "C" {
-    pub fn JS_GetDebugFlags(ctx: *mut JSContext) -> ::core::ffi::c_int;
-}
-pub type JSDebugMarkerFunc = ::core::option::Option<
-    unsafe extern "C" fn(
-        opaque: *mut ::core::ffi::c_void,
-        fn_: *mut ::core::ffi::c_void,
-        marker: u32,
-        line: ::core::ffi::c_int,
-        col: ::core::ffi::c_int,
-        is_debugger: bool,
-    ),
->;
-unsafe extern "C" {
-    pub fn JS_DebugForEachMarker(
-        ctx: *mut JSContext,
-        root: JSValue,
-        cb: JSDebugMarkerFunc,
-        opaque: *mut ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn JS_DebugSetBreakpoint(
-        ctx: *mut JSContext,
-        fn_: *mut ::core::ffi::c_void,
-        marker: u32,
-        enabled: bool,
-    ) -> ::core::ffi::c_int;
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct JSDebugFrame {
-    pub fn_: *mut ::core::ffi::c_void,
-    pub func_name: JSAtom,
-    pub filename: JSAtom,
-    pub line: ::core::ffi::c_int,
-    pub col: ::core::ffi::c_int,
-    pub activation: u64,
-    pub marker: u32,
-    pub scope_known: ::core::ffi::c_int,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of JSDebugFrame"][::core::mem::size_of::<JSDebugFrame>() - 40usize];
-    ["Alignment of JSDebugFrame"][::core::mem::align_of::<JSDebugFrame>() - 8usize];
-    ["Offset of field: JSDebugFrame::fn_"][::core::mem::offset_of!(JSDebugFrame, fn_) - 0usize];
-    ["Offset of field: JSDebugFrame::func_name"]
-        [::core::mem::offset_of!(JSDebugFrame, func_name) - 8usize];
-    ["Offset of field: JSDebugFrame::filename"]
-        [::core::mem::offset_of!(JSDebugFrame, filename) - 12usize];
-    ["Offset of field: JSDebugFrame::line"][::core::mem::offset_of!(JSDebugFrame, line) - 16usize];
-    ["Offset of field: JSDebugFrame::col"][::core::mem::offset_of!(JSDebugFrame, col) - 20usize];
-    ["Offset of field: JSDebugFrame::activation"]
-        [::core::mem::offset_of!(JSDebugFrame, activation) - 24usize];
-    ["Offset of field: JSDebugFrame::marker"]
-        [::core::mem::offset_of!(JSDebugFrame, marker) - 32usize];
-    ["Offset of field: JSDebugFrame::scope_known"]
-        [::core::mem::offset_of!(JSDebugFrame, scope_known) - 36usize];
-};
-unsafe extern "C" {
-    pub fn JS_DebugGetFrame(
-        ctx: *mut JSContext,
-        level: ::core::ffi::c_int,
-        out: *mut JSDebugFrame,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn JS_DebugStepInfo(
-        arg1: *mut JSContext,
-        arg2: u64,
-        arg3: *mut u64,
-        arg4: *mut ::core::ffi::c_int,
-        arg5: *mut u64,
-    ) -> ::core::ffi::c_int;
-}
-pub type JSDebugAsyncHook = ::core::option::Option<
-    unsafe extern "C" fn(
-        arg1: *mut JSContext,
-        kind: ::core::ffi::c_int,
-        parent: u64,
-        arg2: *mut ::core::ffi::c_void,
-    ) -> u64,
->;
-pub const JS_DEBUG_ASYNC_PROMISE: _bindgen_ty_2 = 0;
-pub const JS_DEBUG_ASYNC_AWAIT: _bindgen_ty_2 = 1;
-pub const JS_DEBUG_ASYNC_MICROTASK: _bindgen_ty_2 = 2;
-pub const JS_DEBUG_ASYNC_CALLBACK: _bindgen_ty_2 = 3;
-pub const JS_DEBUG_ASYNC_TIMER: _bindgen_ty_2 = 4;
-pub const JS_DEBUG_ASYNC_THENABLE: _bindgen_ty_2 = 5;
-pub const JS_DEBUG_ASYNC_REJECTION: _bindgen_ty_2 = 6;
-pub type _bindgen_ty_2 = ::core::ffi::c_uint;
-unsafe extern "C" {
-    pub fn JS_SetDebugAsyncHook(
-        arg1: *mut JSContext,
-        arg2: JSDebugAsyncHook,
-        arg3: *mut ::core::ffi::c_void,
-    );
-}
-unsafe extern "C" {
-    pub fn JS_DebugCaptureAsync(arg1: *mut JSContext, kind: ::core::ffi::c_int) -> u64;
-}
-unsafe extern "C" {
-    pub fn JS_DebugPromiseRejectionOrigin(arg1: JSValue) -> u64;
-}
-unsafe extern "C" {
-    pub fn JS_DebugAsyncStack(arg1: *mut JSContext) -> u64;
-}
-unsafe extern "C" {
-    pub fn JS_DebugSetAsyncStack(arg1: *mut JSContext, arg2: u64) -> u64;
-}
-pub const JSDebugVarKind_JS_DEBUG_VAR_LEXICAL: JSDebugVarKind = 0;
-pub const JSDebugVarKind_JS_DEBUG_VAR_ARG: JSDebugVarKind = 1;
-pub const JSDebugVarKind_JS_DEBUG_VAR_LOCAL: JSDebugVarKind = 2;
-pub const JSDebugVarKind_JS_DEBUG_VAR_CLOSURE: JSDebugVarKind = 3;
-pub const JSDebugVarKind_JS_DEBUG_VAR_INTERNAL: JSDebugVarKind = 4;
-pub type JSDebugVarKind = ::core::ffi::c_uint;
-pub type JSDebugVarFunc = ::core::option::Option<
-    unsafe extern "C" fn(
-        opaque: *mut ::core::ffi::c_void,
-        name: JSAtom,
-        value: JSValue,
-        kind: JSDebugVarKind,
-        depth: ::core::ffi::c_int,
-    ),
->;
-unsafe extern "C" {
-    pub fn JS_DebugGetFrameVars(
-        ctx: *mut JSContext,
-        level: ::core::ffi::c_int,
-        cb: JSDebugVarFunc,
-        opaque: *mut ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn JS_DebugEvalInFrame(
-        ctx: *mut JSContext,
-        level: ::core::ffi::c_int,
-        input: *const ::core::ffi::c_char,
-        input_len: size_t,
-        filename: *const ::core::ffi::c_char,
-    ) -> JSValue;
-}
-unsafe extern "C" {
     pub fn JS_FreeValue(ctx: *mut JSContext, v: JSValue);
 }
 unsafe extern "C" {
@@ -1423,9 +1082,6 @@ unsafe extern "C" {
     ) -> JSValue;
 }
 unsafe extern "C" {
-    pub fn JS_GetPropertyValue(ctx: *mut JSContext, this_obj: JSValue, prop: JSValue) -> JSValue;
-}
-unsafe extern "C" {
     pub fn JS_SetProperty(
         ctx: *mut JSContext,
         this_obj: JSValue,
@@ -1455,15 +1111,6 @@ unsafe extern "C" {
         this_obj: JSValue,
         prop: *const ::core::ffi::c_char,
         val: JSValue,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn JS_SetPropertyValue(
-        ctx: *mut JSContext,
-        this_obj: JSValue,
-        prop: JSValue,
-        val: JSValue,
-        flags: ::core::ffi::c_int,
     ) -> ::core::ffi::c_int;
 }
 unsafe extern "C" {
@@ -1851,12 +1498,6 @@ unsafe extern "C" {
         is_global: bool,
     ) -> JSValue;
 }
-unsafe extern "C" {
-    pub fn JS_NewPrivateSymbol(
-        ctx: *mut JSContext,
-        description: *const ::core::ffi::c_char,
-    ) -> JSValue;
-}
 pub const JSPromiseHookType_JS_PROMISE_HOOK_INIT: JSPromiseHookType = 0;
 pub const JSPromiseHookType_JS_PROMISE_HOOK_BEFORE: JSPromiseHookType = 1;
 pub const JSPromiseHookType_JS_PROMISE_HOOK_AFTER: JSPromiseHookType = 2;
@@ -1942,16 +1583,6 @@ pub type JSModuleLoaderFunc = ::core::option::Option<
         opaque: *mut ::core::ffi::c_void,
     ) -> *mut JSModuleDef,
 >;
-pub type JSDynamicImportFunc = ::core::option::Option<
-    unsafe extern "C" fn(
-        ctx: *mut JSContext,
-        basename: *const ::core::ffi::c_char,
-        filename: *const ::core::ffi::c_char,
-        token: JSValue,
-        attributes: JSValue,
-        opaque: *mut ::core::ffi::c_void,
-    ),
->;
 pub type JSModuleLoaderFunc2 = ::core::option::Option<
     unsafe extern "C" fn(
         ctx: *mut JSContext,
@@ -1985,22 +1616,7 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
-    pub fn JS_SetDynamicImportFunc(
-        rt: *mut JSRuntime,
-        func: JSDynamicImportFunc,
-        opaque: *mut ::core::ffi::c_void,
-    );
-}
-unsafe extern "C" {
     pub fn JS_SetModuleNormalizeFunc2(rt: *mut JSRuntime, module_normalize: JSModuleNormalizeFunc2);
-}
-unsafe extern "C" {
-    pub fn JS_FinishDynamicImport(
-        ctx: *mut JSContext,
-        token: JSValue,
-        promise: JSValue,
-        exception: JSValue,
-    ) -> ::core::ffi::c_int;
 }
 unsafe extern "C" {
     pub fn JS_GetImportMeta(ctx: *mut JSContext, m: *mut JSModuleDef) -> JSValue;
@@ -2047,31 +1663,6 @@ unsafe extern "C" {
         rt: *mut JSRuntime,
         pctx: *mut *mut JSContext,
     ) -> ::core::ffi::c_int;
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct JSJobEntry {
-    _unused: [u8; 0],
-}
-pub type JSJetbunnyJob = JSJobEntry;
-pub type JSJetbunnyJobSink = ::core::option::Option<
-    unsafe extern "C" fn(
-        opaque: *mut ::core::ffi::c_void,
-        job: *mut JSJetbunnyJob,
-    ) -> ::core::ffi::c_int,
->;
-unsafe extern "C" {
-    pub fn JS_JetbunnySetJobSink(
-        rt: *mut JSRuntime,
-        sink: JSJetbunnyJobSink,
-        opaque: *mut ::core::ffi::c_void,
-    );
-}
-unsafe extern "C" {
-    pub fn JS_JetbunnyRunJob(rt: *mut JSRuntime, job: *mut JSJetbunnyJob) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn JS_JetbunnyFreeJob(rt: *mut JSRuntime, job: *mut JSJetbunnyJob);
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -2496,246 +2087,246 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn js_std_cmd(cmd: ::core::ffi::c_int, ...) -> usize;
 }
-pub const __JS_ATOM_NULL: _bindgen_ty_3 = 0;
-pub const JS_ATOM_null: _bindgen_ty_3 = 1;
-pub const JS_ATOM_false: _bindgen_ty_3 = 2;
-pub const JS_ATOM_true: _bindgen_ty_3 = 3;
-pub const JS_ATOM_if: _bindgen_ty_3 = 4;
-pub const JS_ATOM_else: _bindgen_ty_3 = 5;
-pub const JS_ATOM_return: _bindgen_ty_3 = 6;
-pub const JS_ATOM_var: _bindgen_ty_3 = 7;
-pub const JS_ATOM_this: _bindgen_ty_3 = 8;
-pub const JS_ATOM_delete: _bindgen_ty_3 = 9;
-pub const JS_ATOM_void: _bindgen_ty_3 = 10;
-pub const JS_ATOM_typeof: _bindgen_ty_3 = 11;
-pub const JS_ATOM_new: _bindgen_ty_3 = 12;
-pub const JS_ATOM_in: _bindgen_ty_3 = 13;
-pub const JS_ATOM_instanceof: _bindgen_ty_3 = 14;
-pub const JS_ATOM_do: _bindgen_ty_3 = 15;
-pub const JS_ATOM_while: _bindgen_ty_3 = 16;
-pub const JS_ATOM_for: _bindgen_ty_3 = 17;
-pub const JS_ATOM_break: _bindgen_ty_3 = 18;
-pub const JS_ATOM_continue: _bindgen_ty_3 = 19;
-pub const JS_ATOM_switch: _bindgen_ty_3 = 20;
-pub const JS_ATOM_case: _bindgen_ty_3 = 21;
-pub const JS_ATOM_default: _bindgen_ty_3 = 22;
-pub const JS_ATOM_throw: _bindgen_ty_3 = 23;
-pub const JS_ATOM_try: _bindgen_ty_3 = 24;
-pub const JS_ATOM_catch: _bindgen_ty_3 = 25;
-pub const JS_ATOM_finally: _bindgen_ty_3 = 26;
-pub const JS_ATOM_function: _bindgen_ty_3 = 27;
-pub const JS_ATOM_debugger: _bindgen_ty_3 = 28;
-pub const JS_ATOM_with: _bindgen_ty_3 = 29;
-pub const JS_ATOM_class: _bindgen_ty_3 = 30;
-pub const JS_ATOM_const: _bindgen_ty_3 = 31;
-pub const JS_ATOM_enum: _bindgen_ty_3 = 32;
-pub const JS_ATOM_export: _bindgen_ty_3 = 33;
-pub const JS_ATOM_extends: _bindgen_ty_3 = 34;
-pub const JS_ATOM_import: _bindgen_ty_3 = 35;
-pub const JS_ATOM_super: _bindgen_ty_3 = 36;
-pub const JS_ATOM_using: _bindgen_ty_3 = 37;
-pub const JS_ATOM_implements: _bindgen_ty_3 = 38;
-pub const JS_ATOM_interface: _bindgen_ty_3 = 39;
-pub const JS_ATOM_let: _bindgen_ty_3 = 40;
-pub const JS_ATOM_package: _bindgen_ty_3 = 41;
-pub const JS_ATOM_private: _bindgen_ty_3 = 42;
-pub const JS_ATOM_protected: _bindgen_ty_3 = 43;
-pub const JS_ATOM_public: _bindgen_ty_3 = 44;
-pub const JS_ATOM_static: _bindgen_ty_3 = 45;
-pub const JS_ATOM_yield: _bindgen_ty_3 = 46;
-pub const JS_ATOM_await: _bindgen_ty_3 = 47;
-pub const JS_ATOM_empty_string: _bindgen_ty_3 = 48;
-pub const JS_ATOM_keys: _bindgen_ty_3 = 49;
-pub const JS_ATOM_size: _bindgen_ty_3 = 50;
-pub const JS_ATOM_length: _bindgen_ty_3 = 51;
-pub const JS_ATOM_message: _bindgen_ty_3 = 52;
-pub const JS_ATOM_cause: _bindgen_ty_3 = 53;
-pub const JS_ATOM_errors: _bindgen_ty_3 = 54;
-pub const JS_ATOM_error: _bindgen_ty_3 = 55;
-pub const JS_ATOM_suppressed: _bindgen_ty_3 = 56;
-pub const JS_ATOM_stack: _bindgen_ty_3 = 57;
-pub const JS_ATOM_name: _bindgen_ty_3 = 58;
-pub const JS_ATOM_toString: _bindgen_ty_3 = 59;
-pub const JS_ATOM_toLocaleString: _bindgen_ty_3 = 60;
-pub const JS_ATOM_valueOf: _bindgen_ty_3 = 61;
-pub const JS_ATOM_eval: _bindgen_ty_3 = 62;
-pub const JS_ATOM_prototype: _bindgen_ty_3 = 63;
-pub const JS_ATOM_constructor: _bindgen_ty_3 = 64;
-pub const JS_ATOM_configurable: _bindgen_ty_3 = 65;
-pub const JS_ATOM_writable: _bindgen_ty_3 = 66;
-pub const JS_ATOM_enumerable: _bindgen_ty_3 = 67;
-pub const JS_ATOM_value: _bindgen_ty_3 = 68;
-pub const JS_ATOM_get: _bindgen_ty_3 = 69;
-pub const JS_ATOM_set: _bindgen_ty_3 = 70;
-pub const JS_ATOM_of: _bindgen_ty_3 = 71;
-pub const JS_ATOM___proto__: _bindgen_ty_3 = 72;
-pub const JS_ATOM_undefined: _bindgen_ty_3 = 73;
-pub const JS_ATOM_number: _bindgen_ty_3 = 74;
-pub const JS_ATOM_boolean: _bindgen_ty_3 = 75;
-pub const JS_ATOM_string: _bindgen_ty_3 = 76;
-pub const JS_ATOM_object: _bindgen_ty_3 = 77;
-pub const JS_ATOM_symbol: _bindgen_ty_3 = 78;
-pub const JS_ATOM_integer: _bindgen_ty_3 = 79;
-pub const JS_ATOM_unknown: _bindgen_ty_3 = 80;
-pub const JS_ATOM_arguments: _bindgen_ty_3 = 81;
-pub const JS_ATOM_callee: _bindgen_ty_3 = 82;
-pub const JS_ATOM_caller: _bindgen_ty_3 = 83;
-pub const JS_ATOM__eval_: _bindgen_ty_3 = 84;
-pub const JS_ATOM__ret_: _bindgen_ty_3 = 85;
-pub const JS_ATOM__var_: _bindgen_ty_3 = 86;
-pub const JS_ATOM__arg_var_: _bindgen_ty_3 = 87;
-pub const JS_ATOM__with_: _bindgen_ty_3 = 88;
-pub const JS_ATOM__using_dispose_: _bindgen_ty_3 = 89;
-pub const JS_ATOM_use: _bindgen_ty_3 = 90;
-pub const JS_ATOM_dispose: _bindgen_ty_3 = 91;
-pub const JS_ATOM_disposeAsync: _bindgen_ty_3 = 92;
-pub const JS_ATOM_lastIndex: _bindgen_ty_3 = 93;
-pub const JS_ATOM_target: _bindgen_ty_3 = 94;
-pub const JS_ATOM_index: _bindgen_ty_3 = 95;
-pub const JS_ATOM_input: _bindgen_ty_3 = 96;
-pub const JS_ATOM_defineProperties: _bindgen_ty_3 = 97;
-pub const JS_ATOM_apply: _bindgen_ty_3 = 98;
-pub const JS_ATOM_join: _bindgen_ty_3 = 99;
-pub const JS_ATOM_split: _bindgen_ty_3 = 100;
-pub const JS_ATOM_construct: _bindgen_ty_3 = 101;
-pub const JS_ATOM_getPrototypeOf: _bindgen_ty_3 = 102;
-pub const JS_ATOM_setPrototypeOf: _bindgen_ty_3 = 103;
-pub const JS_ATOM_isExtensible: _bindgen_ty_3 = 104;
-pub const JS_ATOM_preventExtensions: _bindgen_ty_3 = 105;
-pub const JS_ATOM_has: _bindgen_ty_3 = 106;
-pub const JS_ATOM_deleteProperty: _bindgen_ty_3 = 107;
-pub const JS_ATOM_defineProperty: _bindgen_ty_3 = 108;
-pub const JS_ATOM_getOwnPropertyDescriptor: _bindgen_ty_3 = 109;
-pub const JS_ATOM_ownKeys: _bindgen_ty_3 = 110;
-pub const JS_ATOM_add: _bindgen_ty_3 = 111;
-pub const JS_ATOM_done: _bindgen_ty_3 = 112;
-pub const JS_ATOM_next: _bindgen_ty_3 = 113;
-pub const JS_ATOM_values: _bindgen_ty_3 = 114;
-pub const JS_ATOM_source: _bindgen_ty_3 = 115;
-pub const JS_ATOM_flags: _bindgen_ty_3 = 116;
-pub const JS_ATOM_global: _bindgen_ty_3 = 117;
-pub const JS_ATOM_unicode: _bindgen_ty_3 = 118;
-pub const JS_ATOM_raw: _bindgen_ty_3 = 119;
-pub const JS_ATOM_rawJSON: _bindgen_ty_3 = 120;
-pub const JS_ATOM_new_target: _bindgen_ty_3 = 121;
-pub const JS_ATOM_this_active_func: _bindgen_ty_3 = 122;
-pub const JS_ATOM_home_object: _bindgen_ty_3 = 123;
-pub const JS_ATOM_computed_field: _bindgen_ty_3 = 124;
-pub const JS_ATOM_static_computed_field: _bindgen_ty_3 = 125;
-pub const JS_ATOM_class_fields_init: _bindgen_ty_3 = 126;
-pub const JS_ATOM_brand: _bindgen_ty_3 = 127;
-pub const JS_ATOM_hash_constructor: _bindgen_ty_3 = 128;
-pub const JS_ATOM_as: _bindgen_ty_3 = 129;
-pub const JS_ATOM_from: _bindgen_ty_3 = 130;
-pub const JS_ATOM_fromAsync: _bindgen_ty_3 = 131;
-pub const JS_ATOM_meta: _bindgen_ty_3 = 132;
-pub const JS_ATOM__default_: _bindgen_ty_3 = 133;
-pub const JS_ATOM__star_: _bindgen_ty_3 = 134;
-pub const JS_ATOM_Module: _bindgen_ty_3 = 135;
-pub const JS_ATOM_then: _bindgen_ty_3 = 136;
-pub const JS_ATOM_resolve: _bindgen_ty_3 = 137;
-pub const JS_ATOM_reject: _bindgen_ty_3 = 138;
-pub const JS_ATOM_promise: _bindgen_ty_3 = 139;
-pub const JS_ATOM_proxy: _bindgen_ty_3 = 140;
-pub const JS_ATOM_revoke: _bindgen_ty_3 = 141;
-pub const JS_ATOM_async: _bindgen_ty_3 = 142;
-pub const JS_ATOM_exec: _bindgen_ty_3 = 143;
-pub const JS_ATOM_groups: _bindgen_ty_3 = 144;
-pub const JS_ATOM_indices: _bindgen_ty_3 = 145;
-pub const JS_ATOM_status: _bindgen_ty_3 = 146;
-pub const JS_ATOM_reason: _bindgen_ty_3 = 147;
-pub const JS_ATOM_globalThis: _bindgen_ty_3 = 148;
-pub const JS_ATOM_bigint: _bindgen_ty_3 = 149;
-pub const JS_ATOM_not_equal: _bindgen_ty_3 = 150;
-pub const JS_ATOM_timed_out: _bindgen_ty_3 = 151;
-pub const JS_ATOM_ok: _bindgen_ty_3 = 152;
-pub const JS_ATOM_toJSON: _bindgen_ty_3 = 153;
-pub const JS_ATOM_maxByteLength: _bindgen_ty_3 = 154;
-pub const JS_ATOM_zip: _bindgen_ty_3 = 155;
-pub const JS_ATOM_zipKeyed: _bindgen_ty_3 = 156;
-pub const JS_ATOM_Object: _bindgen_ty_3 = 157;
-pub const JS_ATOM_Array: _bindgen_ty_3 = 158;
-pub const JS_ATOM_Error: _bindgen_ty_3 = 159;
-pub const JS_ATOM_Number: _bindgen_ty_3 = 160;
-pub const JS_ATOM_String: _bindgen_ty_3 = 161;
-pub const JS_ATOM_Boolean: _bindgen_ty_3 = 162;
-pub const JS_ATOM_Symbol: _bindgen_ty_3 = 163;
-pub const JS_ATOM_Arguments: _bindgen_ty_3 = 164;
-pub const JS_ATOM_Math: _bindgen_ty_3 = 165;
-pub const JS_ATOM_JSON: _bindgen_ty_3 = 166;
-pub const JS_ATOM_Date: _bindgen_ty_3 = 167;
-pub const JS_ATOM_Function: _bindgen_ty_3 = 168;
-pub const JS_ATOM_GeneratorFunction: _bindgen_ty_3 = 169;
-pub const JS_ATOM_ForInIterator: _bindgen_ty_3 = 170;
-pub const JS_ATOM_RegExp: _bindgen_ty_3 = 171;
-pub const JS_ATOM_ArrayBuffer: _bindgen_ty_3 = 172;
-pub const JS_ATOM_SharedArrayBuffer: _bindgen_ty_3 = 173;
-pub const JS_ATOM_Uint8ClampedArray: _bindgen_ty_3 = 174;
-pub const JS_ATOM_Int8Array: _bindgen_ty_3 = 175;
-pub const JS_ATOM_Uint8Array: _bindgen_ty_3 = 176;
-pub const JS_ATOM_Int16Array: _bindgen_ty_3 = 177;
-pub const JS_ATOM_Uint16Array: _bindgen_ty_3 = 178;
-pub const JS_ATOM_Int32Array: _bindgen_ty_3 = 179;
-pub const JS_ATOM_Uint32Array: _bindgen_ty_3 = 180;
-pub const JS_ATOM_BigInt64Array: _bindgen_ty_3 = 181;
-pub const JS_ATOM_BigUint64Array: _bindgen_ty_3 = 182;
-pub const JS_ATOM_Float16Array: _bindgen_ty_3 = 183;
-pub const JS_ATOM_Float32Array: _bindgen_ty_3 = 184;
-pub const JS_ATOM_Float64Array: _bindgen_ty_3 = 185;
-pub const JS_ATOM_DataView: _bindgen_ty_3 = 186;
-pub const JS_ATOM_BigInt: _bindgen_ty_3 = 187;
-pub const JS_ATOM_WeakRef: _bindgen_ty_3 = 188;
-pub const JS_ATOM_FinalizationRegistry: _bindgen_ty_3 = 189;
-pub const JS_ATOM_Map: _bindgen_ty_3 = 190;
-pub const JS_ATOM_Set: _bindgen_ty_3 = 191;
-pub const JS_ATOM_WeakMap: _bindgen_ty_3 = 192;
-pub const JS_ATOM_WeakSet: _bindgen_ty_3 = 193;
-pub const JS_ATOM_Iterator: _bindgen_ty_3 = 194;
-pub const JS_ATOM_IteratorConcat: _bindgen_ty_3 = 195;
-pub const JS_ATOM_IteratorHelper: _bindgen_ty_3 = 196;
-pub const JS_ATOM_IteratorWrap: _bindgen_ty_3 = 197;
-pub const JS_ATOM_Map_Iterator: _bindgen_ty_3 = 198;
-pub const JS_ATOM_Set_Iterator: _bindgen_ty_3 = 199;
-pub const JS_ATOM_Array_Iterator: _bindgen_ty_3 = 200;
-pub const JS_ATOM_String_Iterator: _bindgen_ty_3 = 201;
-pub const JS_ATOM_RegExp_String_Iterator: _bindgen_ty_3 = 202;
-pub const JS_ATOM_Generator: _bindgen_ty_3 = 203;
-pub const JS_ATOM_Proxy: _bindgen_ty_3 = 204;
-pub const JS_ATOM_Promise: _bindgen_ty_3 = 205;
-pub const JS_ATOM_PromiseResolveFunction: _bindgen_ty_3 = 206;
-pub const JS_ATOM_PromiseRejectFunction: _bindgen_ty_3 = 207;
-pub const JS_ATOM_AsyncFunction: _bindgen_ty_3 = 208;
-pub const JS_ATOM_AsyncFunctionResolve: _bindgen_ty_3 = 209;
-pub const JS_ATOM_AsyncFunctionReject: _bindgen_ty_3 = 210;
-pub const JS_ATOM_AsyncGeneratorFunction: _bindgen_ty_3 = 211;
-pub const JS_ATOM_AsyncGenerator: _bindgen_ty_3 = 212;
-pub const JS_ATOM_EvalError: _bindgen_ty_3 = 213;
-pub const JS_ATOM_RangeError: _bindgen_ty_3 = 214;
-pub const JS_ATOM_ReferenceError: _bindgen_ty_3 = 215;
-pub const JS_ATOM_SyntaxError: _bindgen_ty_3 = 216;
-pub const JS_ATOM_TypeError: _bindgen_ty_3 = 217;
-pub const JS_ATOM_URIError: _bindgen_ty_3 = 218;
-pub const JS_ATOM_InternalError: _bindgen_ty_3 = 219;
-pub const JS_ATOM_DOMException: _bindgen_ty_3 = 220;
-pub const JS_ATOM_CallSite: _bindgen_ty_3 = 221;
-pub const JS_ATOM_DisposableStack: _bindgen_ty_3 = 222;
-pub const JS_ATOM_AsyncDisposableStack: _bindgen_ty_3 = 223;
-pub const JS_ATOM_SuppressedError: _bindgen_ty_3 = 224;
-pub const JS_ATOM_Private_brand: _bindgen_ty_3 = 225;
-pub const JS_ATOM_Symbol_toPrimitive: _bindgen_ty_3 = 226;
-pub const JS_ATOM_Symbol_iterator: _bindgen_ty_3 = 227;
-pub const JS_ATOM_Symbol_match: _bindgen_ty_3 = 228;
-pub const JS_ATOM_Symbol_matchAll: _bindgen_ty_3 = 229;
-pub const JS_ATOM_Symbol_replace: _bindgen_ty_3 = 230;
-pub const JS_ATOM_Symbol_search: _bindgen_ty_3 = 231;
-pub const JS_ATOM_Symbol_split: _bindgen_ty_3 = 232;
-pub const JS_ATOM_Symbol_toStringTag: _bindgen_ty_3 = 233;
-pub const JS_ATOM_Symbol_isConcatSpreadable: _bindgen_ty_3 = 234;
-pub const JS_ATOM_Symbol_hasInstance: _bindgen_ty_3 = 235;
-pub const JS_ATOM_Symbol_species: _bindgen_ty_3 = 236;
-pub const JS_ATOM_Symbol_unscopables: _bindgen_ty_3 = 237;
-pub const JS_ATOM_Symbol_asyncIterator: _bindgen_ty_3 = 238;
-pub const JS_ATOM_Symbol_dispose: _bindgen_ty_3 = 239;
-pub const JS_ATOM_Symbol_asyncDispose: _bindgen_ty_3 = 240;
-pub const JS_ATOM_END: _bindgen_ty_3 = 241;
-pub type _bindgen_ty_3 = ::core::ffi::c_uint;
+pub const __JS_ATOM_NULL: _bindgen_ty_2 = 0;
+pub const JS_ATOM_null: _bindgen_ty_2 = 1;
+pub const JS_ATOM_false: _bindgen_ty_2 = 2;
+pub const JS_ATOM_true: _bindgen_ty_2 = 3;
+pub const JS_ATOM_if: _bindgen_ty_2 = 4;
+pub const JS_ATOM_else: _bindgen_ty_2 = 5;
+pub const JS_ATOM_return: _bindgen_ty_2 = 6;
+pub const JS_ATOM_var: _bindgen_ty_2 = 7;
+pub const JS_ATOM_this: _bindgen_ty_2 = 8;
+pub const JS_ATOM_delete: _bindgen_ty_2 = 9;
+pub const JS_ATOM_void: _bindgen_ty_2 = 10;
+pub const JS_ATOM_typeof: _bindgen_ty_2 = 11;
+pub const JS_ATOM_new: _bindgen_ty_2 = 12;
+pub const JS_ATOM_in: _bindgen_ty_2 = 13;
+pub const JS_ATOM_instanceof: _bindgen_ty_2 = 14;
+pub const JS_ATOM_do: _bindgen_ty_2 = 15;
+pub const JS_ATOM_while: _bindgen_ty_2 = 16;
+pub const JS_ATOM_for: _bindgen_ty_2 = 17;
+pub const JS_ATOM_break: _bindgen_ty_2 = 18;
+pub const JS_ATOM_continue: _bindgen_ty_2 = 19;
+pub const JS_ATOM_switch: _bindgen_ty_2 = 20;
+pub const JS_ATOM_case: _bindgen_ty_2 = 21;
+pub const JS_ATOM_default: _bindgen_ty_2 = 22;
+pub const JS_ATOM_throw: _bindgen_ty_2 = 23;
+pub const JS_ATOM_try: _bindgen_ty_2 = 24;
+pub const JS_ATOM_catch: _bindgen_ty_2 = 25;
+pub const JS_ATOM_finally: _bindgen_ty_2 = 26;
+pub const JS_ATOM_function: _bindgen_ty_2 = 27;
+pub const JS_ATOM_debugger: _bindgen_ty_2 = 28;
+pub const JS_ATOM_with: _bindgen_ty_2 = 29;
+pub const JS_ATOM_class: _bindgen_ty_2 = 30;
+pub const JS_ATOM_const: _bindgen_ty_2 = 31;
+pub const JS_ATOM_enum: _bindgen_ty_2 = 32;
+pub const JS_ATOM_export: _bindgen_ty_2 = 33;
+pub const JS_ATOM_extends: _bindgen_ty_2 = 34;
+pub const JS_ATOM_import: _bindgen_ty_2 = 35;
+pub const JS_ATOM_super: _bindgen_ty_2 = 36;
+pub const JS_ATOM_using: _bindgen_ty_2 = 37;
+pub const JS_ATOM_implements: _bindgen_ty_2 = 38;
+pub const JS_ATOM_interface: _bindgen_ty_2 = 39;
+pub const JS_ATOM_let: _bindgen_ty_2 = 40;
+pub const JS_ATOM_package: _bindgen_ty_2 = 41;
+pub const JS_ATOM_private: _bindgen_ty_2 = 42;
+pub const JS_ATOM_protected: _bindgen_ty_2 = 43;
+pub const JS_ATOM_public: _bindgen_ty_2 = 44;
+pub const JS_ATOM_static: _bindgen_ty_2 = 45;
+pub const JS_ATOM_yield: _bindgen_ty_2 = 46;
+pub const JS_ATOM_await: _bindgen_ty_2 = 47;
+pub const JS_ATOM_empty_string: _bindgen_ty_2 = 48;
+pub const JS_ATOM_keys: _bindgen_ty_2 = 49;
+pub const JS_ATOM_size: _bindgen_ty_2 = 50;
+pub const JS_ATOM_length: _bindgen_ty_2 = 51;
+pub const JS_ATOM_message: _bindgen_ty_2 = 52;
+pub const JS_ATOM_cause: _bindgen_ty_2 = 53;
+pub const JS_ATOM_errors: _bindgen_ty_2 = 54;
+pub const JS_ATOM_error: _bindgen_ty_2 = 55;
+pub const JS_ATOM_suppressed: _bindgen_ty_2 = 56;
+pub const JS_ATOM_stack: _bindgen_ty_2 = 57;
+pub const JS_ATOM_name: _bindgen_ty_2 = 58;
+pub const JS_ATOM_toString: _bindgen_ty_2 = 59;
+pub const JS_ATOM_toLocaleString: _bindgen_ty_2 = 60;
+pub const JS_ATOM_valueOf: _bindgen_ty_2 = 61;
+pub const JS_ATOM_eval: _bindgen_ty_2 = 62;
+pub const JS_ATOM_prototype: _bindgen_ty_2 = 63;
+pub const JS_ATOM_constructor: _bindgen_ty_2 = 64;
+pub const JS_ATOM_configurable: _bindgen_ty_2 = 65;
+pub const JS_ATOM_writable: _bindgen_ty_2 = 66;
+pub const JS_ATOM_enumerable: _bindgen_ty_2 = 67;
+pub const JS_ATOM_value: _bindgen_ty_2 = 68;
+pub const JS_ATOM_get: _bindgen_ty_2 = 69;
+pub const JS_ATOM_set: _bindgen_ty_2 = 70;
+pub const JS_ATOM_of: _bindgen_ty_2 = 71;
+pub const JS_ATOM___proto__: _bindgen_ty_2 = 72;
+pub const JS_ATOM_undefined: _bindgen_ty_2 = 73;
+pub const JS_ATOM_number: _bindgen_ty_2 = 74;
+pub const JS_ATOM_boolean: _bindgen_ty_2 = 75;
+pub const JS_ATOM_string: _bindgen_ty_2 = 76;
+pub const JS_ATOM_object: _bindgen_ty_2 = 77;
+pub const JS_ATOM_symbol: _bindgen_ty_2 = 78;
+pub const JS_ATOM_integer: _bindgen_ty_2 = 79;
+pub const JS_ATOM_unknown: _bindgen_ty_2 = 80;
+pub const JS_ATOM_arguments: _bindgen_ty_2 = 81;
+pub const JS_ATOM_callee: _bindgen_ty_2 = 82;
+pub const JS_ATOM_caller: _bindgen_ty_2 = 83;
+pub const JS_ATOM__eval_: _bindgen_ty_2 = 84;
+pub const JS_ATOM__ret_: _bindgen_ty_2 = 85;
+pub const JS_ATOM__var_: _bindgen_ty_2 = 86;
+pub const JS_ATOM__arg_var_: _bindgen_ty_2 = 87;
+pub const JS_ATOM__with_: _bindgen_ty_2 = 88;
+pub const JS_ATOM__using_dispose_: _bindgen_ty_2 = 89;
+pub const JS_ATOM_use: _bindgen_ty_2 = 90;
+pub const JS_ATOM_dispose: _bindgen_ty_2 = 91;
+pub const JS_ATOM_disposeAsync: _bindgen_ty_2 = 92;
+pub const JS_ATOM_lastIndex: _bindgen_ty_2 = 93;
+pub const JS_ATOM_target: _bindgen_ty_2 = 94;
+pub const JS_ATOM_index: _bindgen_ty_2 = 95;
+pub const JS_ATOM_input: _bindgen_ty_2 = 96;
+pub const JS_ATOM_defineProperties: _bindgen_ty_2 = 97;
+pub const JS_ATOM_apply: _bindgen_ty_2 = 98;
+pub const JS_ATOM_join: _bindgen_ty_2 = 99;
+pub const JS_ATOM_split: _bindgen_ty_2 = 100;
+pub const JS_ATOM_construct: _bindgen_ty_2 = 101;
+pub const JS_ATOM_getPrototypeOf: _bindgen_ty_2 = 102;
+pub const JS_ATOM_setPrototypeOf: _bindgen_ty_2 = 103;
+pub const JS_ATOM_isExtensible: _bindgen_ty_2 = 104;
+pub const JS_ATOM_preventExtensions: _bindgen_ty_2 = 105;
+pub const JS_ATOM_has: _bindgen_ty_2 = 106;
+pub const JS_ATOM_deleteProperty: _bindgen_ty_2 = 107;
+pub const JS_ATOM_defineProperty: _bindgen_ty_2 = 108;
+pub const JS_ATOM_getOwnPropertyDescriptor: _bindgen_ty_2 = 109;
+pub const JS_ATOM_ownKeys: _bindgen_ty_2 = 110;
+pub const JS_ATOM_add: _bindgen_ty_2 = 111;
+pub const JS_ATOM_done: _bindgen_ty_2 = 112;
+pub const JS_ATOM_next: _bindgen_ty_2 = 113;
+pub const JS_ATOM_values: _bindgen_ty_2 = 114;
+pub const JS_ATOM_source: _bindgen_ty_2 = 115;
+pub const JS_ATOM_flags: _bindgen_ty_2 = 116;
+pub const JS_ATOM_global: _bindgen_ty_2 = 117;
+pub const JS_ATOM_unicode: _bindgen_ty_2 = 118;
+pub const JS_ATOM_raw: _bindgen_ty_2 = 119;
+pub const JS_ATOM_rawJSON: _bindgen_ty_2 = 120;
+pub const JS_ATOM_new_target: _bindgen_ty_2 = 121;
+pub const JS_ATOM_this_active_func: _bindgen_ty_2 = 122;
+pub const JS_ATOM_home_object: _bindgen_ty_2 = 123;
+pub const JS_ATOM_computed_field: _bindgen_ty_2 = 124;
+pub const JS_ATOM_static_computed_field: _bindgen_ty_2 = 125;
+pub const JS_ATOM_class_fields_init: _bindgen_ty_2 = 126;
+pub const JS_ATOM_brand: _bindgen_ty_2 = 127;
+pub const JS_ATOM_hash_constructor: _bindgen_ty_2 = 128;
+pub const JS_ATOM_as: _bindgen_ty_2 = 129;
+pub const JS_ATOM_from: _bindgen_ty_2 = 130;
+pub const JS_ATOM_fromAsync: _bindgen_ty_2 = 131;
+pub const JS_ATOM_meta: _bindgen_ty_2 = 132;
+pub const JS_ATOM__default_: _bindgen_ty_2 = 133;
+pub const JS_ATOM__star_: _bindgen_ty_2 = 134;
+pub const JS_ATOM_Module: _bindgen_ty_2 = 135;
+pub const JS_ATOM_then: _bindgen_ty_2 = 136;
+pub const JS_ATOM_resolve: _bindgen_ty_2 = 137;
+pub const JS_ATOM_reject: _bindgen_ty_2 = 138;
+pub const JS_ATOM_promise: _bindgen_ty_2 = 139;
+pub const JS_ATOM_proxy: _bindgen_ty_2 = 140;
+pub const JS_ATOM_revoke: _bindgen_ty_2 = 141;
+pub const JS_ATOM_async: _bindgen_ty_2 = 142;
+pub const JS_ATOM_exec: _bindgen_ty_2 = 143;
+pub const JS_ATOM_groups: _bindgen_ty_2 = 144;
+pub const JS_ATOM_indices: _bindgen_ty_2 = 145;
+pub const JS_ATOM_status: _bindgen_ty_2 = 146;
+pub const JS_ATOM_reason: _bindgen_ty_2 = 147;
+pub const JS_ATOM_globalThis: _bindgen_ty_2 = 148;
+pub const JS_ATOM_bigint: _bindgen_ty_2 = 149;
+pub const JS_ATOM_not_equal: _bindgen_ty_2 = 150;
+pub const JS_ATOM_timed_out: _bindgen_ty_2 = 151;
+pub const JS_ATOM_ok: _bindgen_ty_2 = 152;
+pub const JS_ATOM_toJSON: _bindgen_ty_2 = 153;
+pub const JS_ATOM_maxByteLength: _bindgen_ty_2 = 154;
+pub const JS_ATOM_zip: _bindgen_ty_2 = 155;
+pub const JS_ATOM_zipKeyed: _bindgen_ty_2 = 156;
+pub const JS_ATOM_Object: _bindgen_ty_2 = 157;
+pub const JS_ATOM_Array: _bindgen_ty_2 = 158;
+pub const JS_ATOM_Error: _bindgen_ty_2 = 159;
+pub const JS_ATOM_Number: _bindgen_ty_2 = 160;
+pub const JS_ATOM_String: _bindgen_ty_2 = 161;
+pub const JS_ATOM_Boolean: _bindgen_ty_2 = 162;
+pub const JS_ATOM_Symbol: _bindgen_ty_2 = 163;
+pub const JS_ATOM_Arguments: _bindgen_ty_2 = 164;
+pub const JS_ATOM_Math: _bindgen_ty_2 = 165;
+pub const JS_ATOM_JSON: _bindgen_ty_2 = 166;
+pub const JS_ATOM_Date: _bindgen_ty_2 = 167;
+pub const JS_ATOM_Function: _bindgen_ty_2 = 168;
+pub const JS_ATOM_GeneratorFunction: _bindgen_ty_2 = 169;
+pub const JS_ATOM_ForInIterator: _bindgen_ty_2 = 170;
+pub const JS_ATOM_RegExp: _bindgen_ty_2 = 171;
+pub const JS_ATOM_ArrayBuffer: _bindgen_ty_2 = 172;
+pub const JS_ATOM_SharedArrayBuffer: _bindgen_ty_2 = 173;
+pub const JS_ATOM_Uint8ClampedArray: _bindgen_ty_2 = 174;
+pub const JS_ATOM_Int8Array: _bindgen_ty_2 = 175;
+pub const JS_ATOM_Uint8Array: _bindgen_ty_2 = 176;
+pub const JS_ATOM_Int16Array: _bindgen_ty_2 = 177;
+pub const JS_ATOM_Uint16Array: _bindgen_ty_2 = 178;
+pub const JS_ATOM_Int32Array: _bindgen_ty_2 = 179;
+pub const JS_ATOM_Uint32Array: _bindgen_ty_2 = 180;
+pub const JS_ATOM_BigInt64Array: _bindgen_ty_2 = 181;
+pub const JS_ATOM_BigUint64Array: _bindgen_ty_2 = 182;
+pub const JS_ATOM_Float16Array: _bindgen_ty_2 = 183;
+pub const JS_ATOM_Float32Array: _bindgen_ty_2 = 184;
+pub const JS_ATOM_Float64Array: _bindgen_ty_2 = 185;
+pub const JS_ATOM_DataView: _bindgen_ty_2 = 186;
+pub const JS_ATOM_BigInt: _bindgen_ty_2 = 187;
+pub const JS_ATOM_WeakRef: _bindgen_ty_2 = 188;
+pub const JS_ATOM_FinalizationRegistry: _bindgen_ty_2 = 189;
+pub const JS_ATOM_Map: _bindgen_ty_2 = 190;
+pub const JS_ATOM_Set: _bindgen_ty_2 = 191;
+pub const JS_ATOM_WeakMap: _bindgen_ty_2 = 192;
+pub const JS_ATOM_WeakSet: _bindgen_ty_2 = 193;
+pub const JS_ATOM_Iterator: _bindgen_ty_2 = 194;
+pub const JS_ATOM_IteratorConcat: _bindgen_ty_2 = 195;
+pub const JS_ATOM_IteratorHelper: _bindgen_ty_2 = 196;
+pub const JS_ATOM_IteratorWrap: _bindgen_ty_2 = 197;
+pub const JS_ATOM_Map_Iterator: _bindgen_ty_2 = 198;
+pub const JS_ATOM_Set_Iterator: _bindgen_ty_2 = 199;
+pub const JS_ATOM_Array_Iterator: _bindgen_ty_2 = 200;
+pub const JS_ATOM_String_Iterator: _bindgen_ty_2 = 201;
+pub const JS_ATOM_RegExp_String_Iterator: _bindgen_ty_2 = 202;
+pub const JS_ATOM_Generator: _bindgen_ty_2 = 203;
+pub const JS_ATOM_Proxy: _bindgen_ty_2 = 204;
+pub const JS_ATOM_Promise: _bindgen_ty_2 = 205;
+pub const JS_ATOM_PromiseResolveFunction: _bindgen_ty_2 = 206;
+pub const JS_ATOM_PromiseRejectFunction: _bindgen_ty_2 = 207;
+pub const JS_ATOM_AsyncFunction: _bindgen_ty_2 = 208;
+pub const JS_ATOM_AsyncFunctionResolve: _bindgen_ty_2 = 209;
+pub const JS_ATOM_AsyncFunctionReject: _bindgen_ty_2 = 210;
+pub const JS_ATOM_AsyncGeneratorFunction: _bindgen_ty_2 = 211;
+pub const JS_ATOM_AsyncGenerator: _bindgen_ty_2 = 212;
+pub const JS_ATOM_EvalError: _bindgen_ty_2 = 213;
+pub const JS_ATOM_RangeError: _bindgen_ty_2 = 214;
+pub const JS_ATOM_ReferenceError: _bindgen_ty_2 = 215;
+pub const JS_ATOM_SyntaxError: _bindgen_ty_2 = 216;
+pub const JS_ATOM_TypeError: _bindgen_ty_2 = 217;
+pub const JS_ATOM_URIError: _bindgen_ty_2 = 218;
+pub const JS_ATOM_InternalError: _bindgen_ty_2 = 219;
+pub const JS_ATOM_DOMException: _bindgen_ty_2 = 220;
+pub const JS_ATOM_CallSite: _bindgen_ty_2 = 221;
+pub const JS_ATOM_DisposableStack: _bindgen_ty_2 = 222;
+pub const JS_ATOM_AsyncDisposableStack: _bindgen_ty_2 = 223;
+pub const JS_ATOM_SuppressedError: _bindgen_ty_2 = 224;
+pub const JS_ATOM_Private_brand: _bindgen_ty_2 = 225;
+pub const JS_ATOM_Symbol_toPrimitive: _bindgen_ty_2 = 226;
+pub const JS_ATOM_Symbol_iterator: _bindgen_ty_2 = 227;
+pub const JS_ATOM_Symbol_match: _bindgen_ty_2 = 228;
+pub const JS_ATOM_Symbol_matchAll: _bindgen_ty_2 = 229;
+pub const JS_ATOM_Symbol_replace: _bindgen_ty_2 = 230;
+pub const JS_ATOM_Symbol_search: _bindgen_ty_2 = 231;
+pub const JS_ATOM_Symbol_split: _bindgen_ty_2 = 232;
+pub const JS_ATOM_Symbol_toStringTag: _bindgen_ty_2 = 233;
+pub const JS_ATOM_Symbol_isConcatSpreadable: _bindgen_ty_2 = 234;
+pub const JS_ATOM_Symbol_hasInstance: _bindgen_ty_2 = 235;
+pub const JS_ATOM_Symbol_species: _bindgen_ty_2 = 236;
+pub const JS_ATOM_Symbol_unscopables: _bindgen_ty_2 = 237;
+pub const JS_ATOM_Symbol_asyncIterator: _bindgen_ty_2 = 238;
+pub const JS_ATOM_Symbol_dispose: _bindgen_ty_2 = 239;
+pub const JS_ATOM_Symbol_asyncDispose: _bindgen_ty_2 = 240;
+pub const JS_ATOM_END: _bindgen_ty_2 = 241;
+pub type _bindgen_ty_2 = ::core::ffi::c_uint;

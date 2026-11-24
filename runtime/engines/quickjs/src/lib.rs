@@ -33,6 +33,20 @@ use lunarstorm_vm::{
     ModuleSource, Outcome, Scope, Thrown, Vm, CONTRACT_VERSION,
 };
 use rquickjs::class::{JsClass, Readable, Trace, Tracer};
+
+// lunarstorm patch: jetbunny leaves its own engine additions unbound in rquickjs-sys
+// (its binding files are upstream's) and declares the ones it calls next to the
+// caller; this is the one this adapter calls (`quickjs.h`, jetbunny-sticky-oom-v1).
+unsafe extern "C" {
+    /// Takes the runtime's sticky out-of-memory flag.
+    ///
+    /// # Arguments
+    /// * `rt` - the runtime, on its owner thread.
+    ///
+    /// # Returns
+    /// `true` once after `JS_ThrowOutOfMemory`, then `false` until the next one.
+    fn JS_JetbunnyTakeOutOfMemory(rt: *mut qjs::JSRuntime) -> bool;
+}
 use rquickjs::function::{Constructor, IntoJsFunc, ParamRequirement, Params};
 use rquickjs::loader::{ImportAttributes, Loader, Resolver};
 use rquickjs::module::Declared;
@@ -789,7 +803,7 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
         // SAFETY: the context is entered on its owner thread, which is the only
         // thread the patch allows to take the flag; the call neither allocates nor
         // runs JS.
-        unsafe { qjs::JS_JetbunnyTakeOutOfMemory(qjs::JS_GetRuntime(self.as_raw().as_ptr())) }
+        unsafe { JS_JetbunnyTakeOutOfMemory(qjs::JS_GetRuntime(self.as_raw().as_ptr())) }
     }
 
     #[inline]
