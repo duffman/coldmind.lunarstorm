@@ -68,7 +68,7 @@ impl<V: Vm> Callbacks<V> for Probe {
     /// `"unreadable"` for any other name.
     fn load<'s>(&self, _scope: &V::Scope<'s>, name: &str) -> Result<Load, String> {
         if name == "/dep.js" {
-            Ok(Load::Ready(ModuleSource { source: b"export const n = 41;".to_vec(), meta: None }))
+            Ok(Load::Ready(ModuleSource { source: b"export const n = 41;".to_vec(), meta: None, bytecode: false, source_map: None }))
         } else {
             Err(String::from("unreadable"))
         }
@@ -161,6 +161,7 @@ pub fn run<V: Vm>() -> usize {
         persistent_handles::<V>,
         jobs::<V>,
         modules::<V>,
+        bytecode::<V>,
         rejections::<V>,
         host_objects::<V>,
         limits::<V>,
@@ -341,6 +342,8 @@ fn modules<V: Vm>() {
         let source = ModuleSource {
             source: b"import { n } from 'dep'; export const v = n + 1; export const file = import.meta.filename; export const main = import.meta.main; export const url = import.meta.url; export const dir = import.meta.dirname;".to_vec(),
             meta: Some(ModuleMeta { filename: String::from("/app/main.js"), main: true }),
+            bytecode: false,
+            source_map: None,
         };
         let (namespace, promise) = scope.module("/app/main.js", source).expect("conformance: module");
         while scope.run_job() {}
@@ -350,17 +353,65 @@ fn modules<V: Vm>() {
         check("import.meta.url", text::<V>(&scope, &scope.get(&namespace, "url").expect("conformance: url")) == "file:///app/main.js");
         check("import.meta.dirname", text::<V>(&scope, &scope.get(&namespace, "dir").expect("conformance: dir")) == "/app");
         check("import.meta.main", scope.as_bool(&scope.get(&namespace, "main").expect("conformance: main")) == Some(true));
-        let broken = ModuleSource { source: b"import 'nowhere';".to_vec(), meta: None };
+        let broken = ModuleSource { source: b"import 'nowhere';".to_vec(), meta: None, bytecode: false, source_map: None };
         check("an unresolvable import throws", scope.module("/app/broken.js", broken).is_err());
         scope.exception();
         if !V::capabilities().async_module_load {
-            let late = ModuleSource { source: Vec::new(), meta: None };
+            let late = ModuleSource { source: Vec::new(), meta: None, bytecode: false, source_map: None };
             check("complete_load throws without the capability", scope.complete_load(1, Ok(late)).is_err());
             scope.exception();
         }
     });
 }
 
+
+/// Bytecode: a module compiled to bytecode loads and links like its source, keeps
+/// line positions for stack traces, and no longer carries its source text.
+fn bytecode<V: Vm>() {
+    if !V::capabilities().bytecode_cache {
+        let (instance, _) = boot::<V>(&Limits::default());
+        let context = instance.context().expect("conformance: context creation");
+        context.enter(|scope| {
+            let source = ModuleSource { source: b"export const a = 1;".to_vec(), meta: None, bytecode: false, source_map: None };
+            check("compile throws without the capability", scope.compile("/app/a.js", source).is_err());
+        });
+        return;
+    }
+    let source_of = |code: &str| ModuleSource { source: code.as_bytes().to_vec(), meta: None, bytecode: false, source_map: None };
+    let (compiler, _) = boot::<V>(&Limits::default());
+    let context = compiler.context().expect("conformance: context creation");
+    let image = context.enter(|scope| {
+        let broken = scope.compile("/app/broken.js", source_of("export const = ;"));
+        check("compile reports a syntax error", broken.is_err());
+        // The contract leaves the exception pending until it is taken.
+        let _ = scope.exception();
+        scope
+            .compile(
+                "/app/bc.js",
+                source_of("import { n } from 'dep';\nexport const w = n * 2;\nexport function f() {\n  throw new Error('x');\n}\nexport const shown = f.toString();\n"),
+            )
+            .expect("conformance: compile")
+    });
+    // A different instance: bytecode does not depend on the one that wrote it.
+    let (instance, _) = boot::<V>(&Limits::default());
+    let context = instance.context().expect("conformance: context creation");
+    context.enter(|scope| {
+        let meta = Some(ModuleMeta { filename: String::from("/app/bc.js"), main: false });
+        let (namespace, _) = scope
+            .module("/app/bc.js", ModuleSource { source: image.clone(), meta, bytecode: true, source_map: None })
+            .expect("conformance: bytecode module");
+        while scope.run_job() {}
+        check("bytecode imports go through resolve and load", scope.as_number(&scope.get(&namespace, "w").expect("conformance: w")) == Some(82.0));
+        let f = scope.get(&namespace, "f").expect("conformance: f");
+        let failure = scope.call(&f, &[]);
+        check("a bytecode function throws", failure.is_err());
+        let error = scope.exception();
+        let stack = text::<V>(&scope, &scope.get(&error, "stack").expect("conformance: stack"));
+        check("bytecode keeps line positions", stack.contains("/app/bc.js:4"));
+        let shown = text::<V>(&scope, &scope.get(&namespace, "shown").expect("conformance: shown"));
+        check("bytecode carries no source text", !shown.contains("throw"));
+    });
+}
 /// Unhandled rejections are reported, and reported again when handled later.
 fn rejections<V: Vm>() {
     let (instance, seen) = boot::<V>(&Limits::default());

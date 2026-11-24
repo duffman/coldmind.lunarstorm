@@ -123,7 +123,16 @@ fn main() {
     let out_dir = env::var("OUT_DIR").expect("No OUT_DIR env var is set by cargo");
     let out_dir = Path::new(&out_dir);
 
+    // lunarstorm patch: the engine is QuickJS-NG 0.17.0 with jetbunny's patches
+    // (see quickjs/PATCHES.md); quickjs.c includes these private headers.
     let header_files = [
+        "bridge.h",
+        "jetbunny-eval.h",
+        "jetbunny-eval.inc",
+        "jetbunny-inspect.h",
+        "jetbunny-inspect.inc",
+        "jetbunny-modules.h",
+        "jetbunny-modules.inc",
         "builtin-array-fromasync.h",
         "builtin-iterator-zip-keyed.h",
         "builtin-iterator-zip.h",
@@ -140,7 +149,11 @@ fn main() {
         "quickjs.h",
     ];
 
-    let source_files = ["libregexp.c", "libunicode.c", "quickjs.c", "dtoa.c"];
+    // lunarstorm patch: `bridge.c` is jetbunny's private `jbq_*` ABI over the engine
+    // (from coldmind.jetbunny `native/quickjs_ng`); `lunarstorm-debug` drives the
+    // debugger through it. It is compiled into the same archive as the engine, as
+    // jetbunny's rquickjs-sys does; a crate that never calls it links none of it.
+    let source_files = ["libregexp.c", "libunicode.c", "quickjs.c", "dtoa.c", "bridge.c"];
 
     // lunarstorm patch: the engine sources are edited in this repository, so a
     // change to any of them must rebuild the engine. Without these lines the
@@ -162,6 +175,9 @@ fn main() {
     builder
         .extra_warnings(false)
         .flag_if_supported("-Wno-implicit-const-int-float-conversion")
+        // lunarstorm patch: with jetbunny's opcodes all 256 dispatch slots are
+        // taken, so the interpreter's `case_default` label is never jumped to.
+        .flag_if_supported("-Wno-unused-label")
         //.flag("-Wno-array-bounds")
         //.flag("-Wno-format-truncation")
         ;

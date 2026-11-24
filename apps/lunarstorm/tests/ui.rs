@@ -4,6 +4,9 @@
 //! Each test runs the real `lunarstorm` binary; the last one runs it on a
 //! pseudo-terminal to exercise the animated path.
 
+// Every test here needs `run` and `lunarstorm:ui`: only the `runtime` package has them.
+#![cfg(feature = "runtime")]
+
 use std::fs::File;
 use std::io::Read;
 use std::os::fd::{FromRawFd, OwnedFd};

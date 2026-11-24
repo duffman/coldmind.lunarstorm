@@ -1,0 +1,35 @@
+# The debugger: jetbunny's debug coordinator, Debug Adapter Protocol translator,
+# source registry and source maps (from coldmind.jetbunny `src/debug`, ced69b3),
+# with the engine types it speaks in. Engine-neutral: an engine adapter implements
+# `DebugBackend` on its native hooks.
+[package]
+name = "lunarstorm-debug"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+license.workspace = true
+description = "Debugger for the Lunarstorm Runtime: DAP, breakpoints, stepping, inspection, source maps"
+# The files in tests/ are jetbunny's, compiled into the library's unit tests through
+# `#[path]` (as in jetbunny); they are not standalone integration tests.
+autotests = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { workspace = true, features = ["raw_value"] }
+sha2 = "0.10.9"
+url = "2"
+rquickjs-sys = { path = "../engines/rquickjs/sys", optional = true }
+rquickjs-core = { path = "../engines/rquickjs/core", optional = true, features = ["loader", "dyn-load", "futures"] }
+
+[features]
+default = ["quickjs-ng"]
+# jetbunny's QuickJS-NG adapter and debug backend (`engines::quickjs_ng`) over the
+# vendored engine and its `jbq_*` bridge, both compiled by `rquickjs-sys`.
+quickjs-ng = ["dep:rquickjs-sys", "dep:rquickjs-core"]
+# jetbunny's builtin facades; not taken, declared so its cfg names stay known.
+builtin-facades = []
+# jetbunny's `.jbn` packaging hooks in the adapter; Lunarstorm packages live in `lunarstorm-jbn`.
+jbn = []
+
+[build-dependencies]
+sha2 = "0.10.9"

@@ -50,7 +50,7 @@ use crate::bindings::Bindings;
 use crate::host::{Access, Host, Log};
 use lunarstorm_http1::{self as http, Body, Step};
 use crate::io::{flag, Deferred, Entry, Fault, Io, Shared, Wake, WAKER};
-use crate::modules::{Loader, Rejections};
+use crate::modules::{self as loader, Loader, Rejections};
 use crate::ops;
 use crate::pool::{Pool, ResultMsg};
 use bytes::Buf;
@@ -60,7 +60,7 @@ use lunarstorm_vm::{
 };
 use mio::event::Event;
 use mio::{Events, Poll, Waker};
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -110,6 +110,10 @@ mod ev {
 }
 
 /// What [`Runtime::load`] loads as the entry module.
+// Decision: `Package` stays unboxed. A `Source` is built once per load and moved
+// into it, so its size costs nothing; boxing would only add a `Box::new` at every
+// caller.
+#[allow(clippy::large_enum_variant)]
 pub enum Source {
     /// An ES module file.
     File(PathBuf),
@@ -121,6 +125,19 @@ pub enum Source {
         /// The module's source.
         code: String,
     },
+    /// A verified `.jbn` package, from [`lunarstorm_jbn::Package::open`]: its entry
+    /// module runs, and its modules resolve and load only from the package.
+    Package(lunarstorm_jbn::Package),
+}
+
+/// The engine identity a package records (`adapter engine version contract`);
+/// a package runs only on the same identity, since bytecode is engine-specific.
+///
+/// # Returns
+/// The identity of `V`.
+pub fn engine<V: Vm>() -> String {
+    let d = V::descriptor();
+    format!("{} {} {} contract {}", d.adapter, d.engine, d.engine_version, d.contract)
 }
 
 /// A value that crosses the host boundary: an argument to [`Runtime::call`] or the
@@ -248,6 +265,12 @@ pub struct Runtime<V: Vm, H: Host> {
     shared: Rc<Shared<H>>,
     /// Unhandled promise rejections, filled by the VM callbacks.
     rejections: Rejections<V>,
+    /// Files and packages, shared with the loader; the entry module goes through it too.
+    sources: Rc<lunarstorm_modules::Modules>,
+    /// The `.jbn` package being run, shared with the loader; set once by `load`.
+    package: Rc<OnceCell<lunarstorm_jbn::Package>>,
+    /// Specifiers of the host modules, kept by `start` for [`Runtime::package`].
+    hosted: Vec<&'static str>,
     /// The readiness source.
     reactor: Poll,
     /// Readiness events of the current step.
@@ -305,9 +328,13 @@ impl<V: Vm, H: Host> Runtime<V, H> {
             held: Cell::new(false),
             pulse: Arc::default(),
         });
+        let sources = loader::sources(&shared);
         Ok(Self {
             engine: None,
             shared,
+            sources,
+            package: Rc::default(),
+            hosted: Vec::new(),
             rejections: Rc::default(),
             reactor,
             events: Events::with_capacity(EVENT_BATCH),
@@ -396,6 +423,29 @@ impl<V: Vm, H: Host> Runtime<V, H> {
         self.engine.as_ref().map(|engine| engine.instance.interrupt())
     }
 
+    /// Attaches a debugger to the started Runtime. Call it after [`Runtime::start`]
+    /// and before [`Runtime::load`]: modules compiled after it are debuggable.
+    ///
+    /// The returned handle is the protocol side; drive it with
+    /// `lunarstorm_debug::debug::DapAdapter` on another thread. Requests wake this
+    /// loop, which serves them at its next step.
+    ///
+    /// # Arguments
+    /// * `options` - whether to pause before the entry module runs.
+    ///
+    /// # Returns
+    /// The session controller.
+    ///
+    /// # Errors
+    /// The Runtime is not started, the engine has no debugger, or one is attached.
+    pub fn debug(&mut self, options: lunarstorm_vm::lunarstorm_debug::debug::DebugSessionOptions) -> Result<lunarstorm_vm::lunarstorm_debug::debug::VmDebugHandle, String> {
+        let engine = self.engine.as_ref().ok_or_else(|| String::from("the runtime is not started"))?;
+        let waker = self.poster.waker.clone();
+        engine.instance.debug(&engine.context, Arc::new(move || {
+            let _ = waker.wake();
+        }), options)
+    }
+
     /// Creates the VM instance and its context, installs the Runtime's natives and
     /// the registered host bindings, and evaluates the JS glue.
     ///
@@ -410,7 +460,8 @@ impl<V: Vm, H: Host> Runtime<V, H> {
             return Err(String::from("the runtime is already started"));
         }
         let (installers, modules) = self.bindings.take();
-        let loader = Loader::new(self.shared.clone(), self.rejections.clone(), modules);
+        self.hosted = modules.iter().map(|(name, _)| *name).collect();
+        let loader = Loader::<V, H>::new(self.rejections.clone(), modules, self.sources.clone(), self.package.clone());
         let instance = V::Instance::new(&self.limits, loader)?;
         let context = instance.context()?;
         let shared = &self.shared;
@@ -451,28 +502,37 @@ impl<V: Vm, H: Host> Runtime<V, H> {
     ///
     /// # Errors
     /// A message when the Runtime is not started, the file cannot be read or the
-    /// host's policy refuses it.
+    /// host's policy refuses it, or a package is for another engine or a second
+    /// package is loaded.
     pub fn load(&mut self, source: Source) -> Result<(), String> {
-        let (name, code) = match source {
+        let (name, code, bytecode) = match source {
             Source::File(path) => {
-                let unreadable = |reason: &dyn std::fmt::Display| format!("cannot read {}: {reason}", path.display());
-                let absolute = std::fs::canonicalize(&path).map_err(|e| unreadable(&e))?;
-                let name = absolute.to_string_lossy().into_owned();
-                if !self.shared.host.allow(Access::Read(&name)) {
-                    return Err(unreadable(&"permission denied by host policy"));
-                }
-                let code = std::fs::read(&absolute).map_err(|e| unreadable(&e))?;
-                (name, code)
+                let (name, code) = self.read(&path)?;
+                // TypeScript, JSON and CommonJS entries become ES modules like any import.
+                (name.clone(), self.sources.entry(&name, code, true, &loader::builtin).map_err(|e| e.to_string())?, false)
             }
             Source::Text { name, code } => {
                 let base = self.shared.host.working_directory();
-                (Path::new(&base).join(name).to_string_lossy().into_owned(), code.into_bytes())
+                let name = Path::new(&base).join(name).to_string_lossy().into_owned();
+                (name.clone(), self.sources.entry(&name, code.into_bytes(), false, &loader::builtin).map_err(|e| e.to_string())?, false)
+            }
+            Source::Package(package) => {
+                let manifest = package.manifest();
+                if manifest.engine != engine::<V>() {
+                    return Err(format!("{} is built for {}, this runtime is {}", manifest.name, manifest.engine, engine::<V>()));
+                }
+                let name = manifest.entry.clone();
+                let code = package.bytecode(&name).expect("a verified package holds its entry").to_vec();
+                self.package.set(package).map_err(|_| String::from("a package is already loaded"))?;
+                (name, code, true)
             }
         };
+        let source_map = if bytecode { None } else { self.sources.source_map(&name) };
         let namespace = self.enter(|turn, _, _, _| {
-            let source = ModuleSource { source: code, meta: Some(ModuleMeta { filename: name.clone(), main: true }) };
+            let source = ModuleSource { source: code, meta: Some(ModuleMeta { filename: name.clone(), main: true }), bytecode, source_map };
             // The evaluation promise is dropped on purpose: a rejection (a throw at
             // top level) reaches the rejection callback like any other.
+            turn.entry();
             turn.beat();
             let namespace = match turn.scope.module(&name, source) {
                 Ok((namespace, _promise)) => turn.scope.persist(&namespace),
@@ -493,6 +553,88 @@ impl<V: Vm, H: Host> Runtime<V, H> {
             engine.hooks.namespace = Some(namespace);
         }
         Ok(())
+    }
+
+    /// Compiles an entry file and every module it reaches into a package. Each
+    /// module is resolved, transformed and compiled exactly as [`Runtime::load`]
+    /// would load it; its import table records what each specifier resolved to.
+    ///
+    /// Decisions:
+    /// - Module names stay the canonical build-time paths, so stack traces and
+    ///   `import.meta` of a packaged app name the source files it was built from.
+    /// - Only static imports, re-exports and `import()` of a string literal are
+    ///   followed; a computed `import()` reaches host modules and builtins only.
+    ///
+    /// # Arguments
+    /// * `entry` - the entry file.
+    /// * `name`, `version`, `release` - the package's identity.
+    ///
+    /// # Returns
+    /// The builder, ready for resources and metadata, then signing.
+    ///
+    /// # Errors
+    /// A message when the Runtime is not started, the engine cannot write
+    /// bytecode, or a module cannot be read, resolved or compiled.
+    pub fn package(&mut self, entry: &Path, name: &str, version: &str, release: u64) -> Result<lunarstorm_jbn::Builder, String> {
+        if !V::capabilities().bytecode_cache {
+            return Err(format!("{} cannot write bytecode", V::descriptor().adapter));
+        }
+        let (entry_name, code) = self.read(entry)?;
+        let code = self.sources.entry(&entry_name, code, true, &loader::builtin).map_err(|e| e.to_string())?;
+        let hosted = self.hosted.clone();
+        let native = |specifier: &str| loader::native(hosted.iter().copied(), specifier);
+        let mut graph = Vec::new();
+        let mut queue = vec![(entry_name.clone(), code)];
+        let mut seen = std::collections::HashSet::from([entry_name.clone()]);
+        while let Some((module, code)) = queue.pop() {
+            let text = String::from_utf8(code).map_err(|_| format!("{module}: not UTF-8"))?;
+            let mut table = Vec::new();
+            for specifier in lunarstorm_modules::transform::imports(&module, &text).map_err(|e| e.to_string())? {
+                let target = loader::resolve(&native, &self.sources, &module, &specifier)
+                    .map_err(|e| format!("{module}: cannot resolve {specifier}: {e}"))?;
+                if native(&target).as_deref() != Some(target.as_str()) && seen.insert(target.clone()) {
+                    let source = self.sources.load(&target, &native).map_err(|e| format!("{target}: {e}"))?;
+                    queue.push((target.clone(), source));
+                }
+                table.push((specifier, target));
+            }
+            graph.push((module, text, table));
+        }
+        let compiled = self.enter(|turn, _, _, _| {
+            graph
+                .into_iter()
+                .map(|(module, text, table)| {
+                    let source = ModuleSource { source: text.into_bytes(), meta: None, bytecode: false, source_map: None };
+                    match turn.scope.compile(&module, source) {
+                        Ok(bytecode) => Ok((module, bytecode, table)),
+                        Err(Thrown) => Err(format!("{module}: {}", exception_text::<V>(&turn.scope))),
+                    }
+                })
+                .collect::<Result<Vec<_>, String>>()
+        })??;
+        let mut builder = lunarstorm_jbn::Builder::new(name, version, release, &engine::<V>(), &entry_name);
+        for (module, bytecode, table) in compiled {
+            builder.module(&module, bytecode, table);
+        }
+        Ok(builder)
+    }
+
+    /// Reads an entry file under the host's policy.
+    ///
+    /// # Returns
+    /// Its canonical name and bytes.
+    ///
+    /// # Errors
+    /// A message naming the file when it cannot be read or the policy refuses it.
+    fn read(&self, path: &Path) -> Result<(String, Vec<u8>), String> {
+        let unreadable = |reason: &dyn std::fmt::Display| format!("cannot read {}: {reason}", path.display());
+        let absolute = std::fs::canonicalize(path).map_err(|e| unreadable(&e))?;
+        let name = absolute.to_string_lossy().into_owned();
+        if !self.shared.host.allow(Access::Read(&name)) {
+            return Err(unreadable(&"permission denied by host policy"));
+        }
+        let code = std::fs::read(&absolute).map_err(|e| unreadable(&e))?;
+        Ok((name, code))
     }
 
     /// Calls a function the entry module exports. The export may be synchronous or
@@ -535,6 +677,7 @@ impl<V: Vm, H: Host> Runtime<V, H> {
                 };
                 values.push(value.map_err(|Thrown| exception_text::<V>(&scope))?);
             }
+            turn.entry();
             if scope.call(&scope.local(&hooks.invoke), &values).is_err() {
                 turn.raise();
             }
@@ -617,8 +760,10 @@ impl<V: Vm, H: Host> Runtime<V, H> {
         let Self { engine, shared, rejections, reactor, events, scratch, tasks, poster, polls, polled, .. } = self;
         let engine = engine.as_ref().ok_or_else(|| String::from("the runtime is not started"))?;
         let hooks = &engine.hooks;
+        let instance = &engine.instance;
         Ok(engine.context.enter(|scope| {
             let mut turn = Turn {
+                instance,
                 dispatch: scope.local(&hooks.dispatch),
                 ticks: scope.local(&hooks.ticks),
                 describe: scope.local(&hooks.describe),
@@ -681,6 +826,8 @@ enum Take {
 struct Turn<'a, 's, V: Vm, H: Host> {
     /// The context handle.
     scope: V::Scope<'s>,
+    /// The engine instance, for the debugger hooks.
+    instance: &'a V::Instance,
     /// JS entry point for every event.
     dispatch: V::Value<'s>,
     /// Runs the `process.nextTick` queue.
@@ -715,6 +862,14 @@ impl<'s, V: Vm, H: Host> Turn<'_, 's, V, H> {
     /// [`State::Idle`] when there was nothing to wait for; otherwise
     /// [`State::Running`] after the step.
     fn step(&mut self, reactor: &mut Poll, events: &mut Events, wait: Wait) -> State {
+        // Phase 0: debugger requests (pause, resume, breakpoints, inspection). A
+        // client that asks the program to stop ends the loop.
+        match self.instance.debug_service() {
+            Ok(false) => {}
+            Ok(true) => return State::Idle,
+            Err(e) => self.die(&format!("debugger: {e}")),
+        }
+
         // Phase 1: timers.
         self.run_timers();
 
@@ -829,6 +984,7 @@ impl<'s, V: Vm, H: Host> Turn<'_, 's, V, H> {
     /// # Arguments
     /// * `args` - event code followed by the event's arguments.
     fn fire(&mut self, args: &[V::Value<'s>]) {
+        self.entry();
         self.beat();
         if self.scope.call(&self.dispatch, args).is_err() {
             self.raise();
@@ -853,6 +1009,10 @@ impl<'s, V: Vm, H: Host> Turn<'_, 's, V, H> {
     /// `nextTick` callbacks, then all promise jobs, repeated until both are empty.
     /// Then reports any promise rejection that is still unhandled.
     fn settle(&mut self) {
+        // Fix: a script that caught an out-of-memory error kept running on an
+        // exhausted heap. The engine's sticky mark is checked before and after the
+        // queued jobs run, so a caught failure ends the program like an uncaught one.
+        self.check_memory();
         loop {
             if self.shared.tick.replace(false) && self.scope.call(&self.ticks, &[]).is_err() {
                 self.raise();
@@ -862,12 +1022,33 @@ impl<'s, V: Vm, H: Host> Turn<'_, 's, V, H> {
                 break;
             }
         }
+        self.check_memory();
+        // The job queue is empty: the debugger qualifies unhandled rejections now,
+        // before they are reported below.
+        if let Err(e) = self.instance.debug_checkpoint() {
+            self.die(&format!("debugger: {e}"));
+        }
         // Each unhandled rejection is reported: under the default host the first
         // one exits, and a host that survives them sees every one.
         while !self.rejections.borrow().is_empty() {
             let (_, reason) = self.rejections.borrow_mut().remove(0);
             let text = self.describe_value(&self.scope.local(&reason));
             self.uncaught(true, &text);
+        }
+    }
+
+    /// Before a JS entry: lets an attached debugger hold it (break on start).
+    fn entry(&self) {
+        if let Err(e) = self.instance.debug_entry() {
+            self.die(&format!("debugger: {e}"));
+        }
+    }
+
+    /// Exits with status 1 when an allocation failed since the last check, whether
+    /// or not the script caught the error ([`Scope::take_out_of_memory`]).
+    fn check_memory(&self) {
+        if self.scope.take_out_of_memory() {
+            self.die("the engine ran out of memory");
         }
     }
 
@@ -982,6 +1163,7 @@ impl<'s, V: Vm, H: Host> Turn<'_, 's, V, H> {
     /// Runs the `setImmediate` callbacks queued before this phase, one JS entry each.
     fn run_immediates(&mut self) {
         loop {
+            self.entry();
             self.beat();
             let more = match self.scope.call(&self.dispatch, &[self.int(ev::IMMEDIATE)]) {
                 Ok(more) => self.scope.as_bool(&more).unwrap_or(false),
@@ -1007,6 +1189,7 @@ impl<'s, V: Vm, H: Host> Turn<'_, 's, V, H> {
         // again instead of being missed.
         self.pending.store(false, Ordering::Release);
         while let Ok(task) = self.tasks.try_recv() {
+            self.entry();
             self.beat();
             task(&self.scope);
             self.settle();

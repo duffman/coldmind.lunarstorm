@@ -1,6 +1,9 @@
 //! End-to-end tests: each one runs the real `lunarstorm` binary on a script and checks
 //! what it prints, what it sends over real sockets and how it exits.
 
+// Every test here runs scripts: only a binary with the `runtime` package has them.
+#![cfg(feature = "runtime")]
+
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;

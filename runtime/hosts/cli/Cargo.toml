@@ -14,10 +14,12 @@ name = "lunarstorm-host-cli"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "Lunarstorm runtime CLI host: the `run` command of the lunarstorm command line"
+description = "Lunarstorm runtime CLI host: the `run` and `jbn` commands of the lunarstorm command line"
 
 [dependencies]
 lunarstorm-runtime = { path = "../../core" }
+# `.jbn` packages: `jbn key`, `jbn build`, and `run` of a package.
+lunarstorm-jbn = { path = "../../jbn" }
 lunarstorm-vm-quickjs = { path = "../../engines/quickjs" }
 lunarstorm-cliui = { path = "../../../crates/cliui" }
 lunarstorm-cli-contract = { path = "../../../crates/cli-contract" }

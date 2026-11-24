@@ -24,8 +24,9 @@
 //!
 //! Limits of this engine, reported by [`QuickJs::capabilities`]:
 //! - Modules load synchronously: `Load::Later` is refused.
-//! - No JIT, no snapshots, no debug hooks. Bytecode serialization exists in the
-//!   engine but is not exposed through the contract yet, so it is reported absent.
+//! - No JIT and no snapshots. Module bytecode is written and loaded
+//!   (`bytecode_cache`); the debugger is jetbunny's, from `lunarstorm-debug`
+//!   (`debug_hooks`; [`Instance::debug`] and the `debug_*` hooks).
 
 use lunarstorm_vm::{
     Call, Callbacks, Capabilities, Context, Descriptor, ErrorKind, Heap, Instance, Interrupt, Kind, Limits, Load,
@@ -38,12 +39,20 @@ use rquickjs::module::Declared;
 use rquickjs::runtime::RejectionTracker;
 use rquickjs::{
     qjs, Array, Class, Ctx, Error, Exception, Function, JsLifetime, Module, Object, Persistent,
-    String as JsString, Type, TypedArray, Value,
+    String as JsString, Type, TypedArray, Value, WriteOptions,
 };
+use lunarstorm_debug::debug::{DebugLimits, DebugSessionOptions, VmDebugHandle};
+use lunarstorm_debug::engines::quickjs_ng::Debugger;
 use std::any::Any;
+use std::cell::RefCell;
+use std::ffi::c_void;
 use std::mem::MaybeUninit;
+use std::num::NonZeroU64;
 use std::path::Path;
+use std::ptr::NonNull;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 /// Arguments a call can carry, in either direction, without a heap allocation.
 const INLINE_ARGS: usize = 8;
@@ -59,20 +68,56 @@ impl Vm for QuickJs {
     type Persistent = Persistent<Value<'static>>;
 
     /// # Returns
-    /// The adapter's identity; the engine version is the vendored binding's.
+    /// The adapter's identity.
+    ///
+    /// Decision: the engine version names the vendored engine source
+    /// (`rquickjs/sys/quickjs/REVISION`), not the binding, because packaged
+    /// bytecode is only valid for the engine that wrote it. Bump the `lunarstorm.N`
+    /// suffix whenever an edit to the vendored engine changes its bytecode or
+    /// opcodes, so old packages are refused instead of misread.
     fn descriptor() -> Descriptor {
-        Descriptor { adapter: "quickjs", engine: "quickjs-ng", engine_version: "rquickjs 0.14.0", contract: CONTRACT_VERSION }
+        Descriptor {
+            adapter: "quickjs",
+            engine: "quickjs-ng",
+            engine_version: "0.17.0+lunarstorm.1",
+            contract: CONTRACT_VERSION,
+        }
     }
 
     /// # Returns
     /// Memory limits and termination; see the module docs for what is absent.
     fn capabilities() -> Capabilities {
-        Capabilities { memory_limits: true, termination: true, ..Capabilities::default() }
+        Capabilities {
+            memory_limits: true,
+            termination: true,
+            bytecode_cache: true,
+            debug_hooks: true,
+            ..Capabilities::default()
+        }
     }
 }
 
+/// The debugger of an instance, once one is attached; shared with the engine hooks
+/// (interrupt, rejection tracker) and, through context userdata, with compiles.
+///
+/// Decision: a `RefCell<Option<_>>` rather than a cell that is only ever set, so
+/// [`QuickInstance`]'s drop can take the debugger out and release its context
+/// reference before the runtime goes.
+#[derive(Clone, Default)]
+struct DebugSlot(Rc<RefCell<Option<Debugger>>>);
+
+// SAFETY: `DebugSlot` holds no JS values and no `'js` lifetime.
+unsafe impl<'js> JsLifetime<'js> for DebugSlot {
+    type Changed<'to> = DebugSlot;
+}
+
+/// Identity of each debugged run, distinct per instance in this process.
+static DEBUG_EPOCH: AtomicU64 = AtomicU64::new(1);
+
 /// A QuickJS runtime: heap, GC, job queue, limits and interrupt.
 pub struct QuickInstance {
+    /// The debugger, if attached. Taken first in `drop`.
+    debugger: DebugSlot,
     /// The engine runtime.
     runtime: rquickjs::Runtime,
     /// Shared with the engine's interrupt hook.
@@ -106,16 +151,34 @@ impl Instance<QuickJs> for QuickInstance {
         // `Rc` is enough and a rejection reported during a module load cannot
         // conflict with the load in progress.
         let callbacks = Rc::new(callbacks);
+        let debugger = DebugSlot::default();
         runtime.set_loader(Resolve(callbacks.clone()), Loading(callbacks.clone()));
         let tracker = callbacks.clone();
+        let slot = debugger.clone();
         let tracker: RejectionTracker = Box::new(move |ctx, promise, reason, handled| {
+            if let Some(debugger) = &*slot.0.borrow() {
+                let (promise, reason) = (promise.as_raw(), reason.as_raw());
+                // SAFETY: both values are live for this call of the tracker.
+                unsafe {
+                    debugger.rejection(
+                        (&promise as *const qjs::JSValue).cast(),
+                        (&reason as *const qjs::JSValue).cast(),
+                        handled,
+                    )
+                };
+            }
             tracker.rejection(&ctx, Scope::identity(&ctx, &promise), reason, handled);
         });
         runtime.set_host_promise_rejection_tracker(Some(tracker));
         let interrupt = Interrupt::default();
         let flag = interrupt.clone();
-        runtime.set_interrupt_handler(Some(Box::new(move || flag.take() || callbacks.interrupt())));
-        Ok(Self { runtime, interrupt, memory: limits.memory })
+        let slot = debugger.clone();
+        // The debugger's pause requests and evaluation deadlines arrive through the
+        // same poll; jetbunny's bridge installed it as its own interrupt handler.
+        runtime.set_interrupt_handler(Some(Box::new(move || {
+            flag.take() || callbacks.interrupt() || slot.0.borrow().as_ref().is_some_and(Debugger::poll)
+        })));
+        Ok(Self { debugger, runtime, interrupt, memory: limits.memory })
     }
 
     /// # Returns
@@ -124,7 +187,10 @@ impl Instance<QuickJs> for QuickInstance {
     /// # Errors
     /// The engine's message when allocation fails.
     fn context(&self) -> Result<QuickContext, String> {
-        rquickjs::Context::full(&self.runtime).map(QuickContext).map_err(|error| error.to_string())
+        let context = rquickjs::Context::full(&self.runtime).map_err(|error| error.to_string())?;
+        // Compiles reach the debugger through the context: `declare` has only a `Ctx`.
+        context.with(|ctx| ctx.store_userdata(self.debugger.clone()).map(|_| ()).map_err(|error| error.to_string()))?;
+        Ok(QuickContext(context))
     }
 
     /// Runs a full collection (cycle removal; reference counts free the rest eagerly).
@@ -142,6 +208,71 @@ impl Instance<QuickJs> for QuickInstance {
     /// The handle the engine's interrupt hook polls.
     fn interrupt(&self) -> Interrupt {
         self.interrupt.clone()
+    }
+
+    /// Wraps the context in jetbunny's bridge and debug backend
+    /// (`lunarstorm_debug::engines::quickjs_ng::Debugger`) and opens a session.
+    fn debug(
+        &self,
+        context: &QuickContext,
+        wake: Arc<dyn Fn() + Send + Sync>,
+        options: DebugSessionOptions,
+    ) -> Result<VmDebugHandle, String> {
+        if self.debugger.0.borrow().is_some() {
+            return Err(String::from("a debugger is already attached"));
+        }
+        let epoch = NonZeroU64::new(DEBUG_EPOCH.fetch_add(1, Ordering::Relaxed)).expect("the counter starts at 1");
+        let pointer: NonNull<c_void> = context.0.as_raw().cast();
+        // SAFETY: the context is live on this thread and outlives the debugger, which
+        // `QuickInstance::drop` releases first; the debugger also holds a reference.
+        let debugger = unsafe {
+            Debugger::wrap(
+                pointer,
+                DebugLimits::default(),
+                Arc::new(move || {
+                    wake();
+                    Ok(())
+                }),
+                epoch,
+            )
+        }
+        .map_err(|error| error.to_string())?;
+        let handle = debugger.attach(options).map_err(|error| error.to_string())?;
+        *self.debugger.0.borrow_mut() = Some(debugger);
+        Ok(handle)
+    }
+
+    fn debug_entry(&self) -> Result<(), String> {
+        match &*self.debugger.0.borrow() {
+            Some(debugger) => debugger.before_entry().map_err(|error| error.to_string()),
+            None => Ok(()),
+        }
+    }
+
+    fn debug_service(&self) -> Result<bool, String> {
+        match &*self.debugger.0.borrow() {
+            Some(debugger) => {
+                debugger.service().map_err(|error| error.to_string())?;
+                Ok(debugger.is_stopping())
+            }
+            None => Ok(false),
+        }
+    }
+
+    fn debug_checkpoint(&self) -> Result<(), String> {
+        match &*self.debugger.0.borrow() {
+            Some(debugger) => debugger.checkpoint(true).map_err(|error| error.to_string()),
+            None => Ok(()),
+        }
+    }
+}
+
+impl Drop for QuickInstance {
+    /// Releases the debugger, and with it its context reference and hooks, while
+    /// the runtime is still alive.
+    fn drop(&mut self) {
+        let debugger = self.debugger.0.borrow_mut().take();
+        drop(debugger);
     }
 }
 
@@ -230,7 +361,34 @@ impl<C: Callbacks<QuickJs>> Loader for Loading<C> {
 /// # Errors
 /// The engine's syntax error.
 fn declare<'js>(ctx: &Ctx<'js>, name: &str, source: ModuleSource) -> rquickjs::Result<Module<'js, Declared>> {
-    let module = Module::declare(ctx.clone(), name, source.source)?;
+    let module = if source.bytecode {
+        // SAFETY: the contract makes bytecode trusted input written by
+        // `Scope::compile` of this same adapter and engine (same `Descriptor`).
+        // Decision: packaged bytecode has no statement markers, so it is not
+        // registered with a debugger.
+        unsafe { Module::load(ctx.clone(), &source.source)? }
+    } else {
+        let slot = ctx.userdata::<DebugSlot>().map(|slot| slot.clone());
+        let debugger = slot.as_ref().map(|slot| slot.0.borrow());
+        match debugger.as_deref().and_then(Option::as_ref).filter(|debugger| debugger.compiling()) {
+            // What jetbunny's compiler callback did: register the source, compile it
+            // with statement markers, hand the compiled root to the backend.
+            Some(debugger) => {
+                let text = std::str::from_utf8(&source.source)
+                    .map_err(|_| Error::new_loading_message(name, "module source is not UTF-8"))?;
+                let registration = debugger
+                    .register(text, name, true, source.source_map.clone())
+                    .map_err(|error| Error::new_loading_message(name, error.to_string()))?;
+                let module = Module::declare_with_flags(ctx.clone(), name, source.source, Debugger::EVAL_FLAG)?;
+                let root = module.as_raw_value();
+                // SAFETY: `root` is the live module just compiled in this context.
+                unsafe { debugger.loaded((&root as *const qjs::JSValue).cast(), registration) }
+                    .map_err(|error| Error::new_loading_message(name, error.to_string()))?;
+                module
+            }
+            None => Module::declare(ctx.clone(), name, source.source)?,
+        }
+    };
     if let Some(meta) = source.meta {
         let object = module.meta()?;
         let directory = Path::new(&meta.filename).parent().and_then(Path::to_str).unwrap_or("/");
@@ -566,6 +724,19 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
         run().map_err(|error| thrown(self, error))
     }
 
+    /// Compiles without linking: QuickJS resolves a module's imports only when it
+    /// is evaluated, so nothing is loaded here.
+    ///
+    /// Decision: source text is stripped and debug information (file name, line and
+    /// column tables) is kept, so stack traces of loaded bytecode keep positions.
+    fn compile(&self, name: &str, source: ModuleSource) -> Outcome<Vec<u8>> {
+        let run = || -> rquickjs::Result<Vec<u8>> {
+            Module::declare(self.clone(), name, source.source)?
+                .write(WriteOptions { strip_source: true, ..WriteOptions::default() })
+        };
+        run().map_err(|error| thrown(self, error))
+    }
+
     /// QuickJS never hands out a ticket, so there is nothing to complete.
     fn complete_load(&self, _ticket: u64, _result: Result<ModuleSource, String>) -> Outcome<()> {
         Err(self.throw_error(ErrorKind::Error, "QuickJS loads modules synchronously"))
@@ -574,6 +745,16 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
     #[inline]
     fn run_job(&self) -> bool {
         self.execute_pending_job()
+    }
+
+    /// Reads the engine's sticky out-of-memory flag (`jetbunny-sticky-oom-v1` in
+    /// the vendored sources), which `JS_ThrowOutOfMemory` sets.
+    #[inline]
+    fn take_out_of_memory(&self) -> bool {
+        // SAFETY: the context is entered on its owner thread, which is the only
+        // thread the patch allows to take the flag; the call neither allocates nor
+        // runs JS.
+        unsafe { qjs::JS_JetbunnyTakeOutOfMemory(qjs::JS_GetRuntime(self.as_raw().as_ptr())) }
     }
 
     #[inline]

@@ -10,3 +10,5 @@ lunarstorm-vm = { path = "../../vm" }
 # of the root workspace), not taken from crates.io, so the adapter and the engine are
 # changed together.
 rquickjs = { path = "../rquickjs", features = ["loader"] }
+# jetbunny's debugger with its QuickJS backend (`engines::quickjs_ng::Debugger`).
+lunarstorm-debug = { path = "../../debug" }

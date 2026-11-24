@@ -17,6 +17,10 @@
 #                     and the tao shell around it (binary `lunarstorm-desktop`)
 #     core            the Runtime: event loop, timers, modules, fs and net; generic
 #                     over the VM and the host
+#     modules         module sources: TypeScript, JSON and CommonJS as ES modules,
+#                     package.json resolution (no VM)
+#     jbn             signed .jbn packages: compiled modules, resources, import table
+#     debug           debugger: DAP, breakpoints, stepping, inspection, source maps (from jetbunny)
 #     vm              the VM interface, callbacks, capabilities and conformance suite
 #     engines/quickjs   VM adapter wrapping QuickJS
 #     engines/rquickjs  the engine binding (rquickjs + quickjs-ng C source), adopted
@@ -57,6 +61,9 @@ members = [
     "runtime/engines/rquickjs/examples/class-methods",
     "runtime/engines/rquickjs/examples/exotic",
     "runtime/core",
+    "runtime/modules",
+    "runtime/jbn",
+    "runtime/debug",
     "runtime/hosts/cli",
     "runtime/hosts/desktop",
     "platform/desktop",
