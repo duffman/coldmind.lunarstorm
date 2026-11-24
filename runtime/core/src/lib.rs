@@ -27,21 +27,28 @@
 //! | `io`       | loop-owned state: sockets, write buffers, timers, deferred work    |
 //! | `pool`     | bounded worker pool for blocking work (fs, DNS)                    |
 //! | `fs`       | blocking filesystem operations, run inline or on the pool          |
+//! | `channel`  | bounded byte queue between threads: `Inbox`, the host's side       |
+//! | `ipc`      | `lunarstorm:ipc`, the program's byte channel to its host           |
+//! | `worker`   | `lunarstorm:worker`, programs on their own threads and VMs         |
 //!
 //! HTTP/1.1 request framing and response-head serialization is the separate crate
 //! `lunarstorm-http1` (`crates/http1`): it has no sockets and no JS, so the rest of
 //! the monorepo can use it without the Runtime.
 
 mod bindings;
+mod channel;
 mod fs;
 mod host;
 mod io;
+mod ipc;
 mod modules;
 mod ops;
 mod pool;
 mod runtime;
+mod worker;
 
 pub use bindings::Bindings;
+pub use channel::{Inbox, MAX_BYTES, MAX_MESSAGES, MAX_MESSAGE_BYTES};
 pub use host::{Access, Host, Log, Stream};
 pub use lunarstorm_vm as vm;
-pub use runtime::{Arg, CallId, Poster, Runtime, Source, State, Wait};
+pub use runtime::{glue_compiles, Arg, CallId, Poster, Runtime, Source, State, Wait};

@@ -324,6 +324,18 @@ pub struct Shared<H> {
     /// Whether the host holds the loop alive (`Runtime::hold`): it may still post
     /// work although no handle, timer or job is open.
     pub held: Cell<bool>,
+    /// Native references that keep the loop alive: one per script-held receiver
+    /// (`lunarstorm:ipc`'s `onMessage`). The loop is idle only when this is 0 and
+    /// nothing else is open, armed, queued or held.
+    pub refs: Cell<u32>,
+    /// Set by a worker's `close()`: the loop reports idle at its next step.
+    pub stop: Cell<bool>,
+    /// Set from another thread when this Runtime is a worker that was terminated;
+    /// the loop reports idle at its next step and an uncaught-error report is
+    /// suppressed (the engine's interrupt surfaces as one).
+    pub terminated: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Directory of the program's entry module, which worker paths resolve against.
+    pub entry_dir: RefCell<String>,
     /// The pulse (`Runtime::pulse`): odd while a script is running. Written only
     /// when the host type asks for it (`Host::PULSE`).
     pub pulse: std::sync::Arc<std::sync::atomic::AtomicU64>,

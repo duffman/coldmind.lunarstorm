@@ -307,7 +307,7 @@ fn host_bindings_and_modules_are_registered_by_the_host() {
         })
         .module(
             "host:math",
-            "const { ops } = __lunarstorm.internal;\nexport const double = (n) => ops.double(n);\nexport const host = ops.hostName;\n",
+            "import { ops } from 'lunarstorm:internal';\nexport const double = (n) => ops.double(n);\nexport const host = ops.hostName;\n",
         );
     let mut runtime = boot(
         MemoryHost::default(),
@@ -320,6 +320,61 @@ fn host_bindings_and_modules_are_registered_by_the_host() {
     );
     assert_eq!(runtime.run(), 0);
     assert_eq!(stdout(&runtime), "42 memory a/b\n");
+}
+
+/// Defect guarded: builtins were served from a hidden `__lunarstorm` global, which
+/// any script could read. Decision: builtins are native modules like
+/// `lunarstorm:ipc`, so no such global exists, and `default` plus every named
+/// export of a builtin still resolve to the same values.
+#[test]
+fn builtins_are_native_modules_and_no_hidden_global_exists() {
+    let mut runtime = boot(
+        MemoryHost::default(),
+        Bindings::new(),
+        r#"
+        import fs, { readFileSync } from "node:fs";
+        import EventEmitter, { EventEmitter as Named } from "node:events";
+        import path, { join } from "node:path";
+        import process from "node:process";
+        import { Buffer as B } from "node:buffer";
+        import timers, { setTimeout as st } from "node:timers";
+        console.log(typeof __lunarstorm, "__lunarstorm" in globalThis);
+        console.log(fs.readFileSync === readFileSync, path.join === join, B === Buffer);
+        console.log(EventEmitter === Named, process === globalThis.process, timers.setTimeout === st);
+        "#,
+    );
+    assert_eq!(runtime.run(), 0);
+    assert_eq!(stdout(&runtime), "undefined false\ntrue true true\ntrue true true\n");
+}
+
+/// Defect guarded: a host module reached the Runtime's natives through the hidden
+/// global, and so could any script. Decision: `lunarstorm:internal` is a native
+/// module that only host modules may import; a program's own files cannot.
+#[test]
+fn internal_module_is_for_host_modules_only() {
+    let bindings = Bindings::<QuickJs>::new()
+        .function("double", |call: &Call<'_, QuickJs>| {
+            let scope = call.scope();
+            let number = call.args().first().and_then(|value| Scope::as_number(scope, value)).unwrap_or(f64::NAN);
+            Ok(Scope::number(scope, number * 2.0))
+        })
+        .module("host:probe", "import { ops } from 'lunarstorm:internal';\nexport const four = ops.double(2);\n");
+    let mut runtime = boot(
+        MemoryHost::default(),
+        bindings,
+        r#"
+        import { four } from "host:probe";
+        console.log("host", four);
+        try {
+          await import("lunarstorm:internal");
+          console.log("script allowed");
+        } catch (error) {
+          console.log("script refused");
+        }
+        "#,
+    );
+    assert_eq!(runtime.run(), 0);
+    assert_eq!(stdout(&runtime), "host 4\nscript refused\n");
 }
 
 #[test]
@@ -528,4 +583,17 @@ fn a_watchdog_ends_a_script_that_overruns_its_budget() {
     assert!(logs.contains("in_promise: false"), "{logs}");
     assert_eq!(stdout(&runtime), "next event ran\n");
     assert_eq!(runtime.pulse().load(Ordering::Relaxed) % 2, 0);
+}
+
+/// Defect: every `start` compiled the JS glue again, so a process with many
+/// runtimes (64 workers) paid the 150 ms compile once per runtime. After the first
+/// start the glue must never be compiled again in this process.
+#[test]
+fn glue_is_compiled_once_per_process() {
+    let first = boot(MemoryHost::default(), Bindings::new(), "");
+    let after_first = lunarstorm_runtime::glue_compiles();
+    let second = boot(MemoryHost::default(), Bindings::new(), "");
+    let third = boot(MemoryHost::default(), Bindings::new(), "");
+    assert_eq!(lunarstorm_runtime::glue_compiles(), after_first, "starting two more runtimes compiled the glue again");
+    drop((first, second, third));
 }

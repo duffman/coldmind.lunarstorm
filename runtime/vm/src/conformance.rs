@@ -29,6 +29,8 @@ struct Seen {
     rejections: RefCell<Vec<(usize, bool)>>,
     /// Answer of the interrupt check.
     interrupt: Cell<bool>,
+    /// How many times `load` was asked for the native module.
+    native_loads: Cell<u32>,
 }
 
 /// The suite's callbacks: a two-module table and a recorder.
@@ -50,6 +52,8 @@ impl<V: Vm> Callbacks<V> for Probe {
     fn resolve<'s>(&self, _scope: &V::Scope<'s>, _base: &str, name: &str) -> Result<String, String> {
         if name == "dep" {
             Ok(String::from("/dep.js"))
+        } else if name == "native" {
+            Ok(String::from("native:probe"))
         } else {
             Err(String::from("unknown module"))
         }
@@ -66,9 +70,23 @@ impl<V: Vm> Callbacks<V> for Probe {
     ///
     /// # Errors
     /// `"unreadable"` for any other name.
-    fn load<'s>(&self, _scope: &V::Scope<'s>, name: &str) -> Result<Load, String> {
+    fn load<'s>(&self, scope: &V::Scope<'s>, name: &str) -> Result<Load, String> {
         if name == "/dep.js" {
             Ok(Load::Ready(ModuleSource { source: b"export const n = 41;".to_vec(), meta: None, image: None, source_map: None }))
+        } else if name == "native:probe" {
+            // A native module: `twice(x)` is a host closure, `answer` a plain value,
+            // `evaluations` counts how often this callback built the module.
+            self.0.native_loads.set(self.0.native_loads.get() + 1);
+            let twice = scope
+                .function("twice", |call| {
+                    let value = call.args().first().and_then(|arg| call.scope().as_number(arg)).unwrap_or(0.0);
+                    Ok(call.scope().number(value * 2.0))
+                })
+                .map_err(|_| String::from("function"))?;
+            scope
+                .native_module(name, &[("twice", twice), ("answer", scope.int(42))])
+                .map_err(|_| String::from("native_module"))?;
+            Ok(Load::Native)
         } else {
             Err(String::from("unreadable"))
         }
@@ -161,6 +179,7 @@ pub fn run<V: Vm>() -> usize {
         persistent_handles::<V>,
         jobs::<V>,
         modules::<V>,
+        native_modules::<V>,
         bytecode::<V>,
         rejections::<V>,
         host_objects::<V>,
@@ -361,6 +380,34 @@ fn modules<V: Vm>() {
             check("complete_load throws without the capability", scope.complete_load(1, Ok(late)).is_err());
             scope.exception();
         }
+    });
+}
+
+/// Native modules: exports are host-built values, evaluated once per instance and
+/// shared by every importer.
+fn native_modules<V: Vm>() {
+    let (instance, seen) = boot::<V>(&Limits::default());
+    let context = instance.context().expect("conformance: context creation");
+    context.enter(|scope| {
+        let first = ModuleSource {
+            source: b"import { twice, answer } from 'native'; export const doubled = twice(answer); export { twice };".to_vec(),
+            meta: None,
+            image: None,
+            source_map: None,
+        };
+        let (one, _) = scope.module("/app/one.js", first).unwrap_or_else(|_| {
+            let thrown = scope.exception();
+            let message = scope.get(&thrown, "message").ok().and_then(|m| scope.with_str(&m, str::to_owned).ok());
+            panic!("conformance: native module import failed: {message:?}")
+        });
+        while scope.run_job() {}
+        check("a native module's function is callable and its value importable", scope.as_number(&scope.get(&one, "doubled").expect("conformance: doubled")) == Some(84.0));
+        let second = ModuleSource { source: b"export { twice } from 'native';".to_vec(), meta: None, image: None, source_map: None };
+        let (two, _) = scope.module("/app/two.js", second).expect("conformance: second native import");
+        while scope.run_job() {}
+        let (a, b) = (scope.get(&one, "twice").expect("conformance: twice"), scope.get(&two, "twice").expect("conformance: twice"));
+        check("every importer sees the same native export", scope.identity(&a) == scope.identity(&b));
+        check("a native module is built once per instance", seen.native_loads.get() == 1);
     });
 }
 

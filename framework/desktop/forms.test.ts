@@ -3,35 +3,41 @@
  * class reads and writes, and what each host message does.
  */
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import type { HostMessage } from '@desktop/bridge';
 
 /** Every property write sent to a WebView, as `[form, control, prop, value]`. */
-const writes = [];
+const writes: unknown[][] = [];
 /** Carried-over control values, by form. */
-let carried = {};
+let carried: Record<string, Record<string, Record<string, unknown>>> = {};
 /** The handler `start` installed. */
-let handler = null;
+let handler: ((message: HostMessage) => unknown) | null = null;
 
 mock.module('@desktop/bridge', () => ({
-  setProperty: (...write) => void writes.push(write),
-  restored: form => carried[form] ?? {},
-  serve: fn => void (handler = fn),
+  setProperty: (...write: unknown[]) => void writes.push(write),
+  restored: (form: string) => carried[form] ?? {},
+  serve: (fn: (message: HostMessage) => unknown) => void (handler = fn),
 }));
 
-const { Control, Form, start } = await import('./forms.js');
+const { Control, Form, start } = await import('./forms.ts');
 
 /** What the handlers of the test form saw, in order. */
-let log = [];
+let log: string[] = [];
+
+/** A control proxy with the properties of its kind. */
+type Proxy = InstanceType<typeof Control> & Record<string, any>;
 
 /** A form class as a developer writes it: no constructor, fields call `find`. */
 class Main extends Form {
-  save = this.find('Save');
-  name = this.find('Name');
-  act = this.find('Act');
+  save = this.find<Proxy>('Save');
+  // Shadows `Form.name` on purpose: the hazard `Control#owner` guards against.
+  // @ts-expect-error TS2610: a field overriding an accessor.
+  name = this.find<Proxy>('Name');
+  act = this.find<Proxy>('Act');
   clicked = () => void log.push(`clicked:${this.name.text}`);
   executed = () => void log.push('executed');
   created = () => void log.push('created');
-  resized = size => void log.push(`resized:${size.width}`);
-  closing = query => {
+  resized = (size: { width: number }) => void log.push(`resized:${size.width}`);
+  closing = (query: { cancel: boolean }) => {
     query.cancel = this.name.text === 'dirty';
   };
   slow = async () => {
@@ -43,10 +49,10 @@ class Main extends Form {
 
 /**
  * Starts a backend with the test form.
- * @return {Main} the form instance, captured through its `created` handler's `this`
+ * @return the form instance, captured through its constructor
  */
-function boot() {
-  let instance;
+function boot(): Main {
+  let instance!: Main;
   class Captured extends Main {
     constructor() {
       super();
@@ -58,7 +64,7 @@ function boot() {
     application: { mainForm: 'Main', connections: { '@application.onReady': ['ready'] } },
     forms: {
       Main: {
-        create: Captured,
+        create: Captured as unknown as new () => InstanceType<typeof Form>,
         controls: {
           Save: ['button', { caption: 'Save', enabled: true, action: 'Act' }],
           Name: ['edit', { text: '', enabled: true }],
@@ -80,14 +86,14 @@ function boot() {
 
 /**
  * Delivers a message as the host does.
- * @param {string} method `<target>.<event>`
- * @param {unknown} [payload] the message payload
- * @param {string} [form] the window id
- * @return {unknown} what the dispatch returned
+ * @param method `<target>.<event>`
+ * @param payload the message payload
+ * @param form the window id
+ * @return what the dispatch returned
  */
-function send(method, payload, form = 'Main') {
-  const [target, event] = method.split('.');
-  return handler({ form, target, event, payload, request: event === 'onCloseQuery' });
+function send(method: string, payload?: HostMessage['payload'], form = 'Main'): unknown {
+  const [target, event] = method.split('.') as [string, string];
+  return handler!({ form, target, event, payload, request: event === 'onCloseQuery' });
 }
 
 beforeEach(() => {
@@ -148,7 +154,8 @@ describe('dispatch', () => {
     const form = boot();
     send('Name.onChange', { props: { text: 'typed' } });
     expect(form.name.text).toBe('typed');
-    expect(writes).toEqual([], 'a value from the WebView is not sent back');
+    // A value from the WebView is not sent back.
+    expect(writes).toEqual([]);
     send('Save.onClick', { props: {} });
     expect(log).toEqual(['clicked:typed', 'executed']);
   });

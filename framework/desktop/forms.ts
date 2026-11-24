@@ -22,7 +22,7 @@
  *   after its own click handlers, and follows the action's `caption`, `enabled`
  *   and `checked` when the form class writes them.
  */
-import { restored, serve, setProperty } from '@desktop/bridge';
+import { restored, serve, setProperty, type HostMessage } from '@desktop/bridge';
 
 /** The `windowId` of application events, as the host sends it. */
 export const APPLICATION = '@application';
@@ -30,51 +30,60 @@ export const APPLICATION = '@application';
 /** The props of an action that its linked controls follow. */
 const ACTION_PROPS = ['caption', 'enabled', 'checked'];
 
-/** @type {Map<string, FormDefinition>} form name -> its generated definition */
-const definitions = new Map();
+/** What the generated backend entry passes `start` for one form. */
+export interface FormDefinition {
+  /** The form class. */
+  create: new () => Form;
+  /** Control name to its kind and initial values. */
+  controls: Record<string, [kind: string, values: Record<string, unknown>]>;
+  /** `<target>.<event>` to the names of the handlers to call, in order. */
+  connections: Record<string, string[]>;
+  /** Action name to the controls linked to it. */
+  actions?: Record<string, string[]>;
+}
 
-/** @type {Map<string, typeof Control>} control kind -> its proxy class */
-const proxies = new Map();
+/** What the generated backend entry passes `start`. */
+export interface Project {
+  /** Application-level wiring. */
+  application: { mainForm: string; connections: Record<string, string[]> };
+  /** Form name to its definition. */
+  forms: Record<string, FormDefinition>;
+}
 
-/** @type {Map<string, Form>} form name -> its instance */
-const forms = new Map();
+/** Form name to its generated definition. */
+const definitions = new Map<string, FormDefinition>();
 
-/**
- * @typedef {object} FormDefinition
- * @property {new () => Form} create the form class
- * @property {Record<string, [string, Record<string, unknown>]>} controls control
- *   name to its kind and initial values
- * @property {Record<string, string[]>} connections `<target>.<event>` to the
- *   names of the handlers to call, in order
- * @property {Record<string, string[]>} [actions] action name to the controls
- *   linked to it
- */
+/** Control kind to its proxy class. */
+const proxies = new Map<string, typeof Control>();
+
+/** Form name to its instance. */
+const forms = new Map<string, Form>();
 
 /** A control as the form class sees it. */
 export class Control {
-  /** @type {Form} the form the control belongs to */
-  #form;
+  /** The form the control belongs to. */
+  #form: Form;
   /**
-   * @type {string} the owning form's name. Held here and not read from the form:
-   * a form class may declare a field called `name`, which would shadow
-   * `Form.name` and send every write to the wrong window.
+   * The owning form's name. Held here and not read from the form: a form class
+   * may declare a field called `name`, which would shadow `Form.name` and send
+   * every write to the wrong window.
    */
-  #owner;
-  /** @type {string} the control's name */
-  #name;
-  /** @type {string} the control's kind, e.g. `button` */
-  #kind;
-  /** @type {Record<string, unknown>} the current property values */
-  #values;
+  #owner: string;
+  /** The control's name. */
+  #name: string;
+  /** The control's kind, e.g. `button`. */
+  #kind: string;
+  /** The current property values. */
+  #values: Record<string, unknown>;
 
   /**
-   * @param {Form} form the owning form
-   * @param {string} owner the owning form's name
-   * @param {string} name the control's name
-   * @param {string} kind the control's kind
-   * @param {Record<string, unknown>} values the initial property values
+   * @param form the owning form
+   * @param owner the owning form's name
+   * @param name the control's name
+   * @param kind the control's kind
+   * @param values the initial property values
    */
-  constructor(form, owner, name, kind, values) {
+  constructor(form: Form, owner: string, name: string, kind: string, values: Record<string, unknown>) {
     this.#form = form;
     this.#owner = owner;
     this.#name = name;
@@ -82,31 +91,31 @@ export class Control {
     this.#values = values;
   }
 
-  /** @return {string} the control's name */
-  get name() {
+  /** @return the control's name */
+  get name(): string {
     return this.#name;
   }
 
-  /** @return {string} the control's kind, e.g. `button` */
-  get kind() {
+  /** @return the control's kind, e.g. `button` */
+  get kind(): string {
     return this.#kind;
   }
 
   /**
    * Reads a property.
-   * @param {string} prop the property name
-   * @return {unknown} its value
+   * @param prop the property name
+   * @return its value
    */
-  get(prop) {
+  get(prop: string): unknown {
     return this.#values[prop];
   }
 
   /**
    * Writes a property and sends it to the form's WebView.
-   * @param {string} prop the property name
-   * @param {unknown} value the new value
+   * @param prop the property name
+   * @param value the new value
    */
-  set(prop, value) {
+  set(prop: string, value: unknown): void {
     if (Object.is(this.#values[prop], value)) return;
     this.#values[prop] = value;
     setProperty(this.#owner, this.#name, prop, value);
@@ -118,31 +127,29 @@ export class Control {
   /**
    * Takes the values a WebView event changed. They came from the WebView, so
    * they are not sent back.
-   * @param {Record<string, unknown>} props the changed values
+   * @param props the changed values
    */
-  receive(props) {
+  receive(props: Record<string, unknown>): void {
     Object.assign(this.#values, props);
   }
 }
 
 /**
  * Returns the proxy class of a control kind, creating it on first use.
- * @param {string} kind the control kind
- * @param {Iterable<string>} props the kind's property names
- * @return {typeof Control} the proxy class
+ * @param kind the control kind
+ * @param props the kind's property names
+ * @return the proxy class
  */
-function proxyOf(kind, props) {
+function proxyOf(kind: string, props: Iterable<string>): typeof Control {
   let proxy = proxies.get(kind);
   if (proxy) return proxy;
   proxy = class extends Control {};
   for (const prop of props) {
     Object.defineProperty(proxy.prototype, prop, {
-      /** @return {unknown} the property's value */
-      get() {
+      get(this: Control): unknown {
         return this.get(prop);
       },
-      /** @param {unknown} value the new value */
-      set(value) {
+      set(this: Control, value: unknown) {
         this.set(prop, value);
       },
       enumerable: true,
@@ -154,12 +161,12 @@ function proxyOf(kind, props) {
 
 /** The base of every form class (spec 2.5). */
 export class Form {
-  /** @type {string} the form's name */
-  #name;
-  /** @type {Map<string, Control>} control name -> its proxy */
-  #controls = new Map();
-  /** @type {Record<string, string[]>} action name -> linked control names */
-  #actions;
+  /** The form's name. */
+  #name: string;
+  /** Control name to its proxy. */
+  #controls = new Map<string, Control>();
+  /** Action name to linked control names. */
+  #actions: Record<string, string[]>;
 
   constructor() {
     const name = new.target.name;
@@ -174,42 +181,41 @@ export class Form {
     }
   }
 
-  /** @return {string} the form's name */
-  get name() {
+  /** @return the form's name */
+  get name(): string {
     return this.#name;
   }
 
   /**
    * Finds a control of this form.
-   * @template {Control} T
-   * @param {string} name the control's name
-   * @return {T} the control
+   * @param name the control's name
+   * @return the control
    */
-  find(name) {
+  find<T extends Control = Control>(name: string): T {
     const control = this.#controls.get(name);
     if (!control) throw new Error(`${this.#name} has no control named '${name}'`);
-    return /** @type {T} */ (control);
+    return control as T;
   }
 
   /**
    * Lists the controls linked to an action. Static, and reading the private
    * tables directly, so that no field or method a form class declares can
    * shadow it.
-   * @param {Form} form the form
-   * @param {string} action the action's name
-   * @return {Control[]} the linked controls
+   * @param form the form
+   * @param action the action's name
+   * @return the linked controls
    */
-  static linked(form, action) {
-    return (form.#actions[action] ?? []).map(name => form.#controls.get(name)).filter(Boolean);
+  static linked(form: Form, action: string): Control[] {
+    return (form.#actions[action] ?? []).map(name => form.#controls.get(name)).filter((c): c is Control => c !== undefined);
   }
 
   /**
    * Finds a control for the dispatch, bypassing anything a form class declares.
-   * @param {Form} form the form
-   * @param {string} name the control's name
-   * @return {Control} the control
+   * @param form the form
+   * @param name the control's name
+   * @return the control
    */
-  static control(form, name) {
+  static control(form: Form, name: string): Control {
     const control = form.#controls.get(name);
     if (!control) throw new Error(`${form.#name} has no control named '${name}'`);
     return control;
@@ -218,27 +224,28 @@ export class Form {
 
 /**
  * Runs the handlers connected to one event.
- * @param {Form} form the form whose class holds the handlers
- * @param {string[] | undefined} handlers the handler names
- * @param {unknown} argument what each handler receives
- * @return {unknown} a promise when any handler returned one, else `undefined`
+ * @param form the form whose class holds the handlers
+ * @param handlers the handler names
+ * @param argument what each handler receives
+ * @return a promise when any handler returned one, else `undefined`
  */
-function run(form, handlers, argument) {
-  const waiting = [];
+function run(form: Form, handlers: string[] | undefined, argument: unknown): Promise<unknown[]> | undefined {
+  const waiting: PromiseLike<unknown>[] = [];
+  const methods = form as unknown as Record<string, (argument: unknown) => unknown>;
   for (const handler of handlers ?? []) {
-    const result = form[handler](argument);
-    if (result && typeof result.then === 'function') waiting.push(result);
+    const result = methods[handler]!(argument);
+    if (result && typeof (result as PromiseLike<unknown>).then === 'function') waiting.push(result as PromiseLike<unknown>);
   }
   return waiting.length ? Promise.all(waiting) : undefined;
 }
 
 /**
  * Handles one message from the host.
- * @param {{form: string, target: string, event: string, payload: any, request: boolean}} message
- * @param {{mainForm: string, connections: Record<string, string[]>}} application
- * @return {unknown} the answer to a request, or a promise the host waits on
+ * @param message the host's message
+ * @param application the application wiring
+ * @return the answer to a request, or a promise the host waits on
  */
-function dispatch(message, application) {
+function dispatch(message: HostMessage, application: Project['application']): unknown {
   const payload = message.payload ?? {};
   const argument = payload.args !== undefined ? payload.args : payload;
   if (message.form === APPLICATION) {
@@ -262,10 +269,9 @@ function dispatch(message, application) {
 
 /**
  * Starts the backend: creates every form and serves the host's messages.
- * @param {{application: {mainForm: string, connections: Record<string, string[]>}, forms: Record<string, FormDefinition>}} project
- *   the generated project table
+ * @param project the generated project table
  */
-export function start(project) {
+export function start(project: Project): void {
   definitions.clear();
   forms.clear();
   for (const [name, definition] of Object.entries(project.forms)) definitions.set(name, definition);

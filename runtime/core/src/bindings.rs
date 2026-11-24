@@ -9,7 +9,7 @@
 //! - Registered functions and values are added to the same internal `ops` object
 //!   the Runtime's own natives live on. Scripts do not see that object; a host
 //!   exposes its natives by also registering a module whose source wraps them
-//!   (`const { ops } = __lunarstorm.internal`).
+//!   (`import { ops } from 'lunarstorm:internal'`; only host modules may).
 //! - A binding is written against the VM contract, generic over [`Vm`], so a host
 //!   works with any engine.
 //! - The boxed installers run once, at `start`. Calls into a registered function
