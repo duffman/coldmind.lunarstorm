@@ -206,3 +206,25 @@ fn duplicate_sloppy_parameter_metadata_exposes_only_last_binding() {
         function.locals[1].var_ref_idx
     );
 }
+
+/// Fix: a flat script of 998 statements (`o.pN=1;` each) failed to load with
+/// "capacity: verification state budget/empty code": every statement took a new
+/// local, so the verifier's instructions × (locals + 1) grew with the square of
+/// the program's length. Long top-level code (any bundle) must compile, and the
+/// number of locals must not grow with the number of statements.
+#[test]
+fn long_flat_scripts_compile_without_a_local_per_statement() {
+    for statement in ["o.p{i}=1;", "o.p{i}+=1;", "o.p{i}||=1;", "o.p{i}++;"] {
+        let mut locals = Vec::new();
+        for n in [10usize, 100, 5000] {
+            let source: String = std::iter::once("var o={};".to_string())
+                .chain((0..n).map(|i| statement.replace("{i}", &i.to_string())))
+                .collect();
+            let image = compile_script(&source, "long.js")
+                .unwrap_or_else(|e| panic!("{n} x {statement}: {e}"));
+            locals.push(image.function().local_count);
+            eprintln!("{n} x {statement}: {} locals", image.function().local_count);
+        }
+        assert_eq!(locals[0], locals[2], "{statement}: locals per statement count: {locals:?}");
+    }
+}

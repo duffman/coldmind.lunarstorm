@@ -3146,6 +3146,7 @@ static void JS_MarkContext(JSRuntime *rt, JSContext *ctx,
     if (ctx->regexp_shape)
         mark_func(rt, &ctx->regexp_shape->header);
 
+    /* lunarstorm patch: the promise resolving functions' shape (see JSContext). */
     if (ctx->promise_resolve_shape)
         mark_func(rt, &ctx->promise_resolve_shape->header);
 
@@ -3234,7 +3235,7 @@ void JS_FreeContext(JSContext *ctx)
     js_free_shape_null(ctx->rt, ctx->mapped_arguments_shape);
     js_free_shape_null(ctx->rt, ctx->regexp_shape);
     js_free_shape_null(ctx->rt, ctx->regexp_result_shape);
-    js_free_shape_null(ctx->rt, ctx->promise_resolve_shape);
+    js_free_shape_null(ctx->rt, ctx->promise_resolve_shape); /* lunarstorm patch: see JSContext */
 
     list_del(&ctx->link);
     remove_gc_object(&ctx->header);
@@ -19591,6 +19592,8 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                     goto exception;
             }
             BREAK;
+        /* lunarstorm patch: jetbunny's OP_debug_catch case is removed; the
+           user-catch table carries its flag (see quickjs-opcode.h). */
         CASE(OP_catch):
             {
                 int32_t diff;
@@ -26278,7 +26281,7 @@ static void free_function_bytecode(JSRuntime *rt, JSFunctionBytecode *b)
     js_free_rt(rt, b->pc2line_buf);
     js_free_rt(rt, b->source);
     js_free_rt(rt, b->debug_bp);
-    js_free_rt(rt, b->user_catch);
+    js_free_rt(rt, b->user_catch); /* lunarstorm patch: user-catch table */
 
     remove_gc_object(&b->header);
     if (rt->gc_phase == JS_GC_PHASE_REMOVE_CYCLES && JS_REF_COUNT(b) != 0) {

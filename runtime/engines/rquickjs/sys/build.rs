@@ -163,10 +163,25 @@ fn main() {
         println!("cargo:rerun-if-changed={}", src_dir.join(file).display());
     }
 
-    let mut defines: Vec<(String, Option<&str>)> = vec![("_GNU_SOURCE".into(), None)];
+    // lunarstorm patch: jetbunny's engine build (its crates/rquickjs-sys/build.rs):
+    // `QUICKJS_NG_BUILD`, and `QJS_DISABLE_PARSER` because the Rust compiler is the
+    // only compiler (the parser it guarded is removed from quickjs.c, so here it
+    // only records the build's intent).
+    let mut defines: Vec<(String, Option<&str>)> = vec![
+        ("_GNU_SOURCE".into(), None),
+        ("QUICKJS_NG_BUILD".into(), None),
+        ("QJS_DISABLE_PARSER".into(), None),
+    ];
 
     #[cfg(feature = "disable-assertions")]
     defines.push(("NDEBUG".into(), None));
+    // lunarstorm patch: jetbunny's rule. Optimised builds compiled the engine with
+    // its `assert`s on the interpreter's and collector's hot paths; `NDEBUG`
+    // whenever Cargo optimises, unoptimised builds keep the asserts.
+    #[cfg(not(feature = "disable-assertions"))]
+    if env::var("OPT_LEVEL").is_ok_and(|level| level != "0") {
+        defines.push(("NDEBUG".into(), None));
+    }
 
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
     let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap();
@@ -178,6 +193,16 @@ fn main() {
         //.flag("-Wno-array-bounds")
         //.flag("-Wno-format-truncation")
         ;
+    // lunarstorm patch: jetbunny's compiler policy (upstream's CMake): C11 and
+    // unsigned `char`. Windows gets C11 through CFLAGS below.
+    if target_os != "windows" {
+        builder.std("c11");
+    }
+    if builder.get_compiler().is_like_msvc() {
+        builder.flag_if_supported("/J");
+    } else if target_os != "solaris" && target_os != "illumos" {
+        builder.flag_if_supported("-funsigned-char");
+    }
 
     match env::var("CARGO_CFG_SANITIZE").as_deref() {
         Ok("address") => {

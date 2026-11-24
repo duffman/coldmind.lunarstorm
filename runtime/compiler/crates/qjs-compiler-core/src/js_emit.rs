@@ -114,6 +114,11 @@ struct Emitter<'a> {
     parameter_slots: Vec<u32>,
     parameter_anchor: Option<u32>,
     initializing_parameters: bool,
+    /// The one local every `o[k] = v` in this function keeps its result in; see
+    /// the `AssignMember` arm of `expression`.
+    assign_member_slot: Option<u32>,
+    /// Temporaries `clear_temporaries` has ended, free for `temporary` to reuse.
+    free_temporaries: Vec<u32>,
     parameter_region_locals: std::collections::BTreeSet<u32>,
     pending_body_anchor: Option<u32>,
     new_target_binding: Option<ir::Binding>,
@@ -452,6 +457,8 @@ impl<'a> Emitter<'a> {
             parameter_slots: Vec::new(),
             parameter_anchor: None,
             initializing_parameters: false,
+            assign_member_slot: None,
+            free_temporaries: Vec::new(),
             parameter_region_locals: Default::default(),
             pending_body_anchor: None,
             this_binding: function
@@ -781,6 +788,12 @@ impl<'a> Emitter<'a> {
         }
     }
     fn slot(&mut self, name: &'static str, slot: u32, pop: usize, push: usize, span: ir::Span) {
+        // A temporary is only touched between `temporary` and `clear_temporaries`;
+        // reuse of ended ones (see `temporary`) depends on it.
+        debug_assert!(
+            !(name.ends_with("_loc") && self.free_temporaries.contains(&slot)),
+            "{name} on ended temporary {slot}"
+        );
         self.instruction(name, (slot as u16).to_ne_bytes().to_vec(), pop, push, span)
     }
     fn label(&mut self) -> u32 {
@@ -3436,6 +3449,20 @@ impl<'a> Emitter<'a> {
     }
     fn temporary(&mut self) -> Result<u32, String> {
         self.budget.charge(Counter::Work, 1)?;
+        // lunarstorm patch: every temporary was a new local, never reused, so a
+        // long function of compound member assignments (5000 x `o.pN+=1;`, three
+        // temporaries each) exceeded the verifier's instructions x (locals + 1)
+        // budget and failed to load. Decision: reuse a temporary
+        // `clear_temporaries` has ended, from the same region (parameter
+        // initializers or body), before taking a new local.
+        let parameter = self.initializing_parameters;
+        if let Some(index) = self
+            .free_temporaries
+            .iter()
+            .rposition(|slot| self.parameter_region_locals.contains(slot) == parameter)
+        {
+            return Ok(self.free_temporaries.swap_remove(index));
+        }
         self.budget
             .slots(self.function.arg_count as usize + self.function.local_count as usize + 1)?;
         let slot = self.function.local_count;
@@ -3446,10 +3473,18 @@ impl<'a> Emitter<'a> {
         }
         Ok(slot)
     }
+    /// Ends `slots`: stores undefined in each and frees it for reuse by
+    /// [`Self::temporary`].
+    ///
+    /// # Arguments
+    /// * `slots` - temporaries nothing emitted later reads or writes.
+    /// * `span` - source span of the clearing instructions.
     fn clear_temporaries(&mut self, slots: &[u32], span: ir::Span) {
         for &slot in slots {
             self.simple("undefined", 0, 1, span);
             self.slot("put_loc", slot, 1, 0, span);
+            debug_assert!(!self.free_temporaries.contains(&slot), "temporary {slot} ended twice");
+            self.free_temporaries.push(slot);
         }
     }
     // Compound/update/logical references normalize exactly once before GetValue.
@@ -4100,15 +4135,30 @@ impl<'a> Emitter<'a> {
                 self.expression(object)?;
                 self.expression(key)?;
                 self.expression(value)?;
-                let slot = self.function.local_count;
-                self.budget.slots(
-                    self.function.arg_count as usize + self.function.local_count as usize + 1,
-                )?;
-                self.function.local_count += 1;
-                if self.function.local_count > 65535 {
-                    return Err("capacity: local count budget".into());
-                }
-                self.function.locals.push(VarDef::default());
+                // lunarstorm patch: every `o[k] = v` took a new local, so a long
+                // function (a 998-statement script of `o.pN=1;`) exceeded the
+                // verifier's instructions x (locals + 1) budget and failed to load.
+                // The slot only lives from the `put_loc` to the `get_loc` below,
+                // with nothing but `put_array_el` between them, so one slot per
+                // function serves every member assignment, nested ones included.
+                let slot = match self.assign_member_slot {
+                    Some(slot) => slot,
+                    None => {
+                        let slot = self.function.local_count;
+                        self.budget.slots(
+                            self.function.arg_count as usize
+                                + self.function.local_count as usize
+                                + 1,
+                        )?;
+                        self.function.local_count += 1;
+                        if self.function.local_count > 65535 {
+                            return Err("capacity: local count budget".into());
+                        }
+                        self.function.locals.push(VarDef::default());
+                        self.assign_member_slot = Some(slot);
+                        slot
+                    }
+                };
                 self.simple("dup", 1, 2, e.span);
                 self.slot("put_loc", slot, 1, 0, e.span);
                 self.simple("put_array_el", 3, 0, e.span);

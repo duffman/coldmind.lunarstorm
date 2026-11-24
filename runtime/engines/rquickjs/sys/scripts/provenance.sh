@@ -6,6 +6,7 @@
 #
 #   provenance.sh revision          writes quickjs/REVISION
 #   provenance.sh jetbunny <dir>    writes quickjs/JETBUNNY-SHA256
+#   provenance.sh sites             rewrites PATCHES.md's `## Sites` list
 #
 # REVISION: upstream revision, the patch identities (the `## ` headings of
 # PATCHES.md, so the list cannot drift from the document) and the SHA-256 of
@@ -38,6 +39,20 @@ revision)
 	} > .REVISION.new
 	mv .REVISION.new REVISION
 	;;
+sites)
+	# Rewrites the list after PATCHES.md's `## Sites` heading: one entry per
+	# `lunarstorm patch` comment in the sources, by file and line.
+	{
+		sed '/^## Sites$/q' PATCHES.md
+		echo
+		echo "Every \`lunarstorm patch\` comment in the sources, by file and line. The provenance"
+		echo "test checks that this list has one entry per comment."
+		echo
+		grep -n "lunarstorm patch" *.c *.h *.inc |
+			sed -E 's/^([^:]+):([0-9]+):.*lunarstorm patch:? ?(.*)$/- `\1:\2` \3/; s/ *\*\/ *$//'
+	} > .PATCHES.new
+	mv .PATCHES.new PATCHES.md
+	;;
 jetbunny)
 	j=${2:?jetbunny checkout}
 	commit=$(git -C "$j" rev-parse HEAD)
@@ -57,7 +72,7 @@ jetbunny)
 	mv .JETBUNNY-SHA256.new JETBUNNY-SHA256
 	;;
 *)
-	echo "usage: $0 revision | jetbunny <dir>" >&2
+	echo "usage: $0 revision | sites | jetbunny <dir>" >&2
 	exit 2
 	;;
 esac

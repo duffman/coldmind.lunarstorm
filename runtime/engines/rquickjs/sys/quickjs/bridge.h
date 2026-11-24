@@ -21,6 +21,14 @@ typedef jbq_value (*jbq_host)(void *opaque, jbq_context *, jbq_value receiver,
 jbq_context *jbq_context_new(void *runtime, size_t memory_limit, size_t stack_limit,
                              jbq_interrupt interrupt, void *interrupt_opaque);
 void jbq_context_free(jbq_context *);
+/* lunarstorm patch: the bridge ABI revision; the Rust side (lunarstorm-debug ffi.rs
+ * JBQ_ABI) refuses to attach on a mismatch. Decision: it stays jetbunny's 14.
+ * Lunarstorm only adds functions (jbq_abi, jbq_context_wrap, jbq_debug_poll,
+ * jbq_debug_rejection, jbq_set_base_compiler), and a missing function fails at
+ * link time; no jetbunny declaration changed. Bump it with the first change to an
+ * existing declaration's signature or to a shared struct's layout. */
+#define JBQ_ABI 14u
+uint32_t jbq_abi(void);
 /* lunarstorm patch: the bridge around a context its owner (rquickjs) created.
  * The context is duplicated, never replaced; the runtime's interrupt handler,
  * rejection tracker, dynamic-import function and limits stay the owner's, and

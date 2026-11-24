@@ -184,6 +184,13 @@ fail:
  free(c); return NULL;
 }
 /**
+ * lunarstorm patch: the bridge ABI revision this library was built with.
+ *
+ * @return JBQ_ABI.
+ */
+uint32_t jbq_abi(void) { return JBQ_ABI; }
+
+/**
  * lunarstorm patch: the bridge around a context rquickjs created, for the debugger.
  *
  * Decision: everything jbq_context_new sets on the runtime (limits, interrupt

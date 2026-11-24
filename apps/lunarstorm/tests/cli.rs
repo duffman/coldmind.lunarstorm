@@ -495,3 +495,25 @@ fn json_import_with_attributes_runs() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "42\n");
 }
+
+/// Fix: a script of about a thousand member assignments failed to load with
+/// "capacity: verification state budget/empty code", because every member
+/// assignment took a new local in the Rust compiler. Long top-level code must
+/// run through the real binary.
+#[test]
+fn long_script_of_member_assignments_runs() {
+    let dir = scratch("long-script");
+    let main = dir.join("main.js");
+    let mut source = String::from("var o={};");
+    for i in 0..5000 {
+        source.push_str(&format!("o.a{i}=1;o.b{i}+=1;o.c{i}||=1;o.a{i}++;"));
+    }
+    source.push_str("console.log(Object.keys(o).length);");
+    std::fs::write(&main, source).expect("write script");
+    let out = Command::new(env!("CARGO_BIN_EXE_lunarstorm"))
+        .arg(&main)
+        .output()
+        .expect("spawn lunarstorm");
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "15000\n");
+}

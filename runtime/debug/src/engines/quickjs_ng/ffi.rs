@@ -8,6 +8,10 @@
 #![allow(dead_code)]
 use std::ffi::{c_char, c_int, c_void};
 
+/// lunarstorm patch: the bridge ABI revision these declarations match (`JBQ_ABI` in
+/// bridge.h). Bump both with any change to a bridge declaration.
+pub(super) const JBQ_ABI: u32 = 14;
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Value {
@@ -155,6 +159,11 @@ unsafe extern "C" {
     /// # Returns
     /// The bridge context, or null on allocation or class registration failure.
     pub(super) fn jbq_context_wrap(js_context: *mut c_void) -> *mut Context;
+    /// lunarstorm patch: the bridge ABI revision the native library was built with.
+    ///
+    /// # Returns
+    /// Its `JBQ_ABI`; compare with [`JBQ_ABI`].
+    pub(super) fn jbq_abi() -> u32;
     /// lunarstorm patch: the debugger's share of the interrupt poll of a wrapped context.
     ///
     /// # Arguments

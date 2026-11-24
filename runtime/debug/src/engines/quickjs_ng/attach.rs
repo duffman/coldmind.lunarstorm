@@ -95,6 +95,7 @@ impl Debugger {
         wake_owner: Arc<dyn Fn() -> Result<(), FailureReport> + Send + Sync>,
         vm_epoch: NonZeroU64,
     ) -> Result<Self, FailureReport> {
+        check_abi(ffi::JBQ_ABI)?;
         let identity = EngineIdentity::new()?;
         let values = ValueStore::new(&identity, ContextLimits::default())?;
         let context = values.context();
@@ -306,5 +307,41 @@ impl Drop for Debugger {
         }
         self.backend.close();
         self.raw.close();
+    }
+}
+
+/// lunarstorm patch: refuses a native bridge built from another revision of
+/// bridge.h, whose declarations the Rust side would call with the wrong layout.
+///
+/// # Arguments
+/// * `expected` - the revision the Rust declarations match ([`ffi::JBQ_ABI`]).
+///
+/// # Errors
+/// [`FailureCode::EngineFailure`] when the native library reports another revision.
+fn check_abi(expected: u32) -> Result<(), FailureReport> {
+    // SAFETY: a constant getter; no context, no allocation.
+    let native = unsafe { ffi::jbq_abi() };
+    if native == expected {
+        Ok(())
+    } else {
+        Err(FailureReport::new(
+            FailureClass::Engine,
+            FailureCode::EngineFailure,
+            &format!("debugger bridge ABI mismatch: native {native}, expected {expected}"),
+        ))
+    }
+}
+
+#[cfg(test)]
+mod abi_tests {
+    use super::*;
+
+    #[test]
+    fn attach_refuses_a_bridge_of_another_abi() {
+        assert!(check_abi(ffi::JBQ_ABI).is_ok());
+        let error = check_abi(ffi::JBQ_ABI + 1).unwrap_err();
+        assert_eq!(error.code, FailureCode::EngineFailure);
+        let message = error.message.unwrap().to_utf8().unwrap();
+        assert!(message.contains("ABI mismatch"), "{message}");
     }
 }

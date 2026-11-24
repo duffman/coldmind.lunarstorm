@@ -384,44 +384,72 @@ integer literals loaded as float-tagged values (`1+1` had type Float, and
 `as_int()` refused literal integers). Integer-valued constants in i32 range,
 except -0, are now written as `BC_TAG_INT32`, as the C parser emitted them.
 
+## lunarstorm-writer-out-of-memory
+
+Upstream's and jetbunny's bytecode writer returned a truncated image as written
+when an allocation failed: 13 callers drop `bc_put_atom`'s -1, so the atom was
+left out of the stream, and `JS_WriteObject2` never read its buffer's
+allocation flag. `bc_put_atom` now marks the buffer failed, and
+`JS_WriteObject2` refuses a failed buffer, throwing out-of-memory unless an
+allocation already threw. Test: `compiled_payload_under_a_memory_limit_is_refused_or_complete`.
+
+## lunarstorm-compiler-temporaries
+
+Not in this directory: `qjs-compiler-core/src/js_emit.rs`. jetbunny's emitter
+took a new local for every member assignment and every expression temporary
+and never reused one, so verifier state (instructions x (locals + 1)) grew with
+the square of a function's length: a script of 998 `o.pN=1;` statements failed
+to load. One slot per function now serves `o[k] = v`, and `temporary` reuses
+slots `clear_temporaries` has ended (debug builds assert that an ended slot is
+never touched again). Tests: `long_flat_scripts_compile_without_a_local_per_statement`,
+`long_script_of_member_assignments_runs`.
+
 ## Sites
 
 Every `lunarstorm patch` comment in the sources, by file and line. The provenance
 test checks that this list has one entry per comment.
 
-- `jetbunny-eval.h:24` the context's base compiler; see jetbunny-eval.inc.
-- `bridge.h:24` the bridge around a context its owner (rquickjs) created.
-- `bridge.h:29` the debugger's share of the interrupt poll for a wrapped
-- `bridge.h:32` forwards one rejection-tracker event of a wrapped context to
-- `bridge.h:181` base compiler of a context the bridge does not own; see bridge.c.
-- `jetbunny-eval.inc:53` a reset falls back to the base compiler, if any, so a
-- `jetbunny-eval.inc:62` install the context's base compiler.
-- `jetbunny-eval.inc:173` jetbunny installs every module image "prepared" (imports
 - `bridge.c:32` set by jbq_context_wrap; the runtime's handlers belong to
 - `bridge.c:40` the debugger half of `interrupted`, shared with the
-- `bridge.c:187` the bridge around a context rquickjs created, for the debugger.
-- `bridge.c:242` a wrapped context's runtime handlers are its owner's
-- `bridge.c:777` install `compiler` as the base compiler of a context the
-- `bridge.c:1023` the debugger half of track_rejection, for a wrapped context
-- `jetbunny-modules.inc:26` import attributes now reach the module (rquickjs
-- `quickjs-opcode.h:393` jetbunny's `debug_catch` (a `catch` plus a u16 user/cleanup
+- `bridge.c:187` the bridge ABI revision this library was built with.
+- `bridge.c:194` the bridge around a context rquickjs created, for the debugger.
+- `bridge.c:249` a wrapped context's runtime handlers are its owner's
+- `bridge.c:784` install `compiler` as the base compiler of a context the
+- `bridge.c:1030` the debugger half of track_rejection, for a wrapped context
 - `quickjs.c:609` shape for promise resolving functions, with their
 - `quickjs.c:657` the context's base compiler (JS_JetbunnySetBaseCompiler):
 - `quickjs.c:955` handler targets (byte offsets) of user `catch` clauses,
-- `quickjs.c:3164` the base compiler's state belongs to the context.
-- `quickjs.c:18370` upstream's default range, which jetbunny dropped
-- `quickjs.c:26586` 30 (was 29) for the user-catch table in the debug
-- `quickjs.c:26945` user-catch table first in the debug section,
-- `quickjs.c:26968` write import attributes (a null-prototype object of
-- `quickjs.c:27017` each request's import attributes follow its
-- `quickjs.c:27853` no table unless the debug section has one
-- `quickjs.c:28031` user-catch table (see JS_WriteFunctionTag). Entries
-- `quickjs.c:28107` read the attributes js_write_module_attributes wrote;
-- `quickjs.c:28183` the request's import attributes.
-- `quickjs.c:44047` every promise creates two of these functions.
-- `quickjs.c:44227` resolving_funcs may be NULL when the caller settles
-- `quickjs.c:44397` PromiseResolve(%Promise%, primitive), which is what
-- `quickjs.c:47171` the same two properties, with the same flags and in
-- `quickjs.c:53367` whether `target` is listed in the user-catch table.
-- `quickjs.c:53388` reads the user-catch table instead of `debug_catch`
-- `quickjs.c:53851` table lookup replaces the per-slot bytecode scan.
+- `quickjs.c:3149` the promise resolving functions' shape (see JSContext).
+- `quickjs.c:3165` the base compiler's state belongs to the context.
+- `quickjs.c:3238` see JSContext
+- `quickjs.c:18371` upstream's default range, which jetbunny dropped
+- `quickjs.c:19595` jetbunny's OP_debug_catch case is removed; the
+- `quickjs.c:26284` user-catch table
+- `quickjs.c:26589` 30 (was 29) for the user-catch table in the debug
+- `quickjs.c:26734` 13 callers (upstream's and jetbunny's) ignore
+- `quickjs.c:26954` user-catch table first in the debug section,
+- `quickjs.c:26977` write import attributes (a null-prototype object of
+- `quickjs.c:27026` each request's import attributes follow its
+- `quickjs.c:27448` the writer never read the buffer's allocation flag, so
+- `quickjs.c:27871` no table unless the debug section has one
+- `quickjs.c:28049` user-catch table (see JS_WriteFunctionTag). Entries
+- `quickjs.c:28125` read the attributes js_write_module_attributes wrote;
+- `quickjs.c:28201` the request's import attributes.
+- `quickjs.c:44065` every promise creates two of these functions.
+- `quickjs.c:44245` resolving_funcs may be NULL when the caller settles
+- `quickjs.c:44415` PromiseResolve(%Promise%, primitive), which is what
+- `quickjs.c:47189` the same two properties, with the same flags and in
+- `quickjs.c:53385` whether `target` is listed in the user-catch table.
+- `quickjs.c:53406` reads the user-catch table instead of `debug_catch`
+- `quickjs.c:53869` table lookup replaces the per-slot bytecode scan.
+- `bridge.h:24` the bridge ABI revision; the Rust side (lunarstorm-debug ffi.rs
+- `bridge.h:32` the bridge around a context its owner (rquickjs) created.
+- `bridge.h:37` the debugger's share of the interrupt poll for a wrapped
+- `bridge.h:40` forwards one rejection-tracker event of a wrapped context to
+- `bridge.h:189` base compiler of a context the bridge does not own; see bridge.c.
+- `jetbunny-eval.h:24` the context's base compiler; see jetbunny-eval.inc.
+- `quickjs-opcode.h:393` jetbunny's `debug_catch` (a `catch` plus a u16 user/cleanup
+- `jetbunny-eval.inc:53` a reset falls back to the base compiler, if any, so a
+- `jetbunny-eval.inc:62` install the context's base compiler.
+- `jetbunny-eval.inc:173` jetbunny installs every module image "prepared" (imports
+- `jetbunny-modules.inc:26` import attributes now reach the module (rquickjs
