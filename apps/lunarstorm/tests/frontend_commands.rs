@@ -46,24 +46,24 @@ fn help_describes_each_command_and_exits_successfully() {
         let output = Cli::spawn(args, true).finish();
         assert_success(&output);
         assert!(output.stderr.is_empty(), "{}", output.stderr);
-        assert!(output.stdout.contains("Usage:"), "{}", output.stdout);
-        for name in ["--serve", "--build", "--preview", "--transpile"] {
+        assert!(output.stdout.contains("USAGE"), "{}", output.stdout);
+        for name in ["serve", "bundle", "preview", "transpile"] {
             assert!(output.stdout.contains(name), "{}", output.stdout);
         }
     }
     for (name, option) in [
-        ("--serve", "--host"),
-        ("--build", "--no-minify"),
-        ("--preview", "--port"),
-        ("--transpile", "--sourcemap"),
+        ("serve", "--host"),
+        ("bundle", "--no-minify"),
+        ("preview", "--port"),
+        ("transpile", "--sourcemap"),
     ] {
         for args in [[name, "--help"]] {
             let output = Cli::spawn(&args, true).finish();
             assert_success(&output);
             assert!(output.stderr.is_empty(), "{}", output.stderr);
-            assert!(output.stdout.contains("Usage:"), "{}", output.stdout);
+            assert!(output.stdout.contains("USAGE"), "{}", output.stdout);
             assert!(
-                output.stdout.contains(&format!("jetbunny {name}")),
+                output.stdout.contains(&format!("lunarstorm {name}")),
                 "{}",
                 output.stdout
             );
@@ -75,11 +75,11 @@ fn help_describes_each_command_and_exits_successfully() {
 #[test]
 fn malformed_arguments_fail_without_starting_a_listener() {
     for args in [
-        &["--serve", "--port"][..],
-        &["--build", "--out"],
-        &["--preview", "--port", "invalid"],
-        &["--serve", "--define", "=value"],
-        &["--build", "--host", "localhost"],
+        &["serve", "--port"][..],
+        &["bundle", "--out"],
+        &["preview", "--port", "invalid"],
+        &["serve", "--define", "=value"],
+        &["bundle", "--host", "localhost"],
     ] {
         let output = Cli::spawn(args, true).finish();
         assert!(!output.status.success(), "unexpected success: {args:?}");
@@ -94,7 +94,7 @@ fn malformed_arguments_fail_without_starting_a_listener() {
 #[test]
 fn dev_and_shorthand_apply_native_config_without_javascript() {
     let project = native_project();
-    for args in [vec!["--serve", project_arg(&project.0), "--no-watch"]] {
+    for args in [vec!["serve", project_arg(&project.0), "--no-watch"]] {
         let mut process = Cli::spawn(&args, true);
         let address = process.ready();
         let page = get(address, "/");
@@ -121,11 +121,11 @@ fn dev_and_shorthand_apply_native_config_without_javascript() {
 #[test]
 fn cli_build_then_preview_serves_generated_javascript_styles_assets_and_spa_routes() {
     let project = native_project();
-    let output = Cli::spawn(&["--build", project_arg(&project.0)], true).finish();
+    let output = Cli::spawn(&["bundle", project_arg(&project.0)], true).finish();
     assert_success(&output);
     let root = project.0.join("client/native-output");
     let page = std::fs::read(root.join("index.html")).unwrap();
-    let mut preview = Cli::spawn(&["--preview", project_arg(&project.0), "--port", "0"], true);
+    let mut preview = Cli::spawn(&["preview", project_arg(&project.0), "--port", "0"], true);
     let address = preview.ready();
     assert_eq!(get(address, "/").body, page);
     assert_eq!(get(address, "/nested/client-route").body, page);
@@ -206,7 +206,7 @@ fn explicit_build_and_preview_output_overrides_native_directory() {
     .unwrap();
     let output = Cli::spawn(
         &[
-            "--build",
+            "bundle",
             project_arg(&project.0),
             "--out",
             "explicit-output",
@@ -220,7 +220,7 @@ fn explicit_build_and_preview_output_overrides_native_directory() {
     let root = project.0.join("client/explicit-output");
     let mut preview = Cli::spawn(
         &[
-            "--preview",
+            "preview",
             project_arg(&project.0),
             "--out",
             "explicit-output",
@@ -250,7 +250,7 @@ fn invalid_native_config_fails_all_commands_without_falling_back_or_clearing_out
     let project = native_project();
     project.write(".devtools/config.toml", "[server]\nport = 'invalid'\n");
     project.write("client/native-output/sentinel", "keep");
-    for command in ["--serve", "--build", "--preview"] {
+    for command in ["serve", "bundle", "preview"] {
         let output = Cli::spawn(&[command, project_arg(&project.0)], true).finish();
         assert!(
             !output.status.success(),
@@ -278,7 +278,7 @@ fn preview_compatibility_config_receives_production_preview_environment() {
     );
     project.write("vite.config.mjs", "export default ({command,mode,isPreview}) => ({root: command === 'serve' && mode === 'production' && isPreview ? 'frontend' : 'wrong', build:{outDir:'configured-preview'}})");
     let mut child = Cli::spawn(
-        &["--preview", project_arg(&project.0), "--port", "0"],
+        &["preview", project_arg(&project.0), "--port", "0"],
         false,
     );
     let response = get(child.ready(), "/");
@@ -297,7 +297,7 @@ fn build_reports_source_and_dependency_failures_as_nonzero_exit() {
         ),
     ] {
         project.write("client/src/main.ts", source);
-        let output = Cli::spawn(&["--build", project_arg(&project.0)], true).finish();
+        let output = Cli::spawn(&["bundle", project_arg(&project.0)], true).finish();
         assert!(
             !output.status.success(),
             "invalid source built successfully: {source}"
@@ -317,7 +317,7 @@ fn unsafe_output_override_fails_before_deleting_project_sources() {
     let original = std::fs::read(project.0.join("client/src/main.ts")).unwrap();
     for directory in [".", ".."] {
         let output = Cli::spawn(
-            &["--build", project_arg(&project.0), "--out", directory],
+            &["bundle", project_arg(&project.0), "--out", directory],
             true,
         )
         .finish();

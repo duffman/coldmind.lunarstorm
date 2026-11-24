@@ -11,7 +11,8 @@ apps/lunarstorm                 the binary: picks packages (one Cargo feature ea
   ├─ crates/cli-host            lunarstorm-cli-host: parse, help, describe, completions, dispatch
   │    └─ crates/cliui          lunarstorm-cliui: colors, help layout, error frames
   ├─ runtime/hosts/cli          lunarstorm-host-cli: package "runtime" → `run`, `debug`, `jbn key`, `jbn build`
-  └─ toolchain/crates/pipeline  lunarstorm-pipeline: package "build"  → `build`, `build types`, `build check`
+  ├─ toolchain/crates/pipeline  lunarstorm-pipeline: package "build"  → `build`, `build types`, `build check`
+  └─ toolchain/crates/cli       devtools-cli: package "frontend" → `serve`, `bundle`, `preview`, `transpile`
            all packages depend on
        crates/cli-contract      lunarstorm-cli-contract: Package, Command, Arg, Invocation, Context, Failure
 ```
@@ -35,12 +36,17 @@ lunarstorm build -p templates/starters/desktop  # build into <project>/dist
 lunarstorm build -p app -o out                  # build into out/
 lunarstorm build types -p app                   # write app/src/desktop.d.ts
 lunarstorm build check -p app                   # report compile errors, write nothing
+lunarstorm serve ./app --port 5173              # frontend dev server with hot updates
+lunarstorm bundle ./app -o dist                 # production frontend bundle
+lunarstorm preview ./app --port 4173            # serve an existing bundle
+lunarstorm transpile src/main.ts                # one TS/TSX/JS/JSX module to JavaScript
+lunarstorm help build types                     # = lunarstorm build types --help
 lunarstorm describe                             # the whole command tree as JSON
 source <(lunarstorm completions zsh)            # completion (also: bash)
 lunarstorm pack ...                             # runs `lunarstorm-pack ...` from PATH
 ```
 
-Every command has `--help`. The host adds these options at every level:
+Every command has `--help`, and `lunarstorm help <command>...` prints the same screen. The host adds these options at every level:
 `--color <auto|always|never>` (global), `-h/--help` and `-v/--version`.
 
 | Exit status | Meaning |
@@ -211,11 +217,11 @@ up as `lunarstorm pack`, `lunarstorm web`, ….
 
 ## Choosing packages
 
-`apps/lunarstorm/Cargo.toml` has one feature per package (`runtime`, `build`, both on
-by default):
+`apps/lunarstorm/Cargo.toml` has one feature per package (`runtime`, `build`, `frontend`,
+all on by default):
 
 ```sh
-cargo build -p lunarstorm                                            # run + build
+cargo build -p lunarstorm                                            # run + build + frontend
 cargo build -p lunarstorm --no-default-features --features build     # build only
 ```
 
@@ -237,4 +243,5 @@ step-by-step procedure and checklist. In short:
 |---|---|
 | `crates/cli-host/tests/host.rs` | parsing rules, context chain, value checks, env/defaults, statuses, mount validation (probe package) |
 | `apps/lunarstorm/tests/commands.rs` | real binary: help, `build`/`types`/`check` on the starter, usage errors, `describe`, completion, externals |
+| `apps/lunarstorm/tests/frontend_commands.rs`, `frontend_transpile.rs` | real binary: `serve`, `bundle`, `preview`, `transpile` (moved from `toolchain/crates/cli`, interface rewritten from `--serve`-style flags) |
 | `apps/lunarstorm/tests/cli.rs`, `ui.rs` | the runtime's `run`: event loop, net, fs, modules, exit codes, color, help, usage errors (moved unchanged from `runtime/hosts/cli`) |

@@ -12,7 +12,7 @@ import { createHotContext, resetHotRuntime } from "../../src/hot-runtime.ts";
 import { realWebSocket, realFetch } from "./setup.ts";
 
 const cli = process.env.DEVTOOLS_TEST_CLI;
-if (!cli) throw new Error("DEVTOOLS_TEST_CLI must name a freshly built devtools executable; run the product integration runner");
+if (!cli) throw new Error("DEVTOOLS_TEST_CLI must name a freshly built lunarstorm executable; run the product integration runner");
 let shell: ShellHandle | undefined;
 let host: Host | undefined;
 const peers: WebSocket[] = [];
@@ -33,7 +33,7 @@ class Host {
   constructor(readonly root: string) {}
   /** Resolve readiness from CLI output and fail with captured diagnostics on exit/timeout. */
   async start(port = 0): Promise<void> {
-    const child = spawn(cli!, ["dev", this.root, "--port", String(port), "--host", "127.0.0.1"], { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(cli!, ["serve", this.root, "--port", String(port), "--host", "127.0.0.1"], { stdio: ["ignore", "pipe", "pipe"] });
     this.child = child;
     await new Promise<void>((resolveReady, reject) => {
       let output = "";
