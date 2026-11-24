@@ -41,6 +41,14 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    /// The raw `JSRuntime` (Jetbunny fork: the bridge builds its context on it).
+    ///
+    /// # Returns
+    /// The runtime pointer, valid while this `Runtime` or a clone of it is alive.
+    pub fn as_raw(&self) -> NonNull<qjs::JSRuntime> {
+        self.inner.lock().rt
+    }
+
     /// Create a new runtime.
     ///
     /// Will generally only fail if not enough memory was available.

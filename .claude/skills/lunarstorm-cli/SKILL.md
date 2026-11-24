@@ -1,6 +1,6 @@
 ---
 name: lunarstorm-cli
-description: Add or change commands on the `lunarstorm` command line. Covers mounting a crate as a package, declaring commands, subcommands, flags, options and positionals, passing context between command levels, and testing the result. Use whenever someone wants a crate's functionality reachable as `lunarstorm <something>`, asks to add a subcommand, option or flag, or touches crates/cli-contract, crates/cli-host, apps/lunarstorm, runtime/hosts/cli/src/cli.rs or toolchain/crates/pipeline/src/command.rs — even if they only say "expose X on the CLI" or "add a flag to build".
+description: Add or change commands on the `lunarstorm` command line. Covers mounting a crate as a package, declaring commands, subcommands, flags, options and positionals, passing context between command levels, and testing the result. Use whenever someone wants a crate's functionality reachable as `lunarstorm <something>`, asks to add a subcommand, option or flag, or touches crates/cli-contract, crates/cli-host, apps/lunarstorm, runtime/hosts/cli/src/cli.rs, toolchain/crates/pipeline/src/command.rs or toolchain/crates/cli/src/command.rs — even if they only say "expose X on the CLI" or "add a flag to build".
 ---
 
 # Lunarstorm CLI packages
@@ -13,6 +13,7 @@ Read these before editing:
 - `crates/cli-contract/src/spec.rs`: `Command`, `Arg`, `ValueType`
 - `crates/cli-contract/src/invocation.rs`: `Invocation`, `Values`, `Context`
 - `toolchain/crates/pipeline/src/command.rs`: a worked package with a context level and subcommands
+- `toolchain/crates/cli/src/command.rs`: flat commands whose handlers add checks a value type cannot express
 - `runtime/hosts/cli/src/cli.rs`: a default command with Node-style option handling
 
 ## Add a package (a crate that has no commands yet)
@@ -59,7 +60,7 @@ Edit that package's `commands()` only. Never touch the host to add a command.
 ## Rules the host enforces
 
 The mount fails with exit 70 when a rule is broken; `Cli::tree()` returns the error.
-- Top-level names and aliases must be unique across all packages. `describe`,
+- Top-level names and aliases must be unique across all packages. `help`, `describe`,
   `completions` and `__complete` belong to the host.
 - Option names `help`, `version` and `color` and short letters `h` and `v` are reserved.
 - An argument name may appear only once along a path, globals included, because one

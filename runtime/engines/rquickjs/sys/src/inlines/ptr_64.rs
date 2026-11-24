@@ -10,12 +10,13 @@ pub unsafe fn JS_VALUE_GET_NORM_TAG(v: JSValue) -> i32 {
 
 #[inline]
 pub unsafe fn JS_VALUE_GET_INT(v: JSValue) -> i32 {
-    v.u.int32
+    // QuickJS-NG 0.17.0: `JS_VALUE_GET_INT(v) ((int)(v).u.uint64)`.
+    v.u.uint64 as i32
 }
 
 #[inline]
 pub unsafe fn JS_VALUE_GET_BOOL(v: JSValue) -> bool {
-    v.u.int32 != 0
+    v.u.uint64 as i32 != 0
 }
 
 #[inline]
@@ -31,7 +32,10 @@ pub unsafe fn JS_VALUE_GET_PTR(v: JSValue) -> *mut c_void {
 #[inline]
 pub const fn JS_MKVAL(tag: i32, val: i32) -> JSValue {
     JSValue {
-        u: JSValueUnion { int32: val },
+        // QuickJS-NG 0.17.0 writes all 64 bits: `.uint64 = (uint32_t)(val)`.
+        u: JSValueUnion {
+            uint64: val as u32 as u64,
+        },
         tag: tag as _,
     }
 }

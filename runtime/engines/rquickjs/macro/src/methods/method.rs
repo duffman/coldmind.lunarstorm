@@ -64,6 +64,11 @@ impl MethodConfig {
     }
 }
 
+/// One `#[qjs(...)]` option of a method.
+// lunarstorm patch: newer clippy flags the `Expr` in `Rename`. Each option is a
+// short-lived parse result inside the proc macro, so its size costs nothing;
+// it stays as upstream wrote it.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum MethodOption {
     Constructor(FlagOption<kw::constructor>),
     Static(FlagOption<Token![static]>),

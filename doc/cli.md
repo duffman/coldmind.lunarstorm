@@ -10,8 +10,9 @@ errors, and calls the handlers.
 apps/lunarstorm                 the binary: picks packages (one Cargo feature each)
   ├─ crates/cli-host            lunarstorm-cli-host: parse, help, describe, completions, dispatch
   │    └─ crates/cliui          lunarstorm-cliui: colors, help layout, error frames
-  ├─ runtime/hosts/cli          lunarstorm-host-cli: package "runtime" → `run`
-  └─ toolchain/crates/pipeline  lunarstorm-pipeline: package "build"  → `build`, `build types`, `build check`
+  ├─ runtime/hosts/cli          lunarstorm-host-cli: package "runtime" → `run`, `debug`, `jbn key`, `jbn build`
+  ├─ toolchain/crates/pipeline  lunarstorm-pipeline: package "build"  → `build`, `build types`, `build check`
+  └─ toolchain/crates/cli       devtools-cli: package "frontend" → `serve`, `bundle`, `preview`, `transpile`
            all packages depend on
        crates/cli-contract      lunarstorm-cli-contract: Package, Command, Arg, Invocation, Context, Failure
 ```
@@ -27,16 +28,25 @@ lunarstorm [options] <file.js> [args...]        # `run` is the default command
 
 lunarstorm app.js --port 8080                   # = lunarstorm run app.js --port 8080
 lunarstorm -e 'console.log(1)'                  # = lunarstorm run -e '...'
+lunarstorm jbn key signing.der > trust.json     # new signing key, and a trust file for it
+lunarstorm jbn build src/main.ts -o app.jbn --key signing.der
+lunarstorm run --trust trust.json app.jbn       # run a signed package (or LUNARSTORM_TRUST)
+lunarstorm debug app.ts --port 8080             # Debug Adapter Protocol on stdin/stdout; script stdout → stderr
 lunarstorm build -p templates/starters/desktop  # build into <project>/dist
 lunarstorm build -p app -o out                  # build into out/
 lunarstorm build types -p app                   # write app/src/desktop.d.ts
 lunarstorm build check -p app                   # report compile errors, write nothing
+lunarstorm serve ./app --port 5173              # frontend dev server with hot updates
+lunarstorm bundle ./app -o dist                 # production frontend bundle
+lunarstorm preview ./app --port 4173            # serve an existing bundle
+lunarstorm transpile src/main.ts                # one TS/TSX/JS/JSX module to JavaScript
+lunarstorm help build types                     # = lunarstorm build types --help
 lunarstorm describe                             # the whole command tree as JSON
 source <(lunarstorm completions zsh)            # completion (also: bash)
 lunarstorm pack ...                             # runs `lunarstorm-pack ...` from PATH
 ```
 
-Every command has `--help`. The host adds these options at every level:
+Every command has `--help`, and `lunarstorm help <command>...` prints the same screen. The host adds these options at every level:
 `--color <auto|always|never>` (global), `-h/--help` and `-v/--version`.
 
 | Exit status | Meaning |
@@ -207,11 +217,11 @@ up as `lunarstorm pack`, `lunarstorm web`, ….
 
 ## Choosing packages
 
-`apps/lunarstorm/Cargo.toml` has one feature per package (`runtime`, `build`, both on
-by default):
+`apps/lunarstorm/Cargo.toml` has one feature per package (`runtime`, `build`, `frontend`,
+all on by default):
 
 ```sh
-cargo build -p lunarstorm                                            # run + build
+cargo build -p lunarstorm                                            # run + build + frontend
 cargo build -p lunarstorm --no-default-features --features build     # build only
 ```
 
@@ -233,4 +243,5 @@ step-by-step procedure and checklist. In short:
 |---|---|
 | `crates/cli-host/tests/host.rs` | parsing rules, context chain, value checks, env/defaults, statuses, mount validation (probe package) |
 | `apps/lunarstorm/tests/commands.rs` | real binary: help, `build`/`types`/`check` on the starter, usage errors, `describe`, completion, externals |
+| `apps/lunarstorm/tests/frontend_commands.rs`, `frontend_transpile.rs` | real binary: `serve`, `bundle`, `preview`, `transpile` (moved from `toolchain/crates/cli`, interface rewritten from `--serve`-style flags) |
 | `apps/lunarstorm/tests/cli.rs`, `ui.rs` | the runtime's `run`: event loop, net, fs, modules, exit codes, color, help, usage errors (moved unchanged from `runtime/hosts/cli`) |

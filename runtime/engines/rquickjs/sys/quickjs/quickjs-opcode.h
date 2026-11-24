@@ -269,6 +269,10 @@ DEF(using_dispose_async, 3, 0, 1, loc)
 DEF(using_dispose_merge, 1, 2, 1, none)
 DEF(  using_dispose_end, 1, 1, 0, none)
 DEF(        using_check, 2, 1, 2, u8)
+/* jetbunny-debugger-v1: statement marker, emitted only with JS_EVAL_FLAG_DEBUG.
+   Operand: bits 0-15 scope chain head + 1, bits 16-30 marker index,
+   bit 31 set for a `debugger` statement. */
+DEF(     debug_stmt, 5, 0, 0, u32)
 /* must be the last non short and non temporary opcode */
 DEF(            nop, 1, 0, 0, none)
 
@@ -371,6 +375,25 @@ DEF(   is_undefined, 1, 1, 1, none)
 DEF(        is_null, 1, 1, 1, none)
 DEF(typeof_is_undefined, 1, 1, 1, none)
 DEF( typeof_is_function, 1, 1, 1, none)
+
+/* Jetbunny native-VM extensions. Append after the existing short opcodes to
+   preserve every existing final opcode identity. Rust emits these directly;
+   they are not parser/compiler operations. */
+DEF(   for_of_skip, 2, 3, 4, u8) /* IteratorStep without Get(value) */
+/* Explicit strict operations for class heritage/computed keys evaluated in a
+   sloppy enclosing frame: selector 0 array-store, 1 delete, 2 super-store,
+   3 global-store. Selector 4 compiles a regexp literal (pattern flags ->
+   regexp) with libregexp. Selector 6 saves exception notification state (0 -> 1).
+   Selector 5 consumes an exception and its saved notification state (2 -> 0,
+   terminal), propagating a finally rethrow without a second debugger event.
+   The atom is unused except by selector 3. Stack
+   effects are selector-dependent and checked by the Rust image verifier. */
+DEF(     strict_op, 6, 0, 0, atom_u8)
+
+/* lunarstorm patch: jetbunny's `debug_catch` (a `catch` plus a u16 user/cleanup
+   flag) is removed. It took id 255, the last free one-byte id, while executing
+   exactly like `catch`. The flag is debugger metadata, so it now lives in
+   `JSFunctionBytecode.user_catch`, the function's debug section. */
 
 #undef DEF
 #undef def

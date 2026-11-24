@@ -29,7 +29,7 @@ use serde_json::{json, Map, Value as Json};
 use crate::host::{literal, APPLICATION_OWNER};
 
 /// The backend runtime, `@desktop/forms`.
-const RUNTIME: &str = include_str!("../../../../framework/desktop/forms.js");
+const RUNTIME: &str = include_str!("../../../../framework/desktop/forms.ts");
 
 /// The module the form classes import the runtime as.
 pub const RUNTIME_MODULE: &str = "@desktop/forms";
@@ -228,7 +228,9 @@ pub fn generate(project: &Project, root: &Path) -> Result<String, String> {
     let root = &root.canonicalize().map_err(|error| format!("{}: {error}", root.display()))?;
     let work = WorkDir::new().map_err(|error| format!("cannot create a work directory: {error}"))?;
     let entry_path = work.0.join("entry.js");
-    let runtime_path = work.0.join("forms.js");
+    // Decision: the runtime is written as `forms.ts` so the bundler transpiles it; the
+    // alias below points the `@desktop/forms` import at this file.
+    let runtime_path = work.0.join("forms.ts");
     fs::write(&entry_path, entry(project, root)).map_err(|error| error.to_string())?;
     fs::write(&runtime_path, RUNTIME).map_err(|error| error.to_string())?;
 

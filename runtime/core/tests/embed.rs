@@ -540,6 +540,21 @@ fn a_held_loop_sleeps_until_work_is_posted() {
     assert_eq!(runtime.poll(Wait::Block), State::Idle);
 }
 
+/// Defect: under a memory limit, a script that caught the out-of-memory error went
+/// on running on an exhausted heap and the program ended normally.
+#[test]
+#[should_panic(expected = "the engine ran out of memory")]
+fn a_caught_out_of_memory_error_still_ends_the_program() {
+    let mut runtime = Runtime::<QuickJs, MemoryHost>::new(MemoryHost::default()).expect("event loop");
+    runtime.limits(Limits { memory: Some(8 << 20), stack: None });
+    runtime.start().expect("start");
+    let code = "const hoard = [];\n\
+                try { for (;;) hoard.push(new Array(65536).fill(1)); } catch { hoard.length = 0; }\n\
+                console.log('survived');";
+    runtime.load(Source::Text { name: String::from("main.js"), code: String::from(code) }).expect("load");
+    runtime.run();
+}
+
 #[test]
 fn a_watchdog_ends_a_script_that_overruns_its_budget() {
     use std::sync::atomic::Ordering;
@@ -568,4 +583,17 @@ fn a_watchdog_ends_a_script_that_overruns_its_budget() {
     assert!(logs.contains("in_promise: false"), "{logs}");
     assert_eq!(stdout(&runtime), "next event ran\n");
     assert_eq!(runtime.pulse().load(Ordering::Relaxed) % 2, 0);
+}
+
+/// Defect: every `start` compiled the JS glue again, so a process with many
+/// runtimes (64 workers) paid the 150 ms compile once per runtime. After the first
+/// start the glue must never be compiled again in this process.
+#[test]
+fn glue_is_compiled_once_per_process() {
+    let first = boot(MemoryHost::default(), Bindings::new(), "");
+    let after_first = lunarstorm_runtime::glue_compiles();
+    let second = boot(MemoryHost::default(), Bindings::new(), "");
+    let third = boot(MemoryHost::default(), Bindings::new(), "");
+    assert_eq!(lunarstorm_runtime::glue_compiles(), after_first, "starting two more runtimes compiled the glue again");
+    drop((first, second, third));
 }

@@ -4,6 +4,9 @@
 //! Each test runs the real `lunarstorm` binary; the last one runs it on a
 //! pseudo-terminal to exercise the animated path.
 
+// Every test here needs `run` and `lunarstorm:ui`: only the `runtime` package has them.
+#![cfg(feature = "runtime")]
+
 use std::fs::File;
 use std::io::Read;
 use std::os::fd::{FromRawFd, OwnedFd};
@@ -135,10 +138,12 @@ fn uncaught_errors_get_a_code_frame_on_color_streams() {
     assert_eq!(code, 1);
     for part in [
         "\x1b[1;91m✖ Uncaught (in promise) RangeError\x1b[0m: \x1b[1mkaboom 42\x1b[0m\n",
-        "boom.js:3:35\x1b[0m\n",
+        // Approved 2026-11-24: the Rust compiler places the throw at `new` (3:8),
+        // as Node does; the removed C parser placed it at `y` (3:35).
+        "boom.js:3:8\x1b[0m\n",
         "\x1b[2m2 │\x1b[0m \x1b[2m  const y = x * 2;\x1b[0m\n",
         "\x1b[1;91m3\x1b[0m \x1b[2m│\x1b[0m  throw new RangeError('kaboom ' + y);\n",
-        "\x1b[2m  │\x1b[0m                                   \x1b[1;91m^\x1b[0m\n",
+        "\x1b[2m  │\x1b[0m        \x1b[1;91m^\x1b[0m\n",
         "\x1b[2m4 │\x1b[0m \x1b[2m}\x1b[0m\n",
         "\x1b[2m    at inner (",
     ] {

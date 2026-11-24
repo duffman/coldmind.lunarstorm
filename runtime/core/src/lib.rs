@@ -51,4 +51,4 @@ pub use bindings::Bindings;
 pub use channel::{Inbox, MAX_BYTES, MAX_MESSAGES, MAX_MESSAGE_BYTES};
 pub use host::{Access, Host, Log, Stream};
 pub use lunarstorm_vm as vm;
-pub use runtime::{Arg, CallId, Poster, Runtime, Source, State, Wait};
+pub use runtime::{glue_compiles, Arg, CallId, Poster, Runtime, Source, State, Wait};
