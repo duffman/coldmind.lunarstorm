@@ -64,16 +64,74 @@ use lunarstorm_vm::{
 use mio::event::Event;
 use mio::{Events, Poll, Waker};
 use std::cell::{Cell, OnceCell, RefCell};
+use std::collections::HashMap;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 /// The JS glue, evaluated once at `start`. It is a single function expression that
 /// receives the `ops` object and returns the hooks the loop calls.
 const BOOTSTRAP: &str = include_str!("js/bootstrap.js");
+/// How many times this process has compiled [`BOOTSTRAP`].
+///
+/// Defect it guards: every `start` compiled the 50 KB glue with the Rust compiler
+/// (about 150 ms in a debug build), so 64 workers compiled it 64 times and the
+/// worker suite took 15 s instead of 0.35 s. Decision: one compile per process;
+/// the test `glue_is_compiled_once_per_process` reads this counter.
+static GLUE_COMPILES: AtomicUsize = AtomicUsize::new(0);
+/// The glue's bytecode, per engine, written by the first `start` in the process.
+///
+/// Decision: the glue is compiled as the module `export default <glue>` and loaded
+/// from this image by every later runtime (64 workers share one compile). The map
+/// is locked while compiling, so runtimes starting at once on several threads wait
+/// for the one compile instead of each making their own. Alternative dropped:
+/// embedding bytecode made at build time, which needs the engine in `build.rs`.
+static GLUE_IMAGES: OnceLock<Mutex<HashMap<String, Image>>> = OnceLock::new();
+/// The canonical name the glue module is compiled and loaded under.
+const GLUE_NAME: &str = "lunarstorm:glue";
+
+/// The glue function: compiled on the first call in the process, loaded from the
+/// image afterwards. An engine without bytecode support evaluates the source.
+///
+/// # Arguments
+/// * `scope` - the context the glue runs in.
+///
+/// # Returns
+/// The glue's function expression, to be called with `ops`.
+///
+/// # Errors
+/// [`Thrown`] when the glue does not compile or evaluate.
+fn glue<'s, V: Vm>(scope: &V::Scope<'s>) -> Outcome<V::Value<'s>> {
+    if !V::capabilities().bytecode_cache {
+        GLUE_COMPILES.fetch_add(1, Ordering::Relaxed);
+        return scope.eval(BOOTSTRAP);
+    }
+    let image = {
+        let mut images = GLUE_IMAGES.get_or_init(Mutex::default).lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        match images.get(&engine::<V>()) {
+            Some(image) => image.clone(),
+            None => {
+                GLUE_COMPILES.fetch_add(1, Ordering::Relaxed);
+                let source = ModuleSource { source: format!("export default {BOOTSTRAP}").into_bytes(), meta: None, image: None, source_map: None };
+                let image = Image::compile::<V, _>(scope, GLUE_NAME, source)?;
+                images.insert(engine::<V>(), image.clone());
+                image
+            }
+        }
+    };
+    let (namespace, _settled) = scope.module(GLUE_NAME, ModuleSource { source: Vec::new(), meta: None, image: Some(image), source_map: None })?;
+    scope.get(&namespace, "default")
+}
+
+/// # Returns
+/// How many times this process has compiled the JS glue.
+#[doc(hidden)]
+pub fn glue_compiles() -> usize {
+    GLUE_COMPILES.load(Ordering::Relaxed)
+}
 /// Size of the loop's read buffer.
 const SCRATCH: usize = 64 * 1024;
 /// Readiness events taken from the kernel per `poll` call.
@@ -548,7 +606,7 @@ impl<V: Vm, H: Host> Runtime<V, H> {
                 for install in installers {
                     install(&scope, &ops)?;
                 }
-                let bootstrap = scope.eval(BOOTSTRAP)?;
+                let bootstrap = glue::<V>(&scope)?;
                 let hooks = scope.call(&bootstrap, &[ops])?;
                 let hook = |name: &str| scope.get(&hooks, name).map(|value| scope.persist(&value));
                 // The builtin modules and internals stay with the loader; nothing

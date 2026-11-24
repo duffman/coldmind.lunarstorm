@@ -584,3 +584,16 @@ fn a_watchdog_ends_a_script_that_overruns_its_budget() {
     assert_eq!(stdout(&runtime), "next event ran\n");
     assert_eq!(runtime.pulse().load(Ordering::Relaxed) % 2, 0);
 }
+
+/// Defect: every `start` compiled the JS glue again, so a process with many
+/// runtimes (64 workers) paid the 150 ms compile once per runtime. After the first
+/// start the glue must never be compiled again in this process.
+#[test]
+fn glue_is_compiled_once_per_process() {
+    let first = boot(MemoryHost::default(), Bindings::new(), "");
+    let after_first = lunarstorm_runtime::glue_compiles();
+    let second = boot(MemoryHost::default(), Bindings::new(), "");
+    let third = boot(MemoryHost::default(), Bindings::new(), "");
+    assert_eq!(lunarstorm_runtime::glue_compiles(), after_first, "starting two more runtimes compiled the glue again");
+    drop((first, second, third));
+}
