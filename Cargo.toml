@@ -126,21 +126,23 @@ tempfile = "3.24.0"
 # Release profile of the runtime (`cargo build --release -p lunarstorm`), unchanged
 # from the former runtime workspace. Profiles are workspace-wide, so toolchain
 # release builds now also get fat LTO, one codegen unit, abort-on-panic and stripping.
+#
+# Fix: no integer values in any [profile] table here. trybuild (rquickjs's
+# `tests/compile.rs`) copies these tables through `serde_json::Value`, and
+# `rolldown_common` (via lunarstorm-pipeline) turns on serde_json's
+# `arbitrary_precision`, so under `cargo test --workspace` every integer was written
+# into trybuild's manifest as a `$serde_json::private::Number` table and cargo failed
+# with "invalid type: map, expected u32". Decision: `opt-level = 3` is the release
+# default, so it and the former per-package `oj_compiler`/`oj_graph`/`oj_resolver`
+# `opt-level = 3` overrides are dropped; the former `devtools-native`
+# `codegen-units = 1` override repeated release's own value and is dropped too;
+# `codegen-units = 1` itself lives in `.cargo/config.toml`, which Cargo merges into
+# this profile and trybuild does not copy. Resulting flags are unchanged:
+# opt-level=3, codegen-units=1, fat LTO, panic=abort, stripped.
 [profile.release]
-opt-level = 3
 lto = "fat"
-codegen-units = 1
 panic = "abort"
 strip = true
-
-# Per-package overrides carried over from the former toolchain workspace.
-[profile.release.package]
-oj_compiler = { opt-level = 3 }
-oj_graph = { opt-level = 3 }
-oj_resolver = { opt-level = 3 }
-
-[profile.release.package.devtools-native]
-codegen-units = 1
 
 # Release build for Node-API addons (`devtools-native`, built with
 # `--profile release-node`). Decision: `panic` cannot be overridden per package, and
