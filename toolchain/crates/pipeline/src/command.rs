@@ -1,5 +1,11 @@
-//! The build pipeline's package for the `lunarstorm` command line, and the reporting
-//! it shares with the standalone `lunarstorm-build` binary.
+//! The `build` package of the `lunar` command line: `build`, `build types` and
+//! `build check`, and the reporting it shares with the standalone
+//! `lunarstorm-build` binary.
+//!
+//! Every crate that adds commands to `lunar` exposes them from `src/command.rs` as
+//! `command::package()`; `apps/lunarstorm/src/main.rs` mounts this one behind the
+//! `build` feature. The host (`lunarstorm-cli-host`) parses the command line,
+//! renders help and dispatches; this module holds the specs and the handlers.
 //!
 //! ```text
 //! lunarstorm build [-p <dir>] [-o <dir>]     build the project into its output directory

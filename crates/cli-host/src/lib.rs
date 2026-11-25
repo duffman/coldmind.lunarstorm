@@ -4,7 +4,7 @@
 //!
 //! ```text
 //! Cli::new("lunarstorm", "☾ lunarstorm", VERSION, "runtime and build tools")
-//!     .package(lunarstorm_host_cli::package())
+//!     .package(lunarstorm_host_cli::command::package())
 //!     .package(lunarstorm_pipeline::command::package())
 //!     .run(std::env::args().skip(1).collect())
 //! ```

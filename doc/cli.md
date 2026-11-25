@@ -70,7 +70,17 @@ pub trait Package {
 }
 ```
 
-A crate exports it as `pub fn package() -> Box<dyn Package>`. The package names its
+A crate exports it as `pub fn package() -> Box<dyn Package>` from `src/command.rs`,
+always that file, and `apps/lunarstorm` mounts it as `<crate>::command::package()`:
+
+| package    | file                                         |
+|------------|----------------------------------------------|
+| `runtime`  | `runtime/hosts/cli/src/command.rs`           |
+| `build`    | `toolchain/crates/pipeline/src/command.rs`   |
+| `frontend` | `toolchain/crates/cli/src/command.rs`        |
+| `project`  | `platform/extensions/project/src/command.rs` |
+
+The package names its
 own top-level commands. For a namespace (`runtime eval`), use a command with children.
 For a root command (`run`), use a command without them.
 

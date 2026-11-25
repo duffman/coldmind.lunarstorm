@@ -1,4 +1,4 @@
-//! End-to-end tests of the command-line interface (`src/cli.rs` and the
+//! End-to-end tests of the command-line interface (`runtime/hosts/cli/src/command.rs` and the
 //! `lunarstorm-cliui` package): help, version,
 //! usage errors, color control, error reports and the `lunarstorm:ui` module.
 //! Each test runs the real `lunarstorm` binary; the last one runs it on a

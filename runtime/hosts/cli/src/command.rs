@@ -1,11 +1,15 @@
-//! The `run` command: runs a script, a `.jbn` package, or code given with `-e`, on
-//! a Runtime this host owns; and `jbn key` / `jbn build`, which make signing keys
-//! and compile an entry into a signed `.jbn` package.
+//! The `runtime` package of the `lunar` command line: `run`, `debug` and `jbn`.
 //!
-//! The command line itself (parsing, help, usage errors, `--color`, `--version`) is
-//! the host's (`lunarstorm-cli-host`); this module says what `run` accepts and does.
-//! The former hand-written parser is archived in
-//! `.archive/2026-11-24/runtime/hosts/cli/src/cli.rs`.
+//! Every crate that adds commands to `lunar` exposes them from `src/command.rs` as
+//! `command::package()`; `apps/lunarstorm/src/main.rs` mounts this one behind the
+//! `runtime` feature. The host (`lunarstorm-cli-host`) parses the command line,
+//! renders help and dispatches; this module holds the specs and the handlers.
+//!
+//! `run` runs a script, a `.jbn` package, or code given with `-e`, on a Runtime this
+//! host owns; `jbn key` / `jbn build` make signing keys and compile an entry into a
+//! signed `.jbn` package. The former hand-written parser is archived in
+//! `.archive/2026-11-24/runtime/hosts/cli/src/cli.rs`; this file was `src/cli.rs`
+//! until the CLI packages were given one file name.
 //!
 //! Decisions:
 //! - This is the one place the engine is chosen: `Runtime<QuickJs, CliHost>`.

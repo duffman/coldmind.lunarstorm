@@ -1,4 +1,10 @@
-//! The frontend commands of the `lunarstorm` command line.
+//! The `frontend` package of the `lunar` command line: `serve`, `bundle`, `preview`
+//! and `transpile`.
+//!
+//! Every crate that adds commands to `lunar` exposes them from `src/command.rs` as
+//! `command::package()`; `apps/lunarstorm/src/main.rs` mounts this one behind the
+//! `frontend` feature. The host (`lunarstorm-cli-host`) parses the command line,
+//! renders help and dispatches; this module holds the specs and the handlers.
 //!
 //! ```text
 //! lunarstorm serve [root] [--host H] [--port P] [--define K=V]... [--no-watch]
