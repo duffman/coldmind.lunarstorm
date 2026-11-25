@@ -13,9 +13,9 @@ use std::process::Command;
 fn embedded_inputs_are_not_git_ignored() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
     for path in [
-        "templates/zebra.framework/dist/vcl.js",
-        "framework/vcl/react/src/vcl.css",
-        "framework/desktop/forms.js",
+        "toolchain/crates/pipeline/mock/vcl.js",
+        "toolchain/crates/pipeline/mock/vcl.css",
+        "toolchain/crates/pipeline/mock/forms.ts",
     ] {
         let ignored = Command::new("git")
             .args(["check-ignore", "-q", path])

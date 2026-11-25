@@ -31,10 +31,11 @@ use serde_json::{Map, Value as Json};
 use crate::host::literal;
 
 /// The prebuilt WebView runtime: React, the React VCL and `mount`.
-const VCL: &str = include_str!("../../../../templates/zebra.framework/dist/vcl.js");
+/// Decision: a dummy inside this crate (`mock/vcl.js`) until a real framework exists.
+const VCL: &str = include_str!("../mock/vcl.js");
 
-/// The stylesheet of the React VCL.
-const STYLE: &str = include_str!("../../../../framework/vcl/react/src/vcl.css");
+/// The stylesheet of the component theme; a dummy (`mock/vcl.css`).
+const STYLE: &str = include_str!("../mock/vcl.css");
 
 /// The page of every form's WebView. The host injects its shell before any
 /// script of the page runs.
@@ -44,8 +45,8 @@ const PAGE: &str = "<!doctype html>\n<html>\n  <head>\n    <meta charset=\"utf-8
 /// import the regenerated module instead of the cached one.
 const MAIN: &str = "import { mount } from './vcl.js';\n\nmount((name, stamp) => import(`./forms/${name}.js?t=${stamp}`));\n";
 
-/// The element names that have a component in the React VCL (`COMPONENTS` in
-/// `framework/vcl/react/src/index.ts`; a test keeps the two equal).
+/// The element names that have a component in the theme (`COMPONENTS` in
+/// `mock/index.ts`; a test keeps the two equal).
 pub const VISUAL: &[&str] = &[
     "form", "panel", "groupbox", "scrollbox", "pagecontrol", "tabsheet", "splitter", "toolbar", "statusbar", "label",
     "image", "progressbar", "button", "edit", "memo", "checkbox", "radiogroup", "combobox", "trackbar", "listbox",

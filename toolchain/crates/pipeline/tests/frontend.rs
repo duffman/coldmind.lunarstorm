@@ -9,9 +9,9 @@ use lunarstorm_pipeline::{build, frontend};
 use tempfile::TempDir;
 
 /// # Returns
-/// The repository's `framework` directory.
-fn framework() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../framework").canonicalize().expect("framework")
+/// The crate's dummy component theme (`mock/`).
+fn theme() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("mock")
 }
 
 /// # Returns
@@ -39,7 +39,7 @@ fn project(files: &[(&str, &str)]) -> TempDir {
 
 #[test]
 fn the_visual_tags_are_the_components_of_the_vcl() {
-    let index = fs::read_to_string(framework().join("vcl/react/src/index.ts")).expect("index.ts");
+    let index = fs::read_to_string(theme().join("index.ts")).expect("index.ts");
     let table = index.split("export const COMPONENTS = {").nth(1).expect("COMPONENTS").split('}').next().expect("end");
     let components: Vec<&str> = table.lines().filter_map(|line| line.trim().split(':').next()).filter(|name| !name.is_empty()).collect();
     assert_eq!(components, frontend::VISUAL);

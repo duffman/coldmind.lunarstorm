@@ -28,8 +28,9 @@ use serde_json::{json, Map, Value as Json};
 
 use crate::host::{literal, APPLICATION_OWNER};
 
-/// The backend runtime, `@desktop/forms`.
-const RUNTIME: &str = include_str!("../../../../framework/desktop/forms.ts");
+/// The backend runtime, `@desktop/forms`. Decision: a dummy inside this crate
+/// (`mock/forms.ts`) until a real framework exists.
+const RUNTIME: &str = include_str!("../mock/forms.ts");
 
 /// The module the form classes import the runtime as.
 pub const RUNTIME_MODULE: &str = "@desktop/forms";
