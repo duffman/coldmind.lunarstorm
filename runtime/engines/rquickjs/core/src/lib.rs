@@ -28,6 +28,14 @@ mod safe_ref;
 mod util;
 mod value;
 pub(crate) use safe_ref::*;
+/// lunarstorm patch: the Rust compiler, the engine's only JavaScript compiler.
+#[cfg(feature = "std")]
+pub mod compiler;
+/// lunarstorm patch: whether QuickJS allocates through the Rust global allocator
+/// (the `rust-alloc` feature). Evaluated in this crate, so it follows Cargo's feature
+/// unification: a workspace member that enables `rust-alloc` turns it on for every
+/// engine of that build, which a feature of the dependent crate could not see.
+pub const RUST_ALLOC: bool = cfg!(feature = "rust-alloc");
 pub mod runtime;
 pub use runtime::Runtime;
 pub mod context;

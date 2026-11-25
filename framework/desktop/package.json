@@ -1,9 +1,0 @@
-{
-  "name": "@desktop/forms",
-  "version": "0.1.0",
-  "description": "Backend runtime of a model project: Form, control proxies and the event dispatch",
-  "private": true,
-  "type": "module",
-  "exports": { ".": "./forms.js" },
-  "scripts": { "test": "bun test" }
-}

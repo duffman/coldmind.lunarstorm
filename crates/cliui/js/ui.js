@@ -19,7 +19,7 @@
  *   filled and empty cells cannot be told apart by color there.
  */
 
-const { ops, live } = __lunarstorm.internal;
+import { ops, live } from 'lunarstorm:internal';
 
 /** Milliseconds between redraws of the live region. */
 const FRAME_MS = 50;

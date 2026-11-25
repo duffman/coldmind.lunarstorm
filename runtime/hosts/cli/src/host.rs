@@ -26,6 +26,9 @@ const ENTROPY_CHUNK: usize = 256;
 pub struct CliHost {
     /// `process.argv`: `[runtime, script, ...args]`.
     args: Vec<String>,
+    /// Script stdout goes to stderr: under `lunarstorm debug` stdout carries the
+    /// Debug Adapter Protocol and nothing else may write to it.
+    stdout_to_stderr: bool,
 }
 
 impl CliHost {
@@ -35,7 +38,18 @@ impl CliHost {
     /// # Returns
     /// The host.
     pub fn new(args: Vec<String>) -> Self {
-        Self { args }
+        Self { args, stdout_to_stderr: false }
+    }
+
+    /// A host whose script stdout goes to stderr, for `lunarstorm debug`.
+    ///
+    /// # Arguments
+    /// * `args` - `process.argv`.
+    ///
+    /// # Returns
+    /// The host.
+    pub fn for_debugger(args: Vec<String>) -> Self {
+        Self { args, stdout_to_stderr: true }
     }
 }
 
@@ -96,7 +110,7 @@ impl Host for CliHost {
     /// * `stream` - which stream.
     /// * `bytes` - the bytes to write.
     fn write(&self, stream: Stream, bytes: &[u8]) {
-        put(if stream == Stream::Out { 1 } else { 2 }, bytes);
+        put(if stream == Stream::Out && !self.stdout_to_stderr { 1 } else { 2 }, bytes);
     }
 
     /// Restores the cursor a live progress region may have hidden, then exits the

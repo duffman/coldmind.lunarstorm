@@ -28,6 +28,10 @@ flamegraph*.svg
 # cargo-mutants output.
 mutants.out/
 mutants.out.old/
+# rustc internal-compiler-error dumps written to the working directory.
+# Decision: taken from main's GitHub Rust template when merging dev into main; that
+# template's bare `debug` rule was dropped because it would ignore any directory named debug.
+rustc-ice-*.txt
 
 # ── Repo build output ───────────────────────────────────────────────────────────
 # Release binaries copied out of the Cargo target (lunarstorm, lunarstorm-desktop).
@@ -35,7 +39,13 @@ mutants.out.old/
 
 # ── Node / TypeScript / Bun ─────────────────────────────────────────────────────
 node_modules/
-dist/
+# Fix: `dist/` ignored the directory wholesale, so templates/zebra.framework/dist/vcl.js
+# (embedded by toolchain/crates/pipeline/src/frontend.rs via include_str!) was missing
+# from a fresh clone and lunarstorm-pipeline did not compile. Decision: ignore the
+# contents of every `dist` (not the directory, which git cannot re-enter) and let the
+# template's own .gitignore re-include the prebuilt vcl.js. Dropped: a build.rs running
+# `bun build`, which would make every Rust build need bun.
+**/dist/*
 dist-ssr/
 build/
 out/
@@ -111,3 +121,6 @@ Thumbs.db
 .remember/
 .playwright-mcp/
 .archive/
+
+# Linked worktrees (git worktree add .worktrees/<branch>).
+.worktrees/

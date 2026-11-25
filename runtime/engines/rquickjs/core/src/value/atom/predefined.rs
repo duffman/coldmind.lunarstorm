@@ -177,8 +177,9 @@ pub enum PredefinedAtom {
     Apply = qjs::JS_ATOM_apply as u32,
     /// "join"
     Join = qjs::JS_ATOM_join as u32,
-    /// "concat"
-    Concat = qjs::JS_ATOM_concat as u32,
+    // lunarstorm patch: QuickJS-NG 0.17.0 no longer predefines "concat"
+    // (`JS_ATOM_concat` is gone and every later atom moved down by one), so the
+    // `Concat` variant is removed; `Atom::from_str(ctx, "concat")` still works.
     /// "split"
     Split = qjs::JS_ATOM_split as u32,
     /// "construct"
@@ -529,7 +530,6 @@ impl PredefinedAtom {
             PredefinedAtom::DefineProperties => "defineProperties",
             PredefinedAtom::Apply => "apply",
             PredefinedAtom::Join => "join",
-            PredefinedAtom::Concat => "concat",
             PredefinedAtom::Split => "split",
             PredefinedAtom::Construct => "construct",
             PredefinedAtom::GetPrototypeOf => "getPrototypeOf",
@@ -748,7 +748,6 @@ mod test {
             PredefinedAtom::DefineProperties,
             PredefinedAtom::Apply,
             PredefinedAtom::Join,
-            PredefinedAtom::Concat,
             PredefinedAtom::Split,
             PredefinedAtom::Construct,
             PredefinedAtom::GetPrototypeOf,

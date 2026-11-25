@@ -123,7 +123,16 @@ fn main() {
     let out_dir = env::var("OUT_DIR").expect("No OUT_DIR env var is set by cargo");
     let out_dir = Path::new(&out_dir);
 
+    // lunarstorm patch: the engine is QuickJS-NG 0.17.0 with jetbunny's patches
+    // (see quickjs/PATCHES.md); quickjs.c includes these private headers.
     let header_files = [
+        "bridge.h",
+        "jetbunny-eval.h",
+        "jetbunny-eval.inc",
+        "jetbunny-inspect.h",
+        "jetbunny-inspect.inc",
+        "jetbunny-modules.h",
+        "jetbunny-modules.inc",
         "builtin-array-fromasync.h",
         "builtin-iterator-zip-keyed.h",
         "builtin-iterator-zip.h",
@@ -140,7 +149,11 @@ fn main() {
         "quickjs.h",
     ];
 
-    let source_files = ["libregexp.c", "libunicode.c", "quickjs.c", "dtoa.c"];
+    // lunarstorm patch: `bridge.c` is jetbunny's private `jbq_*` ABI over the engine
+    // (from coldmind.jetbunny `native/quickjs_ng`); `lunarstorm-debug` drives the
+    // debugger through it. It is compiled into the same archive as the engine, as
+    // jetbunny's rquickjs-sys does; a crate that never calls it links none of it.
+    let source_files = ["libregexp.c", "libunicode.c", "quickjs.c", "dtoa.c", "bridge.c"];
 
     // lunarstorm patch: the engine sources are edited in this repository, so a
     // change to any of them must rebuild the engine. Without these lines the
@@ -150,10 +163,25 @@ fn main() {
         println!("cargo:rerun-if-changed={}", src_dir.join(file).display());
     }
 
-    let mut defines: Vec<(String, Option<&str>)> = vec![("_GNU_SOURCE".into(), None)];
+    // lunarstorm patch: jetbunny's engine build (its crates/rquickjs-sys/build.rs):
+    // `QUICKJS_NG_BUILD`, and `QJS_DISABLE_PARSER` because the Rust compiler is the
+    // only compiler (the parser it guarded is removed from quickjs.c, so here it
+    // only records the build's intent).
+    let mut defines: Vec<(String, Option<&str>)> = vec![
+        ("_GNU_SOURCE".into(), None),
+        ("QUICKJS_NG_BUILD".into(), None),
+        ("QJS_DISABLE_PARSER".into(), None),
+    ];
 
     #[cfg(feature = "disable-assertions")]
     defines.push(("NDEBUG".into(), None));
+    // lunarstorm patch: jetbunny's rule. Optimised builds compiled the engine with
+    // its `assert`s on the interpreter's and collector's hot paths; `NDEBUG`
+    // whenever Cargo optimises, unoptimised builds keep the asserts.
+    #[cfg(not(feature = "disable-assertions"))]
+    if env::var("OPT_LEVEL").is_ok_and(|level| level != "0") {
+        defines.push(("NDEBUG".into(), None));
+    }
 
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
     let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap();
@@ -165,6 +193,16 @@ fn main() {
         //.flag("-Wno-array-bounds")
         //.flag("-Wno-format-truncation")
         ;
+    // lunarstorm patch: jetbunny's compiler policy (upstream's CMake): C11 and
+    // unsigned `char`. Windows gets C11 through CFLAGS below.
+    if target_os != "windows" {
+        builder.std("c11");
+    }
+    if builder.get_compiler().is_like_msvc() {
+        builder.flag_if_supported("/J");
+    } else if target_os != "solaris" && target_os != "illumos" {
+        builder.flag_if_supported("-funsigned-char");
+    }
 
     match env::var("CARGO_CFG_SANITIZE").as_deref() {
         Ok("address") => {

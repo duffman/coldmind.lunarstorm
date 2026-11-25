@@ -18,6 +18,7 @@
 //!
 //! What the host adds to every CLI:
 //! - `--color <when>` (global), `-h/--help` and `-v/--version` at every level;
+//! - `help [command...]`: the help of a command path, as `<path> --help` prints it;
 //! - `describe`: the whole tree as JSON; `completions <bash|zsh>`: a completion script
 //!   backed by the hidden `__complete` command;
 //! - external commands: `lunarstorm foo ...` runs `lunarstorm-foo ...` from `PATH`
@@ -37,7 +38,7 @@ use lunarstorm_cliui::term::{self, ColorChoice, Depth, Pen, RED};
 use parse::Action;
 
 /// Top-level names the host keeps for itself.
-const BUILTINS: [&str; 3] = ["describe", "completions", "__complete"];
+const BUILTINS: [&str; 4] = ["help", "describe", "completions", "__complete"];
 /// Long option names the host keeps for itself at every level.
 const RESERVED_NAMES: [&str; 3] = ["help", "version", "color"];
 /// Short option letters the host keeps for itself at every level.
@@ -153,6 +154,14 @@ impl Cli {
         }
         // The built-ins' handlers are placeholders that make them runnable for the
         // parser; `act` answers them itself because they need the whole tree.
+        // Fix: `lunarstorm help` reached the default command, which ran a script named
+        // `help`. Decision: `help` is a built-in that prints the named path's help, as
+        // git and cargo do; a script called `help` still runs as `lunarstorm ./help`.
+        root.children.push(
+            Command::new("help", "print the help of a command")
+                .arg(Arg::rest("command").placeholder("<command>...").about("the command path, e.g. build types"))
+                .run(|_| Ok(0)),
+        );
         root.children.push(Command::new("describe", "print every command and argument as JSON").run(|_| Ok(0)));
         root.children.push(
             Command::new("completions", "print a shell completion script")
@@ -234,6 +243,13 @@ impl Cli {
                 }
             }
             Action::Run => match parsed.path[1].name.as_str() {
+                "help" => match help_path(&tree.root, parsed.values.all("command")) {
+                    Ok(path) => {
+                        print!("{}", self.help(out, tree, &path));
+                        0
+                    }
+                    Err(failure) => self.fail(err, failure, &typed),
+                },
                 "describe" => {
                     let json = describe::describe(&self.program, &self.version, &tree.root);
                     println!("{}", serde_json::to_string_pretty(&json).expect("JSON values always serialize"));
@@ -439,4 +455,29 @@ fn executable(path: &std::path::Path) -> bool {
     {
         metadata.is_file()
     }
+}
+
+/// Resolves the words of `help <command>...` to a command path.
+///
+/// # Arguments
+/// * `root` - the host's root command.
+/// * `words` - command names or aliases, from the top down.
+///
+/// # Returns
+/// The path from the root; the root alone for no words.
+///
+/// # Errors
+/// A usage error naming the first word that is not a subcommand.
+fn help_path<'a>(root: &'a Command, words: &[String]) -> Result<Vec<&'a Command>, Failure> {
+    let mut path = vec![root];
+    for word in words {
+        let parent = path[path.len() - 1];
+        let child = parent
+            .children
+            .iter()
+            .find(|child| child.name == *word || child.aliases.contains(word))
+            .ok_or_else(|| Failure::usage(format!("no command '{word}'")))?;
+        path.push(child);
+    }
+    Ok(path)
 }

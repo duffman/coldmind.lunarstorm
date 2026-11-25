@@ -39,6 +39,9 @@
 
 pub mod conformance;
 
+/// The debugger crate, whose protocol types [`Instance::debug`] hands out.
+pub use lunarstorm_debug;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -175,13 +178,64 @@ pub struct ModuleMeta {
     pub main: bool,
 }
 
-/// Source text of a module, as handed to the engine.
+/// Bytecode an engine may load as a module ([`ModuleSource::image`]).
+///
+/// Decision (lunarstorm patch, bytecode trust): the engine does not validate
+/// bytecode, so the type admits only two trusted origins and its bytes are
+/// private: a module of a `.jbn` package, which exists only after
+/// `Package::open` checked its signature and every blob digest, and an image
+/// this process's engine wrote with [`Image::compile`]. An unverified buffer
+/// cannot reach the engine's bytecode loader. Before, `ModuleSource` carried a
+/// `bytecode: bool` that any caller could set over any bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Image(Vec<u8>);
+
+impl Image {
+    /// A module's bytecode from a verified package.
+    ///
+    /// # Arguments
+    /// * `package` - a package `Package::open` verified.
+    /// * `module` - the module's name in its manifest.
+    ///
+    /// # Returns
+    /// The image, or `None` when the package has no such module.
+    pub fn from_package(package: &lunarstorm_jbn::Package, module: &str) -> Option<Image> {
+        package.bytecode(module).map(|bytes| Image(bytes.to_vec()))
+    }
+
+    /// Compiles a module with [`Scope::compile`] and keeps its bytecode as an image.
+    ///
+    /// # Arguments
+    /// * `scope` - the engine that writes the image.
+    /// * `name` - the canonical name the module will be loaded under.
+    /// * `source` - its source text.
+    ///
+    /// # Errors
+    /// What [`Scope::compile`] reports.
+    pub fn compile<'s, V: Vm, S: Scope<'s, V>>(scope: &S, name: &str, source: ModuleSource) -> Outcome<Image> {
+        scope.compile(name, source).map(Image)
+    }
+
+    /// # Returns
+    /// The bytecode.
+    pub fn bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+/// A module as handed to the engine: source text, or an [`Image`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModuleSource {
-    /// The source bytes (UTF-8).
+    /// The source bytes (UTF-8); ignored when `image` is set.
     pub source: Vec<u8>,
     /// `import.meta` contents; `None` for generated modules.
     pub meta: Option<ModuleMeta>,
+    /// Bytecode to load instead of `source`, written by an engine with the same
+    /// [`Descriptor`]. Only valid when [`Capabilities::bytecode_cache`] is set.
+    pub image: Option<Image>,
+    /// Source Map v3 JSON from `source` to the file it was made from (TypeScript),
+    /// for an attached debugger; `None` when `source` is the file itself.
+    pub source_map: Option<String>,
 }
 
 /// Answer of the module load callback.
@@ -192,6 +246,16 @@ pub enum Load {
     /// The source will be delivered with [`Scope::complete_load`] under this ticket.
     /// Only valid when [`Capabilities::async_module_load`] is set.
     Later(u64),
+    /// The module is native: the callback has already declared it with
+    /// [`Scope::native_module`] under the name it was asked to load, and the engine
+    /// takes it from there. Its exports are values the host built, not source text.
+    ///
+    /// Decision: the answer carries no payload because the values belong to a scope
+    /// (`V::Value<'s>`), which would make [`Load`] generic over the VM and break its
+    /// derives. The alternative that was dropped, `Load::Native(Vec<export names>)`
+    /// plus a second callback to fill them in, needs a module handle type in the
+    /// contract for no gain: `load` already holds the scope.
+    Native,
 }
 
 /// One invocation of a native function: the context handle and the arguments.
@@ -353,6 +417,64 @@ pub trait Instance<V: Vm>: Sized {
     /// # Returns
     /// A handle that terminates running JS from any thread.
     fn interrupt(&self) -> Interrupt;
+
+    /// Opens a debugger session on a context. Requires [`Capabilities::debug_hooks`].
+    ///
+    /// Decision: the debugger is jetbunny's (`lunarstorm-debug`): the adapter owns
+    /// the engine half, the returned handle is the protocol half and goes to a DAP
+    /// transport (`lunarstorm_debug::debug::DapAdapter`). Code compiled after this
+    /// call carries statement markers; code compiled before it is not debuggable.
+    ///
+    /// # Arguments
+    /// * `context` - the realm to debug.
+    /// * `wake` - wakes the owner's loop from any thread, so it calls
+    ///   [`Instance::debug_service`]; must not block.
+    /// * `options` - whether to pause before the first application entry.
+    ///
+    /// # Returns
+    /// The session controller, usable from any thread.
+    ///
+    /// # Errors
+    /// The engine has no debugger, or one is already attached.
+    fn debug(
+        &self,
+        context: &V::Context,
+        wake: Arc<dyn Fn() + Send + Sync>,
+        options: lunarstorm_debug::debug::DebugSessionOptions,
+    ) -> Result<lunarstorm_debug::debug::VmDebugHandle, String> {
+        let _ = (context, wake, options);
+        Err(String::from("this engine has no debugger"))
+    }
+
+    /// Called before every JS entry while a debugger is attached: holds the entry
+    /// while a break-on-start pause is pending.
+    ///
+    /// # Errors
+    /// The debugger session failed.
+    fn debug_entry(&self) -> Result<(), String> {
+        Ok(())
+    }
+
+    /// Called at every loop step while a debugger is attached: serves pause,
+    /// resume and inspection requests.
+    ///
+    /// # Returns
+    /// `true` when the client asked the program to stop.
+    ///
+    /// # Errors
+    /// The debugger session failed.
+    fn debug_service(&self) -> Result<bool, String> {
+        Ok(false)
+    }
+
+    /// Called after the job queue was drained: qualifies unhandled rejections for
+    /// the debugger.
+    ///
+    /// # Errors
+    /// The debugger session failed.
+    fn debug_checkpoint(&self) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 /// One realm.
@@ -641,6 +763,26 @@ pub trait Scope<'s, V: Vm>: Clone {
     /// [`Thrown`] on a syntax error or a failed import.
     fn module(&self, name: &str, source: ModuleSource) -> Outcome<(V::Value<'s>, V::Value<'s>)>;
 
+    /// Declares a native module: an ES module whose exports are values the host built
+    /// (usually functions made with [`Scope::function`]) instead of source text.
+    ///
+    /// Call it from [`Callbacks::load`] for the module being loaded and answer
+    /// [`Load::Native`]. The module is evaluated like any other, once per instance, so
+    /// every importer sees the same export values.
+    ///
+    /// # Arguments
+    /// * `name` - the canonical name [`Callbacks::load`] was asked for.
+    /// * `exports` - `(export name, value)` pairs; the values are kept alive by the
+    ///   engine for the life of the module.
+    ///
+    /// # Errors
+    /// [`Thrown`] when the engine cannot declare the module, or (the default) when
+    /// the adapter has no native modules.
+    fn native_module(&self, name: &str, exports: &[(&str, V::Value<'s>)]) -> Outcome<()> {
+        let _ = (name, exports);
+        Err(self.throw_error(ErrorKind::Error, "this engine has no native modules"))
+    }
+
     /// Delivers the source promised by [`Load::Later`].
     ///
     /// # Arguments
@@ -652,6 +794,23 @@ pub trait Scope<'s, V: Vm>: Clone {
     /// ticket is unknown.
     fn complete_load(&self, ticket: u64, result: Result<ModuleSource, String>) -> Outcome<()>;
 
+    /// Compiles a module without linking or evaluating it, and writes its bytecode:
+    /// source text stripped, line and column positions kept. Its imports are not
+    /// resolved or loaded; they resolve when the bytecode is loaded as a module.
+    ///
+    /// # Arguments
+    /// * `name` - the canonical name the module will be loaded under; the engine
+    ///   keeps it in the bytecode and names stack frames after it.
+    /// * `source` - its source text.
+    ///
+    /// # Returns
+    /// The bytecode; [`Image::compile`] makes it loadable as [`ModuleSource::image`].
+    ///
+    /// # Errors
+    /// [`Thrown`] on a syntax error, or when the engine lacks
+    /// [`Capabilities::bytecode_cache`].
+    fn compile(&self, name: &str, source: ModuleSource) -> Outcome<Vec<u8>>;
+
     /// Runs one job from the instance's queue (a promise reaction). Runs JS.
     ///
     /// An exception thrown by a job rejects its promise and is reported through
@@ -660,6 +819,19 @@ pub trait Scope<'s, V: Vm>: Clone {
     /// # Returns
     /// `false` when the queue was empty.
     fn run_job(&self) -> bool;
+
+    /// Reads and clears the engine's out-of-memory mark: set whenever an
+    /// allocation failed since the last call, even if the script caught the error.
+    ///
+    /// Decision: a caught out-of-memory error does not make the heap usable again,
+    /// so the Runtime treats a set mark as fatal after every JS entry. Engines
+    /// without the mark answer `false`.
+    ///
+    /// # Returns
+    /// Whether an allocation failed since the last call.
+    fn take_out_of_memory(&self) -> bool {
+        false
+    }
 
     // ---- exceptions -----------------------------------------------------------
 

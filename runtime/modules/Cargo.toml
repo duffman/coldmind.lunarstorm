@@ -1,0 +1,30 @@
+# Source modules for the Runtime's loader: what a file is (ES module, CommonJS,
+# JSON, TypeScript), how it becomes an ES module, and how a bare or private
+# specifier resolves through package.json. No VM, no JS engine, no event loop.
+#
+# Decision: its own crate, so the Runtime core stays free of the oxc parser and
+# anything else (a bundler, the CLI) can resolve and transform the same way.
+[package]
+name = "lunarstorm-modules"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+license.workspace = true
+description = "Module sources for the Lunarstorm Runtime: TypeScript, JSON and CommonJS as ES modules, package.json resolution"
+
+[dependencies]
+oxc_allocator.workspace = true
+oxc_ast.workspace = true
+oxc_ast_visit.workspace = true
+oxc_codegen.workspace = true
+oxc_parser.workspace = true
+oxc_semantic.workspace = true
+oxc_span.workspace = true
+oxc_transformer.workspace = true
+# The TypeScript output's map for the debugger.
+oxc_sourcemap.workspace = true
+serde = "1"
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

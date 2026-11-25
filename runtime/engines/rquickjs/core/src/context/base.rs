@@ -75,6 +75,13 @@ impl Context {
         // rquickjs assumes the base objects exist, so we allways need to add this.
         unsafe { qjs::JS_AddIntrinsicBaseObjects(ctx.as_ptr()) };
         unsafe { I::add_intrinsic(ctx) };
+        // lunarstorm patch: the C parser is removed; without the Rust
+        // compiler the context could not evaluate any source.
+        #[cfg(feature = "std")]
+        if !unsafe { crate::compiler::install_base(ctx.as_ptr()) } {
+            unsafe { qjs::JS_FreeContext(ctx.as_ptr()) };
+            return Err(Error::Allocation);
+        }
         let res = unsafe { ContextOwner::new(ctx, runtime.clone()) };
         mem::drop(guard);
 
@@ -88,6 +95,13 @@ impl Context {
         let guard = runtime.inner.lock();
         let ctx = NonNull::new(unsafe { qjs::JS_NewContext(guard.rt.as_ptr()) })
             .ok_or(Error::Allocation)?;
+        // lunarstorm patch: the C parser is removed; without the Rust
+        // compiler the context could not evaluate any source.
+        #[cfg(feature = "std")]
+        if !unsafe { crate::compiler::install_base(ctx.as_ptr()) } {
+            unsafe { qjs::JS_FreeContext(ctx.as_ptr()) };
+            return Err(Error::Allocation);
+        }
         let res = unsafe { ContextOwner::new(ctx, runtime.clone()) };
         // Explicitly drop the guard to ensure it is valid during the entire use of runtime
         mem::drop(guard);
@@ -269,7 +283,9 @@ mod test {
 
     #[test]
     #[should_panic(
-        expected = "Error: invalid first character of private name\n    at eval_script:1:5\n"
+        // lunarstorm patch (approved 2026-11-24): the Rust compiler's syntax
+        // error; the C parser that produced the old message is removed.
+        expected = "Error: Invalid Character `@` (eval_script:1:6)"
     )]
     fn exception() {
         test_with(|ctx| {

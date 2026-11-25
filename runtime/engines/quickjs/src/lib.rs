@@ -24,26 +24,51 @@
 //!
 //! Limits of this engine, reported by [`QuickJs::capabilities`]:
 //! - Modules load synchronously: `Load::Later` is refused.
-//! - No JIT, no snapshots, no debug hooks. Bytecode serialization exists in the
-//!   engine but is not exposed through the contract yet, so it is reported absent.
+//! - No JIT and no snapshots. Module bytecode is written and loaded
+//!   (`bytecode_cache`); the debugger is jetbunny's, from `lunarstorm-debug`
+//!   (`debug_hooks`; [`Instance::debug`] and the `debug_*` hooks).
 
 use lunarstorm_vm::{
     Call, Callbacks, Capabilities, Context, Descriptor, ErrorKind, Heap, Instance, Interrupt, Kind, Limits, Load,
     ModuleSource, Outcome, Scope, Thrown, Vm, CONTRACT_VERSION,
 };
 use rquickjs::class::{JsClass, Readable, Trace, Tracer};
+
+// lunarstorm patch: jetbunny leaves its own engine additions unbound in rquickjs-sys
+// (its binding files are upstream's) and declares the ones it calls next to the
+// caller; this is the one this adapter calls (`quickjs.h`, jetbunny-sticky-oom-v1).
+unsafe extern "C" {
+    /// Takes the runtime's sticky out-of-memory flag.
+    ///
+    /// # Arguments
+    /// * `rt` - the runtime, on its owner thread.
+    ///
+    /// # Returns
+    /// `true` once after `JS_ThrowOutOfMemory`, then `false` until the next one.
+    fn JS_JetbunnyTakeOutOfMemory(rt: *mut qjs::JSRuntime) -> bool;
+}
 use rquickjs::function::{Constructor, IntoJsFunc, ParamRequirement, Params};
 use rquickjs::loader::{ImportAttributes, Loader, Resolver};
-use rquickjs::module::Declared;
+use rquickjs::module::{Declarations, Declared, ModuleDef};
 use rquickjs::runtime::RejectionTracker;
 use rquickjs::{
     qjs, Array, Class, Ctx, Error, Exception, Function, JsLifetime, Module, Object, Persistent,
-    String as JsString, Type, TypedArray, Value,
+    String as JsString, Type, TypedArray, Value, WriteOptions,
 };
+use lunarstorm_debug::debug::{DebugLimits, DebugSessionOptions, VmDebugHandle};
+use lunarstorm_debug::engines::quickjs_ng::Debugger;
 use std::any::Any;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::sync::Mutex;
+use std::ffi::c_void;
 use std::mem::MaybeUninit;
+use std::num::NonZeroU64;
 use std::path::Path;
+use std::ptr::NonNull;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 /// Arguments a call can carry, in either direction, without a heap allocation.
 const INLINE_ARGS: usize = 8;
@@ -59,20 +84,90 @@ impl Vm for QuickJs {
     type Persistent = Persistent<Value<'static>>;
 
     /// # Returns
-    /// The adapter's identity; the engine version is the vendored binding's.
+    /// The adapter's identity.
+    ///
+    /// Decision: the engine version names the vendored engine source
+    /// (`rquickjs/sys/quickjs/REVISION`), not the binding, because packaged
+    /// bytecode is only valid for the engine that wrote it. Bump the `lunarstorm.N`
+    /// suffix whenever an edit to the vendored engine changes its bytecode or
+    /// opcodes, so old packages are refused instead of misread.
     fn descriptor() -> Descriptor {
-        Descriptor { adapter: "quickjs", engine: "quickjs-ng", engine_version: "rquickjs 0.14.0", contract: CONTRACT_VERSION }
+        Descriptor {
+            adapter: "quickjs",
+            engine: "quickjs-ng",
+            engine_version: "0.17.0+lunarstorm.1",
+            contract: CONTRACT_VERSION,
+        }
     }
 
     /// # Returns
     /// Memory limits and termination; see the module docs for what is absent.
     fn capabilities() -> Capabilities {
-        Capabilities { memory_limits: true, termination: true, ..Capabilities::default() }
+        Capabilities {
+            memory_limits: true,
+            termination: true,
+            bytecode_cache: true,
+            debug_hooks: true,
+            ..Capabilities::default()
+        }
     }
 }
 
+/// The bridge wrapper of every context of an instance, keyed by the context's
+/// `JSContext` address; shared with the engine hooks (interrupt, rejection tracker)
+/// and, through context userdata, with compiles.
+///
+/// Decision: each context is wrapped when it is created, because the wrapper is
+/// what makes jetbunny's Rust compiler the context's compiler
+/// ([`Debugger::wrap`]). A debugger session is opened on a wrapper later, by
+/// [`Instance::debug`]. The list sits in a `RefCell` so [`QuickInstance`]'s drop can
+/// empty it and release the context references before the runtime goes.
+#[derive(Clone, Default)]
+struct DebugSlot(Rc<RefCell<Vec<(usize, Debugger)>>>);
+
+impl DebugSlot {
+    /// Runs `f` on the wrapper of one context.
+    ///
+    /// # Arguments
+    /// * `context` - the `JSContext` address.
+    /// * `f` - what to do with the wrapper.
+    ///
+    /// # Returns
+    /// `f`'s result, or `None` for a context this instance did not create.
+    fn with<R>(&self, context: usize, f: impl FnOnce(&Debugger) -> R) -> Option<R> {
+        self.0.borrow().iter().find(|(key, _)| *key == context).map(|(_, debugger)| f(debugger))
+    }
+
+    /// Runs `f` on the wrapper a debugger session is open on.
+    ///
+    /// # Arguments
+    /// * `f` - what to do with the wrapper.
+    ///
+    /// # Returns
+    /// `f`'s result, or `None` while no session is open.
+    fn attached<R>(&self, f: impl FnOnce(&Debugger) -> R) -> Option<R> {
+        self.0.borrow().iter().find(|(_, debugger)| debugger.compiling()).map(|(_, debugger)| f(debugger))
+    }
+}
+
+/// Wakes the owner's loop for the debugger; empty until [`Instance::debug`] supplies
+/// the owner's waker, because the wrappers exist before any session does.
+type Waker = Arc<Mutex<Option<Arc<dyn Fn() + Send + Sync>>>>;
+
+// SAFETY: `DebugSlot` holds no JS values and no `'js` lifetime.
+unsafe impl<'js> JsLifetime<'js> for DebugSlot {
+    type Changed<'to> = DebugSlot;
+}
+
+/// Identity of each debugged run, distinct per instance in this process.
+static DEBUG_EPOCH: AtomicU64 = AtomicU64::new(1);
+
 /// A QuickJS runtime: heap, GC, job queue, limits and interrupt.
 pub struct QuickInstance {
+    /// The contexts' bridge wrappers. Emptied first in `drop`.
+    debugger: DebugSlot,
+    /// The owner's waker, handed to every wrapper; set by [`Instance::debug`].
+    waker: Waker,
     /// The engine runtime.
     runtime: rquickjs::Runtime,
     /// Shared with the engine's interrupt hook.
@@ -106,25 +201,68 @@ impl Instance<QuickJs> for QuickInstance {
         // `Rc` is enough and a rejection reported during a module load cannot
         // conflict with the load in progress.
         let callbacks = Rc::new(callbacks);
+        let debugger = DebugSlot::default();
         runtime.set_loader(Resolve(callbacks.clone()), Loading(callbacks.clone()));
         let tracker = callbacks.clone();
+        let slot = debugger.clone();
         let tracker: RejectionTracker = Box::new(move |ctx, promise, reason, handled| {
+            let (raw_promise, raw_reason) = (promise.as_raw(), reason.as_raw());
+            slot.with(ctx.as_raw().as_ptr() as usize, |debugger| {
+                // SAFETY: both values are live for this call of the tracker.
+                unsafe {
+                    debugger.rejection(
+                        (&raw_promise as *const qjs::JSValue).cast(),
+                        (&raw_reason as *const qjs::JSValue).cast(),
+                        handled,
+                    )
+                };
+            });
             tracker.rejection(&ctx, Scope::identity(&ctx, &promise), reason, handled);
         });
         runtime.set_host_promise_rejection_tracker(Some(tracker));
         let interrupt = Interrupt::default();
         let flag = interrupt.clone();
-        runtime.set_interrupt_handler(Some(Box::new(move || flag.take() || callbacks.interrupt())));
-        Ok(Self { runtime, interrupt, memory: limits.memory })
+        let slot = debugger.clone();
+        // The debugger's pause requests and evaluation deadlines arrive through the
+        // same poll; jetbunny's bridge installed it as its own interrupt handler.
+        runtime.set_interrupt_handler(Some(Box::new(move || {
+            flag.take() || callbacks.interrupt() || slot.0.borrow().iter().any(|(_, debugger)| debugger.poll())
+        })));
+        Ok(Self { debugger, waker: Waker::default(), runtime, interrupt, memory: limits.memory })
     }
 
     /// # Returns
-    /// A context with the full standard library.
+    /// A context with the full standard library, compiling with jetbunny's Rust
+    /// compiler.
     ///
     /// # Errors
-    /// The engine's message when allocation fails.
+    /// The engine's message when allocation fails, or the bridge's when the context
+    /// cannot be wrapped.
     fn context(&self) -> Result<QuickContext, String> {
-        rquickjs::Context::full(&self.runtime).map(QuickContext).map_err(|error| error.to_string())
+        let context = rquickjs::Context::full(&self.runtime).map_err(|error| error.to_string())?;
+        let epoch = NonZeroU64::new(DEBUG_EPOCH.fetch_add(1, Ordering::Relaxed)).expect("the counter starts at 1");
+        let pointer: NonNull<c_void> = context.as_raw().cast();
+        let waker = self.waker.clone();
+        // SAFETY: the context is live on this thread; the wrapper holds a reference to
+        // it and `QuickInstance::drop` releases every wrapper before the runtime.
+        let debugger = unsafe {
+            Debugger::wrap(
+                pointer,
+                DebugLimits::default(),
+                Arc::new(move || {
+                    if let Some(wake) = &*waker.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) {
+                        wake();
+                    }
+                    Ok(())
+                }),
+                epoch,
+            )
+        }
+        .map_err(|error| error.to_string())?;
+        self.debugger.0.borrow_mut().push((pointer.as_ptr() as usize, debugger));
+        // Compiles reach the debugger through the context: `declare` has only a `Ctx`.
+        context.with(|ctx| ctx.store_userdata(self.debugger.clone()).map(|_| ()).map_err(|error| error.to_string()))?;
+        Ok(QuickContext(context))
     }
 
     /// Runs a full collection (cycle removal; reference counts free the rest eagerly).
@@ -142,6 +280,49 @@ impl Instance<QuickJs> for QuickInstance {
     /// The handle the engine's interrupt hook polls.
     fn interrupt(&self) -> Interrupt {
         self.interrupt.clone()
+    }
+
+    /// Opens a debugger session on the context's bridge wrapper
+    /// (`lunarstorm_debug::engines::quickjs_ng::Debugger`).
+    fn debug(
+        &self,
+        context: &QuickContext,
+        wake: Arc<dyn Fn() + Send + Sync>,
+        options: DebugSessionOptions,
+    ) -> Result<VmDebugHandle, String> {
+        if self.debugger.attached(|_| ()).is_some() {
+            return Err(String::from("a debugger is already attached"));
+        }
+        *self.waker.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(wake);
+        self.debugger
+            .with(context.0.as_raw().as_ptr() as usize, |debugger| debugger.attach(options).map_err(|error| error.to_string()))
+            .unwrap_or_else(|| Err(String::from("the context does not belong to this instance")))
+    }
+
+    fn debug_entry(&self) -> Result<(), String> {
+        self.debugger.attached(|debugger| debugger.before_entry().map_err(|error| error.to_string())).unwrap_or(Ok(()))
+    }
+
+    fn debug_service(&self) -> Result<bool, String> {
+        self.debugger
+            .attached(|debugger| {
+                debugger.service().map_err(|error| error.to_string())?;
+                Ok(debugger.is_stopping())
+            })
+            .unwrap_or(Ok(false))
+    }
+
+    fn debug_checkpoint(&self) -> Result<(), String> {
+        self.debugger.attached(|debugger| debugger.checkpoint(true).map_err(|error| error.to_string())).unwrap_or(Ok(()))
+    }
+}
+
+impl Drop for QuickInstance {
+    /// Releases the bridge wrappers, and with them their context references, hooks
+    /// and compilers, while the runtime is still alive.
+    fn drop(&mut self) {
+        let wrappers = std::mem::take(&mut *self.debugger.0.borrow_mut());
+        drop(wrappers);
     }
 }
 
@@ -212,8 +393,78 @@ impl<C: Callbacks<QuickJs>> Loader for Loading<C> {
         match self.0.load(ctx, name) {
             Ok(Load::Ready(source)) => declare(ctx, name, source),
             Ok(Load::Later(_)) => Err(Error::new_loading_message(name, "QuickJS loads modules synchronously")),
+            Ok(Load::Native) => Module::declare_def::<NativeDef, _>(ctx.clone(), name),
             Err(message) => Err(Error::new_loading_message(name, message)),
         }
+    }
+}
+
+/// The exports of native modules that were declared by [`Scope::native_module`] and
+/// not yet evaluated, by canonical module name.
+///
+/// Decision: rquickjs's `ModuleDef` is a static trait (no `self`), so the values of
+/// one module cannot travel in the definition. They wait here, in the context's
+/// userdata, between the callback that built them (`Loader::load`) and the engine's
+/// evaluation of the module (`NativeDef::evaluate`), which takes them out. Dropped
+/// alternative: building the C module by hand with `JS_NewCModule`, which needs the
+/// binding's private `Module::from_ptr` to return the module to the loader.
+#[derive(Default)]
+struct NativePending(RefCell<HashMap<String, Exports>>);
+
+/// The `(export name, value)` pairs of one native module.
+type Exports = Vec<(String, Persistent<Value<'static>>)>;
+
+// SAFETY: `NativePending` holds no scoped handles: persistent handles are `'static`
+// and everything else is owned text, so it is the same type under any lifetime.
+unsafe impl<'js> JsLifetime<'js> for NativePending {
+    type Changed<'to> = NativePending;
+}
+
+/// The one native module definition: it declares and fills whatever
+/// [`Scope::native_module`] stored under the module's name.
+struct NativeDef;
+
+impl ModuleDef for NativeDef {
+    /// Declares the export names stored for this module.
+    ///
+    /// # Arguments
+    /// * `decl` - the module being declared.
+    ///
+    /// # Errors
+    /// An error when nothing is stored for the module's name (a `Load::Native` answer
+    /// without a prior `native_module` call).
+    fn declare<'js>(decl: &Declarations<'js>) -> rquickjs::Result<()> {
+        let module = decl.module();
+        let name = module.name::<String>()?;
+        let ctx = module.ctx();
+        let pending = ctx.userdata::<NativePending>().ok_or(Error::Unknown)?;
+        let pending = pending.0.borrow();
+        let exports = pending.get(&name).ok_or_else(|| Error::new_loading_message(&name, "no native module was declared under this name"))?;
+        for (export, _) in exports {
+            decl.declare(export.as_str())?;
+        }
+        Ok(())
+    }
+
+    /// Sets the export values; each importer then sees the same values.
+    ///
+    /// # Arguments
+    /// * `ctx` - the context.
+    /// * `exports` - the module being evaluated.
+    ///
+    /// # Errors
+    /// An error when the stored values are gone or belong to another instance.
+    fn evaluate<'js>(ctx: &Ctx<'js>, exports: &rquickjs::module::Exports<'js>) -> rquickjs::Result<()> {
+        let name = exports.module().name::<String>()?;
+        let values = {
+            let pending = ctx.userdata::<NativePending>().ok_or(Error::Unknown)?;
+            let taken = pending.0.borrow_mut().remove(&name);
+            taken.ok_or_else(|| Error::new_loading_message(&name, "native module evaluated twice"))?
+        };
+        for (export, value) in values {
+            exports.export(export, value.restore(ctx)?)?;
+        }
+        Ok(())
     }
 }
 
@@ -230,7 +481,34 @@ impl<C: Callbacks<QuickJs>> Loader for Loading<C> {
 /// # Errors
 /// The engine's syntax error.
 fn declare<'js>(ctx: &Ctx<'js>, name: &str, source: ModuleSource) -> rquickjs::Result<Module<'js, Declared>> {
-    let module = Module::declare(ctx.clone(), name, source.source)?;
+    let module = if let Some(image) = &source.image {
+        // SAFETY: an `Image` comes only from a verified package or from
+        // `Scope::compile` of this same adapter and engine (same `Descriptor`).
+        // Decision: packaged bytecode has no statement markers, so it is not
+        // registered with a debugger.
+        unsafe { Module::load(ctx.clone(), image.bytes())? }
+    } else {
+        // While a session is open the source is staged, so jetbunny's compiler
+        // callback registers it under its file URI and source map; the callback then
+        // compiles it with statement markers and hands the root to the debugger.
+        let slot = ctx.userdata::<DebugSlot>().map(|slot| slot.clone());
+        let staged = slot.as_ref().and_then(|slot| {
+            slot.with(ctx.as_raw().as_ptr() as usize, |debugger| {
+                if !debugger.compiling() {
+                    return Ok(());
+                }
+                let text = std::str::from_utf8(&source.source)
+                    .map_err(|_| Error::new_loading_message(name, "module source is not UTF-8"))?;
+                debugger
+                    .stage(text, name, true, source.source_map.clone())
+                    .map_err(|error| Error::new_loading_message(name, error.to_string()))
+            })
+        });
+        if let Some(staged) = staged {
+            staged?;
+        }
+        Module::declare(ctx.clone(), name, source.source)?
+    };
     if let Some(meta) = source.meta {
         let object = module.meta()?;
         let directory = Path::new(&meta.filename).parent().and_then(Path::to_str).unwrap_or("/");
@@ -566,6 +844,34 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
         run().map_err(|error| thrown(self, error))
     }
 
+    /// Stores the exports under the module's name; the loader then declares the C
+    /// module from them (`Load::Native`).
+    fn native_module(&self, name: &str, exports: &[(&str, Value<'s>)]) -> Outcome<()> {
+        let stored = exports.iter().map(|(export, value)| ((*export).to_owned(), Persistent::save(self, value.clone()))).collect();
+        let store = || -> Result<(), Error> {
+            if self.userdata::<NativePending>().is_none() {
+                self.store_userdata(NativePending::default()).map_err(|_| Error::Unknown)?;
+            }
+            let pending = self.userdata::<NativePending>().ok_or(Error::Unknown)?;
+            pending.0.borrow_mut().insert(name.to_owned(), stored);
+            Ok(())
+        };
+        store().map_err(|error| thrown(self, error))
+    }
+
+    /// Compiles without linking: QuickJS resolves a module's imports only when it
+    /// is evaluated, so nothing is loaded here.
+    ///
+    /// Decision: source text is stripped and debug information (file name, line and
+    /// column tables) is kept, so stack traces of loaded bytecode keep positions.
+    fn compile(&self, name: &str, source: ModuleSource) -> Outcome<Vec<u8>> {
+        let run = || -> rquickjs::Result<Vec<u8>> {
+            Module::declare(self.clone(), name, source.source)?
+                .write(WriteOptions { strip_source: true, ..WriteOptions::default() })
+        };
+        run().map_err(|error| thrown(self, error))
+    }
+
     /// QuickJS never hands out a ticket, so there is nothing to complete.
     fn complete_load(&self, _ticket: u64, _result: Result<ModuleSource, String>) -> Outcome<()> {
         Err(self.throw_error(ErrorKind::Error, "QuickJS loads modules synchronously"))
@@ -574,6 +880,16 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
     #[inline]
     fn run_job(&self) -> bool {
         self.execute_pending_job()
+    }
+
+    /// Reads the engine's sticky out-of-memory flag (`jetbunny-sticky-oom-v1` in
+    /// the vendored sources), which `JS_ThrowOutOfMemory` sets.
+    #[inline]
+    fn take_out_of_memory(&self) -> bool {
+        // SAFETY: the context is entered on its owner thread, which is the only
+        // thread the patch allows to take the flag; the call neither allocates nor
+        // runs JS.
+        unsafe { JS_JetbunnyTakeOutOfMemory(qjs::JS_GetRuntime(self.as_raw().as_ptr())) }
     }
 
     #[inline]

@@ -1,6 +1,9 @@
 //! End-to-end tests: each one runs the real `lunarstorm` binary on a script and checks
 //! what it prints, what it sends over real sockets and how it exits.
 
+// Every test here runs scripts: only a binary with the `runtime` package has them.
+#![cfg(feature = "runtime")]
+
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
@@ -470,4 +473,47 @@ args:2 none:0 A B A-child A-grandchild micro tick-after-micro
 "#;
     assert_eq!(stdout(&out), expected, "stderr: {}", stderr(&out));
     assert!(out.status.success());
+}
+
+/// A JSON import with `with { type: "json" }` runs. Import attributes now
+/// reach the engine; Lunarstorm's module graph ignores them (the host picks a
+/// module's kind from its file) instead of rejecting the import.
+#[test]
+fn json_import_with_attributes_runs() {
+    let dir = scratch("import-attributes");
+    std::fs::write(dir.join("d.json"), r#"{"a":42}"#).expect("write json");
+    let main = dir.join("main.mjs");
+    std::fs::write(
+        &main,
+        "import d from './d.json' with { type: 'json' };\nconsole.log(d.a);\n",
+    )
+    .expect("write module");
+    let out = Command::new(env!("CARGO_BIN_EXE_lunarstorm"))
+        .arg(&main)
+        .output()
+        .expect("spawn lunarstorm");
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "42\n");
+}
+
+/// Fix: a script of about a thousand member assignments failed to load with
+/// "capacity: verification state budget/empty code", because every member
+/// assignment took a new local in the Rust compiler. Long top-level code must
+/// run through the real binary.
+#[test]
+fn long_script_of_member_assignments_runs() {
+    let dir = scratch("long-script");
+    let main = dir.join("main.js");
+    let mut source = String::from("var o={};");
+    for i in 0..5000 {
+        source.push_str(&format!("o.a{i}=1;o.b{i}+=1;o.c{i}||=1;o.a{i}++;"));
+    }
+    source.push_str("console.log(Object.keys(o).length);");
+    std::fs::write(&main, source).expect("write script");
+    let out = Command::new(env!("CARGO_BIN_EXE_lunarstorm"))
+        .arg(&main)
+        .output()
+        .expect("spawn lunarstorm");
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "15000\n");
 }

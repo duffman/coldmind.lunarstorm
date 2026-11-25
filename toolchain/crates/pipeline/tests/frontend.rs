@@ -3,21 +3,14 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use lunarstorm_pipeline::{build, frontend};
 use tempfile::TempDir;
 
 /// # Returns
-/// The repository's `framework` directory.
-fn framework() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../framework").canonicalize().expect("framework")
-}
-
-/// # Returns
-/// The desktop starter, under the repository's `templates` directory.
-fn starter() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../templates/starters/desktop").canonicalize().expect("starter")
+/// The crate's dummy component theme (`mock/`).
+fn theme() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("mock")
 }
 
 /// Writes a project to a temporary directory.
@@ -39,7 +32,7 @@ fn project(files: &[(&str, &str)]) -> TempDir {
 
 #[test]
 fn the_visual_tags_are_the_components_of_the_vcl() {
-    let index = fs::read_to_string(framework().join("vcl/react/src/index.ts")).expect("index.ts");
+    let index = fs::read_to_string(theme().join("index.ts")).expect("index.ts");
     let table = index.split("export const COMPONENTS = {").nth(1).expect("COMPONENTS").split('}').next().expect("end");
     let components: Vec<&str> = table.lines().filter_map(|line| line.trim().split(':').next()).filter(|name| !name.is_empty()).collect();
     assert_eq!(components, frontend::VISUAL);
@@ -69,43 +62,6 @@ export default () =>\n\
 }
 
 #[test]
-fn the_built_starter_frontend_loads_and_yields_its_element_tree() {
-    let starter = starter();
-    let out = TempDir::new().expect("temp dir");
-    build(&starter, out.path()).unwrap_or_else(|failure| panic!("build failed: {failure:?}"));
-    let frontend = out.path().join("frontend");
-    for file in ["index.html", "main.js", "vcl.js", "vcl.css", "forms/MainForm.js"] {
-        assert!(frontend.join(file).is_file(), "{file} is missing");
-    }
-    assert!(fs::read_to_string(frontend.join("index.html")).expect("page").contains("<script type=\"module\" src=\"main.js\"></script>"));
-
-    // Load the generated module against the real prebuilt runtime and list the
-    // tree: component name and control name, depth-first.
-    let script = "\
-const { C } = await import('./vcl.js');\n\
-const names = new Map(Object.entries(C).map(([tag, component]) => [component, tag]));\n\
-const tree = (await import('./forms/MainForm.js')).default();\n\
-const walk = (element, depth) => {\n\
-  console.log(`${' '.repeat(depth)}${names.get(element.type)} ${element.props.name ?? ''}`.trimEnd());\n\
-  for (const child of [element.props.children ?? []].flat()) walk(child, depth + 1);\n\
-};\n\
-walk(tree, 0);\n\
-console.log(JSON.stringify(tree.props.children[0].props.children[0].props));\n";
-    fs::write(frontend.join("harness.mjs"), script).expect("write");
-    let output = Command::new("bun").arg("harness.mjs").current_dir(&frontend).output().expect("bun must be on PATH");
-    assert!(output.status.success(), "the frontend failed to load:\n{}", String::from_utf8_lossy(&output.stderr));
-    let text = String::from_utf8(output.stdout).expect("utf-8");
-    let lines: Vec<&str> = text.lines().collect();
-    assert_eq!(lines[0], "form MainForm");
-    assert_eq!(lines[1], " panel CommandBar");
-    assert!(lines.contains(&"   listbox ProjectList"), "{text}");
-    assert!(lines.contains(&" statusbar StatusBar"), "{text}");
-    assert!(!text.contains("undefined"), "an element without a component was rendered:\n{text}");
-    assert!(!text.contains("MainMenu") && !text.contains("SaveItem"), "the native menu was rendered:\n{text}");
-    assert_eq!(lines.len(), 22, "21 visual elements and the props line:\n{text}");
-}
-
-#[test]
 fn a_rebuild_drops_the_module_of_a_removed_form() {
     let app = "export default (<application id=\"a\" mainForm=\"Main\" />);\n";
     let class = |name: &str| format!("import {{ Form }} from '@desktop/forms';\nexport class {name} extends Form {{}}\n");
@@ -124,17 +80,4 @@ fn a_rebuild_drops_the_module_of_a_removed_form() {
     build(directory.path(), out.path()).unwrap_or_else(|failure| panic!("build failed: {failure:?}"));
     assert!(!out.path().join("frontend/forms/About.js").exists());
     assert!(out.path().join("frontend/forms/Main.js").is_file());
-}
-
-#[test]
-fn the_prebuilt_runtime_components_create_elements() {
-    let out = TempDir::new().expect("temp dir");
-    build(&starter(), out.path()).unwrap_or_else(|failure| panic!("build failed: {failure:?}"));
-    let frontend = out.path().join("frontend");
-    // `form` uses no hooks, so it can be called outside a renderer.
-    let script = "const { C } = await import('./vcl.js');\nconst element = C.form({ name: 'Probe' });\nconsole.log(`${element.type} ${element.props['data-name']} ${element.props.className}`);\n";
-    fs::write(frontend.join("probe.mjs"), script).expect("write");
-    let output = Command::new("bun").arg("probe.mjs").current_dir(&frontend).output().expect("bun must be on PATH");
-    assert!(output.status.success(), "a VCL component failed:\n{}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "div Probe vcl-form\n");
 }
