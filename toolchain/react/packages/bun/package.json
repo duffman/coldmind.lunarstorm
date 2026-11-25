@@ -20,8 +20,5 @@
     "bench": "bun scripts/bench.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "bun --bun vitest run"
-  },
-  "devDependencies": {
-    "@coldmind/inject": "workspace:*"
   }
 }

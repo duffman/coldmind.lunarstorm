@@ -132,7 +132,9 @@ export function webSocketTransport(url: string, WS: typeof WebSocket = globalThi
     },
     send(bytes) {
       if (!ws || ws.readyState !== 1) throw new Error("Not connected");
-      ws.send(bytes);
+      // Fix: TS 7 rejects a Uint8Array that may sit on a SharedArrayBuffer as a WebSocket body. Decision: copy into
+      // an ArrayBuffer-backed array (a command pipeline is small) rather than narrowing the transport's type.
+      ws.send(new Uint8Array(bytes));
     },
     close() {
       ws?.close();

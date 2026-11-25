@@ -104,17 +104,8 @@ describe("define", () => {
 });
 
 describe("inject", () => {
-  test("wires cminject constructor dependencies from parameter types", async () => {
-    const plugin = devtools({ inject: true });
-    const { run } = await buildAndImport(join(fixtures, "inject/app.ts"), plugin, "inject");
-    const outcome = await run();
-    expect(outcome.greeting).toBe("late@42");
-    expect(outcome.logger).toBe(false);
-    expect(outcome.inject).toHaveLength(3);
-    expect(outcome.inject[2]).toMatchObject({ optional: true });
-    expect(plugin.stats().injected).toBeGreaterThanOrEqual(1);
-  });
-
+  // The runtime wiring test (fixture app.ts, needs @coldmind/inject) is archived in
+  // .archive/2026-11-25/toolchain/react/packages/bun/tests: the package was deleted in efd5ece.
   test("leaves classes it cannot resolve and reports the parameter at build end", async () => {
     const warnings: string[] = [];
     const plugin = devtools({ inject: true, onWarning: message => warnings.push(message) });
