@@ -526,6 +526,24 @@ fn declare<'js>(ctx: &Ctx<'js>, name: &str, source: ModuleSource) -> rquickjs::R
     Ok(module)
 }
 
+/// The bytes QuickJS lent for a string, without asserting they are UTF-8.
+///
+/// Decision: the binding's `CString::as_str` builds a `&str` unchecked, which is
+/// undefined behaviour for a string with an unpaired surrogate (QuickJS encodes it
+/// as WTF-8); reading the pointer and length avoids ever forming that `&str`.
+///
+/// # Arguments
+/// * `text` - the lent string.
+///
+/// # Returns
+/// Its bytes, without the terminating NUL; valid while `text` lives.
+#[inline]
+fn cstring_bytes<'a>(text: &'a rquickjs::CString<'_>) -> &'a [u8] {
+    // SAFETY: `as_ptr` and `len` describe the buffer QuickJS lent, which stays
+    // alive until `text` is dropped.
+    unsafe { std::slice::from_raw_parts(text.as_ptr().cast::<u8>(), text.len()) }
+}
+
 /// Converts a binding error into the contract's marker, leaving an exception
 /// pending in the context in every case.
 ///
@@ -767,11 +785,21 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
         value.as_number()
     }
 
+    /// Defect fixed: the binding's `CString::as_str` assumes QuickJS's encoding is
+    /// UTF-8, but QuickJS keeps an unpaired surrogate as its 3-byte WTF-8 form
+    /// ("Keep unmatched surrogate code points", quickjs.c `JS_ToCStringLen2`), so
+    /// `'a\uD800b'` reached natives as an invalid `&str`. Decision: validate the
+    /// lent bytes and throw a `TypeError` for an unpaired surrogate. Dropped
+    /// alternative: replacing it with U+FFFD, which needs a copy and silently
+    /// changes the text a native sees (a path, a key).
     #[inline]
     fn with_str<R>(&self, value: &Value<'s>, f: impl FnOnce(&str) -> R) -> Outcome<R> {
         match value.as_string() {
             Some(string) => match string.clone().to_cstring() {
-                Ok(text) => Ok(f(text.as_str())),
+                Ok(text) => match std::str::from_utf8(cstring_bytes(&text)) {
+                    Ok(text) => Ok(f(text)),
+                    Err(_) => Err(thrown(self, Exception::throw_type(self, "string contains an unpaired surrogate"))),
+                },
                 Err(error) => Err(thrown(self, error)),
             },
             None => Err(thrown(self, Exception::throw_type(self, "expected a string"))),
@@ -782,7 +810,8 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
     fn with_bytes<R>(&self, value: &Value<'s>, f: impl FnOnce(&[u8]) -> R) -> Outcome<R> {
         if let Some(string) = value.as_string() {
             return match string.clone().to_cstring() {
-                Ok(text) => Ok(f(text.as_str().as_bytes())),
+                // Raw bytes, not `as_str()`: see `cstring_bytes`.
+                Ok(text) => Ok(f(cstring_bytes(&text))),
                 Err(error) => Err(thrown(self, error)),
             };
         }
