@@ -1,8 +1,7 @@
 /**
- * Small pieces both tabs use: persisted state, the key/value table, and the lazy value inspector.
+ * Small pieces both tabs use: persisted state, the tab bar, and the lazy value inspector.
  */
 import { useEffect, useState, type ReactNode } from "react";
-import type { Pair } from "./request.ts";
 
 /** Prefix of every localStorage key the dev mode writes. */
 export const STORAGE_PREFIX = "lunarstorm.devmode.";
@@ -31,38 +30,6 @@ export function usePersisted<T>(key: string, initial: T | (() => T)): [T, (v: T 
     }
   }, [key, value]);
   return [value, setValue];
-}
-
-/**
- * Editable key/value rows with an enable checkbox. A blank row is always shown last; typing in it adds a row.
- * @param props.pairs the rows
- * @param props.onChange receives the new rows
- * @param props.keyLabel placeholder of the key column
- */
-export function PairTable({ pairs, onChange, keyLabel = "Key" }: { pairs: Pair[]; onChange: (p: Pair[]) => void; keyLabel?: string }) {
-  const rows = [...pairs, { key: "", value: "", enabled: true }];
-  const set = (i: number, patch: Partial<Pair>) => {
-    const next = rows.map((r, j) => (j === i ? { ...r, ...patch } : r));
-    onChange(next.filter((r, j) => j < pairs.length || r.key || r.value));
-  };
-  return (
-    <table className="lsdm-pairs">
-      <tbody>
-        {rows.map((p, i) => (
-          <tr key={i} className={p.enabled ? "" : "lsdm-off"}>
-            <td className="lsdm-check">
-              {i < pairs.length && <input type="checkbox" checked={p.enabled} onChange={(e) => set(i, { enabled: e.target.checked })} />}
-            </td>
-            <td><input placeholder={keyLabel} value={p.key} onChange={(e) => set(i, { key: e.target.value })} /></td>
-            <td><input placeholder="Value" value={p.value} onChange={(e) => set(i, { value: e.target.value })} /></td>
-            <td className="lsdm-check">
-              {i < pairs.length && <button className="lsdm-x" title="Remove" onClick={() => onChange(pairs.filter((_, j) => j !== i))}>×</button>}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
 }
 
 /**

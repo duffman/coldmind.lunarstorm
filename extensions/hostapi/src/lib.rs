@@ -54,6 +54,35 @@ pub trait Area<V: Vm>: 'static {
     /// A message; the Runtime fails to start with
     /// `extension hostapi: area <NAME>: <message>`.
     fn bindings(&self, using: &Use<'_>) -> Result<Bindings<V>, String>;
+
+    /// The functions the area's module exports, for [`HostApi::spec`].
+    ///
+    /// Decision: a `const` next to the area's bindings rather than a separate
+    /// description file, so the API is described once, where it is defined; an
+    /// area that lists nothing still appears in the spec, with no functions.
+    const FUNCTIONS: &'static [Function] = &[];
+}
+
+/// One argument of an API function, as [`HostApi::spec`] lists it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Arg {
+    /// The argument's name.
+    pub name: &'static str,
+    /// It may be left out.
+    pub optional: bool,
+    /// It may repeat (a rest argument).
+    pub multiple: bool,
+}
+
+/// One function an area's module exports, as [`HostApi::spec`] lists it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Function {
+    /// The export's name.
+    pub name: &'static str,
+    /// One line on what it does.
+    pub summary: &'static str,
+    /// Its arguments, in order.
+    pub args: &'static [Arg],
 }
 
 /// A host's areas as one static type: `()`, `(A,)`, `(A, B)`, ... up to 8.
@@ -71,6 +100,10 @@ pub trait AreaSet<V: Vm>: 'static {
     /// # Returns
     /// The bindings, or `None` when no member has that name.
     fn bindings(&self, name: &str, using: &Use<'_>) -> Option<Result<Bindings<V>, String>>;
+
+    /// # Returns
+    /// Every member's name and functions, in tuple order.
+    fn functions(&self) -> Vec<(&'static str, &'static [Function])>;
 }
 
 impl<V: Vm> AreaSet<V> for () {
@@ -84,6 +117,12 @@ impl<V: Vm> AreaSet<V> for () {
     /// `None`: there are no members.
     fn bindings(&self, _name: &str, _using: &Use<'_>) -> Option<Result<Bindings<V>, String>> {
         None
+    }
+
+    /// # Returns
+    /// Nothing: there are no members.
+    fn functions(&self) -> Vec<(&'static str, &'static [Function])> {
+        Vec::new()
     }
 }
 
@@ -112,6 +151,12 @@ macro_rules! area_set {
                     }
                 )+
                 None
+            }
+
+            /// # Returns
+            /// Every member's name and functions, in tuple order.
+            fn functions(&self) -> Vec<(&'static str, &'static [Function])> {
+                vec![$(($member::NAME, $member::FUNCTIONS)),+]
             }
         }
     };
@@ -142,6 +187,36 @@ impl<V: Vm, A: AreaSet<V>> HostApi<V, A> {
     /// The extension, for [`lunarstorm_runtime::Host::extensions`].
     pub fn new(areas: A) -> Self {
         Self { areas, engine: PhantomData }
+    }
+
+    /// The host's whole API as one JSON document: every area this host offers (not
+    /// only the ones a manifest activates), in tuple order, with its functions.
+    ///
+    /// Shape: `{"version": 1, "areas": [{"name", "module", "functions": [{"name",
+    /// "summary", "args": [{"name", "optional", "multiple"}]}]}]}`. Tools (the dev
+    /// console's API tree, the bundler) read this instead of keeping their own copy.
+    ///
+    /// # Returns
+    /// The spec.
+    pub fn spec(&self) -> serde_json::Value {
+        use serde_json::json;
+        let areas: Vec<_> = self
+            .areas
+            .functions()
+            .into_iter()
+            .map(|(name, functions)| {
+                let functions: Vec<_> = functions
+                    .iter()
+                    .map(|f| {
+                        let args: Vec<_> = f.args.iter().map(|a| json!({"name": a.name, "optional": a.optional, "multiple": a.multiple})).collect();
+                        json!({"name": f.name, "summary": f.summary, "args": args})
+                    })
+                    .collect();
+                json!({"name": name, "module": format!("lunarstorm:{NAME}/{name}"), "functions": functions})
+            })
+            .collect();
+        // Decision: a format version, so a tool can refuse a spec it cannot read.
+        json!({"version": 1, "areas": areas})
     }
 }
 

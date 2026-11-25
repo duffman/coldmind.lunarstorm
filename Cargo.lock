@@ -3143,6 +3143,7 @@ version = "0.1.0"
 dependencies = [
  "lunarstorm-runtime",
  "lunarstorm-vm-quickjs",
+ "serde_json",
 ]
 
 [[package]]

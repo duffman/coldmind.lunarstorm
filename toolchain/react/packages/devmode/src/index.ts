@@ -1,16 +1,18 @@
 /**
- * `@lunarstorm/devmode`: a developer console and a Postman-style API executor, mounted as a dev mode in a React app.
+ * Dev mode: a developer console and a redis-cli style executor for the app's Redis-protocol API, docked in a React app.
  *
  * ```tsx
- * import { DevMode, installCapture } from "@lunarstorm/devmode";
+ * import { DevApp, installCapture } from "./devmode";
  * if (import.meta.env.DEV) installCapture(); // optional: capture logs from before the first render
- * root.render(<><App /><DevMode enabled={import.meta.env.DEV} env={{ baseUrl: "http://localhost:3000" }} /></>);
+ * root.render(<DevApp enabled={import.meta.env.DEV}><App /></DevApp>); // error boundary + docked dev mode
  * ```
  */
-export { DevMode, matchesHotkey, requestFromNet, type DevModeProps } from "./devmode.tsx";
+export { DevMode, matchesHotkey, type DevModeProps } from "./devmode.tsx";
+export { DevApp, type DevAppProps } from "./devapp.tsx";
 export { capture, Capture, installCapture, MAX_ENTRIES, type EntryType, type LogEntry, type NetRecord } from "./capture.ts";
 export { evaluate } from "./console-tab.tsx";
-export {
-  buildRequest, envVars, execute, interpolate, METHODS, newRequest, parseCurl, splitQuery, toCurl,
-  type ApiRequest, type ApiResponse, type Auth, type BodyMode, type BuiltRequest, type Method, type Pair,
-} from "./request.ts";
+export { RedisClient, type ClientOptions, type ConnState, type ServerInfo } from "./redis-client.ts";
+export { defaultEndpoint, IPC_VERSION, ipcTransport, transportFor, webSocketTransport, type IpcEnvelope, type RespTransport, type TransportEvents } from "./transport.ts";
+export { encodeCommand, encodeReply, formatReply, parseCommands, quote, replyText, RespDecoder, RespProtocolError, tokenize, type Line, type Reply, type Seg } from "./resp.ts";
+export { commandText } from "./redis-tab.tsx";
+export { ApiTree, parseApiSpec, parseCommandDocs, savedCategories, type ApiCall, type ApiCategory, type ApiSpec, type ApiTreeProps, type SavedCall } from "./api-tree.tsx";

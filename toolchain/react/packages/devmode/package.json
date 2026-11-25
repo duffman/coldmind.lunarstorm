@@ -3,13 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "In-app dev mode for React apps: a developer console (console/errors/network capture, JS REPL) and a Postman-style API executor",
+  "description": "Dev parent app for React apps: DevApp (error boundary + docked dev mode), a developer console and a redis-cli style executor for the host API",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "react-resizable": "^4.0.2"
   },
   "peerDependencies": {
     "react": ">=19",

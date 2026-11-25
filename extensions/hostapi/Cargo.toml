@@ -10,7 +10,10 @@ description = "Lunarstorm HostApi extension: a host's API areas as plugins"
 
 [dependencies]
 lunarstorm-runtime = { path = "../../runtime/core" }
+# `HostApi::spec`, the API as JSON.
+serde_json.workspace = true
 
 [dev-dependencies]
 # Tests need a real engine; the library itself names none.
 lunarstorm-vm-quickjs = { path = "../../runtime/engines/quickjs" }
+serde_json.workspace = true
