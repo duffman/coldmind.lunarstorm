@@ -3147,6 +3147,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "lunarstation"
+version = "0.1.0"
+dependencies = [
+ "devtools-cli",
+ "lunarstorm-cli-host",
+ "lunarstorm-host-cli",
+ "lunarstorm-pipeline",
+ "lunarstorm-project",
+]
+
+[[package]]
 name = "lunarstorm"
 version = "0.1.0"
 dependencies = [

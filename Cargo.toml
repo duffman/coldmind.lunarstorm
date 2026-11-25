@@ -40,6 +40,8 @@
 #     desktop         native desktop process: lib + `lunarstorm-debug`, `lunarstorm-release`
 #     pack            `lunarstorm-pack`: archive, attach, package and sign per OS
 #     web             `lunarstorm-web`: the app in a browser tab, backend in a Worker
+#     lunarstation    the `lunarstation` command line: lunar's packages on the CLI host
+#                     under its own name and external prefix
 #     examples/app    a complete generated project (not a crate)
 #   toolchain/   the build toolchain (devtools crates and the vendored oj_* compiler)
 #
@@ -88,6 +90,7 @@ members = [
     "platform/pack",
     "platform/web",
     "platform/extensions/project",
+    "platform/lunarstation",
     "crates/cliui",
     "crates/cli-contract",
     "crates/cli-host",
