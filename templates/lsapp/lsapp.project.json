@@ -1,8 +1,0 @@
-{
-  "name": "LS Desktop Starter",
-  "version": "0.1.0",
-  "entry": "application.main.ts",
-  "views": "views",
-  "output": "dist",
-  "host": "browser-preview"
-}
