@@ -45,8 +45,8 @@ const PAGE: &str = "<!doctype html>\n<html>\n  <head>\n    <meta charset=\"utf-8
 /// import the regenerated module instead of the cached one.
 const MAIN: &str = "import { mount } from './vcl.js';\n\nmount((name, stamp) => import(`./forms/${name}.js?t=${stamp}`));\n";
 
-/// The element names that have a component in the theme (`COMPONENTS` in
-/// `mock/index.ts`; a test keeps the two equal).
+/// The element names that have a component in the theme (`TAGS` in
+/// `mock/vcl.js`; a test keeps the two equal).
 pub const VISUAL: &[&str] = &[
     "form", "panel", "groupbox", "scrollbox", "pagecontrol", "tabsheet", "splitter", "toolbar", "statusbar", "label",
     "image", "progressbar", "button", "edit", "memo", "checkbox", "radiogroup", "combobox", "trackbar", "listbox",

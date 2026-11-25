@@ -1,7 +1,7 @@
 // Dummy WebView runtime: no React, no real components. No real theme exists yet;
 // this gives the generated pages the `h`, `C` and `mount` they import.
 
-/** The visual tags; kept equal to `COMPONENTS` in `index.ts`. */
+/** The visual tags; a pipeline test keeps them equal to `frontend::VISUAL`. */
 const TAGS = [
   'form', 'panel', 'groupbox', 'scrollbox', 'pagecontrol', 'tabsheet', 'splitter', 'toolbar', 'statusbar', 'label',
   'image', 'progressbar', 'button', 'edit', 'memo', 'checkbox', 'radiogroup', 'combobox', 'trackbar', 'listbox',

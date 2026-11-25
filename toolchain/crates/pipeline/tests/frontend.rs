@@ -30,11 +30,13 @@ fn project(files: &[(&str, &str)]) -> TempDir {
     directory
 }
 
+/// Decision: checked against `TAGS` in `vcl.js`, the runtime the build ships,
+/// not a separate component list that only this test read.
 #[test]
 fn the_visual_tags_are_the_components_of_the_vcl() {
-    let index = fs::read_to_string(theme().join("index.ts")).expect("index.ts");
-    let table = index.split("export const COMPONENTS = {").nth(1).expect("COMPONENTS").split('}').next().expect("end");
-    let components: Vec<&str> = table.lines().filter_map(|line| line.trim().split(':').next()).filter(|name| !name.is_empty()).collect();
+    let vcl = fs::read_to_string(theme().join("vcl.js")).expect("vcl.js");
+    let table = vcl.split("const TAGS = [").nth(1).expect("TAGS").split(']').next().expect("end");
+    let components: Vec<&str> = table.split(',').map(|tag| tag.trim().trim_matches('\'')).filter(|tag| !tag.is_empty()).collect();
     assert_eq!(components, frontend::VISUAL);
 }
 
