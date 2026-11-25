@@ -1,7 +1,7 @@
 # Extensions and plugins
 
-Status: **design.** The concepts below apply to every level of Lunarstorm; the platform level is specified
-in detail in `platform/doc/lunar-extensions/`. Read `hosts.md` first.
+Status: **runtime level built** (`lunar-extension`, `lunarstorm-runtime`, HostApi in the CLI host);
+**platform level designed** in `platform/doc/lunar-extensions/`. Read `hosts.md` first.
 
 ## Concepts
 
@@ -9,7 +9,7 @@ in detail in `platform/doc/lunar-extensions/`. Read `hosts.md` first.
 |---|---|---|
 | **module** | a unit of code a script imports | `node:fs`, `lunarstorm:ipc`, `./util.js` |
 | **core module** | a module the Runtime itself provides to every host that enables it | `node:*`, `lunarstorm:ipc`, `lunarstorm:worker` |
-| **lunar-extension** | a named package of functionality a host adds to its programs: modules, native code, state | `ui` (terminal output), `store` (persistent key/value) |
+| **lunar-extension** | a named package of functionality a host adds to its programs: modules, native code, state | `hostapi` (the host's API), `store` (persistent key/value) |
 | **plugin host** | a named slot an extension opens, with a contract other code implements | `store` opens the slot `backend` |
 | **plugin** | an implementation of a plugin host's contract | `sqlite` and `file`, both implementing `backend` |
 | **manifest** | the declaration of which extensions and plugins an application uses, and the permissions it holds | `"store": { "plugins": ["sqlite"] }` |
@@ -25,8 +25,10 @@ host
  |     +-- plugin host "backend"   (contract: trait Backend)
  |           +-- plugin "sqlite"
  |           +-- plugin "file"
- +-- lunar-extension "ui"
- +-- manifest: uses store + sqlite; grants store.get, store.set; scope keys "ui.*"
+ +-- lunar-extension "hostapi"
+ |     +-- plugin host "area"      (contract: trait Area)
+ |           +-- plugin "ui"
+ +-- manifest: uses store + sqlite, hostapi + ui; grants store.get, store.set; scope keys "ui.*"
 ```
 
 ## One concept at every level
@@ -35,7 +37,7 @@ Extensions exist at two levels, with one shape:
 
 | level | lives in | instance | a call is | example |
 |---|---|---|---|---|
-| **runtime** | inside a `Runtime`, added by its host | one per Runtime: the main program and each worker | a synchronous function call inside the VM | the CLI host's `ui`; the desktop host's `@desktop/api` |
+| **runtime** | inside a `Runtime`, added by its host | one per Runtime: the main program and each worker | a synchronous function call inside the VM | HostApi with the CLI host's area `ui` |
 | **platform** | in the desktop process (`lunarstorm-platform`) | one per process | an asynchronous `native.<ns>.<cmd>(...)` with JSON arguments, run on a declared thread | `window`, `dialog`, a third-party `store` |
 
 What both levels share:
@@ -52,38 +54,42 @@ Runtime/VM/Host call; the platform level is an object-safe trait registered when
 
 ## A runtime-level extension
 
-A runtime-level extension is built on the mechanism the core modules already use. `lunarstorm:ipc` is a
-native module: on its first import the loader builds its exports as closures over this Runtime's state and
-declares them with `Scope::native_module` (`src/modules.rs`). An extension does the same for its own
-modules, and adds state, configuration and plugins:
+Built: `src/extension.rs`, checked by `tests/extensions.rs`. The first extension is HostApi
+(`extensions/hostapi`).
+
+A runtime-level extension contributes a `Bindings` set, the mechanism hosts already use: natives on `ops`
+and source modules. Its modules are host modules, so they may import `lunarstorm:internal` and reach the
+natives; a program's own files may not.
 
 ```rust
 pub trait Extension<V: Vm>: 'static {
-    /// The extension's name: `[a-z][a-z0-9]{0,31}`.
+    /// `[a-z][a-z0-9]{0,31}`; its modules are `lunarstorm:<NAME>` and `lunarstorm:<NAME>/...`.
     const NAME: &'static str;
-    /// State for one Runtime; created by `setup`, dropped with the Runtime.
-    type State: 'static;
-    /// The module specifiers it serves, e.g. `lunarstorm:store`.
-    fn modules(&self) -> &'static [&'static str];
-    /// Called once per Runtime when the manifest uses the extension: reads its configuration and
-    /// active plugins, builds the state.
-    fn setup(&self, cx: &Setup<'_>) -> Result<Self::State, String>;
-    /// Builds the exports of one of its modules, on that module's first import.
-    fn exports<'s>(&self, state: &Rc<Self::State>, scope: &V::Scope<'s>, module: &str)
-        -> Outcome<Vec<(&'static str, V::Value<'s>)>>;
+    /// The plugin hosts it opens, each with the plugins this build offers.
+    fn plugin_hosts(&self) -> Vec<PluginHost> { Vec::new() }
+    /// Called at `Runtime::start` when the manifest uses the extension.
+    fn bindings(&self, using: &Use<'_>) -> Result<Bindings<V>, String>;
+}
+
+pub trait Host: 'static {
+    // ...
+    type Extensions<V: Vm>: ExtensionSet<V>;          // `()`, `(A,)`, ... up to 8
+    fn extensions<V: Vm>(&self) -> Self::Extensions<V>;
+    fn manifest(&self) -> &Manifest { Manifest::empty() }
 }
 ```
 
-- **Per Runtime.** `setup` runs in every Runtime that uses the extension, so a worker gets an instance of
-  its own and state stays local to its VM.
-- **On demand.** A module's exports are built on its first import. A program pays for the extensions it
-  imports: the startup cost of the Runtime stays the cost of the core.
-- **Static.** A host lists its extensions as a type (`(Ui, Store<(Sqlite, File)>)`), so registration and
-  every call are resolved at compile time.
+`Runtime::start` checks the host's manifest against the set, then merges the bindings of each used
+extension, in the set's order, after the host's own:
 
-The CLI host's terminal support is the first candidate: today `bindings()` in `lunarstorm-host-cli`
-registers the natives `color`, `tty`, `columns`, `live` and the `lunarstorm:ui` module; as an extension it
-becomes `ui` with the module `lunarstorm:ui`.
+- **Per Runtime.** The set comes from the host, and a worker's Runtime is created from its own host, so
+  each Runtime, the main one and every worker, holds its own state, captured by the binding closures.
+- **On demand.** Source modules compile on first import. A program pays for the modules it imports.
+- **Static.** The set is a type (`(HostApi<V, (Ui,)>,)`), so registration and every call are resolved at
+  compile time.
+- **Fenced.** An extension serves only `lunarstorm:<NAME>[/...]`, and the merge refuses a module or `ops`
+  function another binding already holds: `extension <name>: module <specifier> is outside
+  lunarstorm:<name>`, `extension <name>: ops.<fn> is already bound`.
 
 ## Plugin hosts and plugins
 
@@ -113,7 +119,7 @@ with the host; a desktop application carries its manifest in its host configurat
 {
   "extensions": {
     "store": { "plugins": ["sqlite"], "config": { "file": "state.db" } },
-    "ui": {}
+    "hostapi": { "plugins": ["ui"] }
   },
   "permissions": {
     "native": ["store.get", "store.set"],
@@ -129,7 +135,7 @@ Three questions, answered at three times:
 | permission | answers | written as | checked |
 |---|---|---|---|
 | **use** | is this extension or plugin active for the application | its entry under `extensions` | when the host loads the manifest |
-| **grant** | may the program call this command | `<namespace>.<command>`, `<namespace>.*` | at each call (platform), at link time (runtime: an ungranted export is absent from the module) |
+| **grant** | may the program call this command | `<namespace>.<command>`, `<namespace>.*` | at each call (platform); at the runtime level a used plugin is granted as a whole, per-export grants come with the first host whose manifest the application writes |
 | **scope** | which data may a granted command touch | typed entries under `scopes.<namespace>`, `allow` and `deny` | by the command, through `call.scope::<T>()` |
 
 Evaluation of one call:
@@ -168,9 +174,11 @@ to trust it.
 | use | modules built on first import; calls run inside the VM | `native.*` calls routed to the declared thread |
 | release | the state drops with its Runtime (program end, worker end) | `release_epoch` on backend reload; `Drop` at process end |
 
-## Open questions
+## Settled
 
-- **Module names for extensions.** Proposed: `lunarstorm:<extension>` and `lunarstorm:<extension>/<plugin>`
-  at both levels, with the names already in use reserved: `ipc` and `worker` (core), `ui` (CLI host). The platform documents currently
-  use `@extension/<name>`.
-- **The CLI host's manifest.** Its format and its file inside the host crate.
+- **Module names.** `lunarstorm:<extension>` and `lunarstorm:<extension>/<plugin>`, enforced at
+  `Runtime::start`. Reserved: `ipc`, `worker`, `internal` (the Runtime's own modules). The CLI host keeps
+  `lunarstorm:ui` as a re-export of `lunarstorm:hostapi/ui`. The platform documents still use
+  `@extension/<name>`.
+- **The CLI host's manifest.** `runtime/hosts/cli/manifest.json`, JSON as above, embedded with
+  `include_str!` and parsed once per process.

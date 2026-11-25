@@ -29,6 +29,13 @@ struct Sink {
 struct TestHost<const W: bool>(Sink);
 
 impl<const W: bool> Host for TestHost<W> {
+    /// No extensions.
+    type Extensions<V: lunarstorm_runtime::vm::Vm> = ();
+
+    /// # Returns
+    /// The empty set.
+    fn extensions<V: lunarstorm_runtime::vm::Vm>(&self) -> Self::Extensions<V> {}
+
     const WORKERS: bool = W;
 
     /// # Returns

@@ -22,7 +22,7 @@ use std::process::{Command, Output, Stdio};
 /// # Returns
 /// The command, not yet spawned.
 fn command(args: &[&str], env: &[(&str, &str)]) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_lunarstorm"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_lunar"));
     command.args(args).env_remove("NO_COLOR").env_remove("FORCE_COLOR").env_remove("COLORTERM").env("TERM", "xterm");
     command.envs(env.iter().copied());
     command
@@ -61,7 +61,7 @@ const timer = setInterval(() => {
 #[test]
 fn help_and_version_are_plain_when_piped() {
     let (code, out, err) = run(&["--version"], &[]);
-    assert_eq!((code, out.as_str(), err.as_str()), (0, concat!("lunarstorm ", env!("CARGO_PKG_VERSION"), "\n"), ""));
+    assert_eq!((code, out.as_str(), err.as_str()), (0, concat!("lunar ", env!("CARGO_PKG_VERSION"), "\n"), ""));
 
     let (code, out, _) = run(&["--help"], &[]);
     assert_eq!(code, 0);
@@ -100,11 +100,11 @@ fn color_follows_flag_then_force_color_then_no_color() {
 fn usage_errors_exit_2_with_a_hint() {
     let (code, out, err) = run(&["--verison"], &[]);
     assert_eq!((code, out.as_str()), (2, ""));
-    assert_eq!(err, "error: unknown option '--verison'\n  hint: did you mean '--version'?\n  usage: lunarstorm --help\n");
+    assert_eq!(err, "error: unknown option '--verison'\n  hint: did you mean '--version'?\n  usage: lunar --help\n");
 
     let (code, _, err) = run(&["--zzzzzz"], &[]);
     assert_eq!(code, 2);
-    assert_eq!(err, "error: unknown option '--zzzzzz'\n  usage: lunarstorm --help\n");
+    assert_eq!(err, "error: unknown option '--zzzzzz'\n  usage: lunar --help\n");
 
     let (code, _, err) = run(&["--color=sometimes", "x.js"], &[]);
     assert_eq!(code, 2);
@@ -166,6 +166,20 @@ fn ui_module_prints_only_final_lines_when_piped() {
     assert_eq!(run(&["-e", style], &[]).1, "false bab\n");
     let (_, out, _) = run(&["--color=always", "-e", style], &[("COLORTERM", "truecolor")]);
     assert_eq!(out, "\x1b[33mtrue\x1b[0m \x1b[1mb\x1b[0m\x1b[38;2;167;139;250ma\x1b[38;2;34;211;238mb\x1b[0m\n");
+}
+
+#[test]
+fn hostapi_lists_ui() {
+    let (code, out, err) = run(&["-e", "import { areas } from 'lunarstorm:hostapi'; console.log(areas.join())"], &[]);
+    assert_eq!((code, out.as_str(), err.as_str()), (0, "ui\n", ""));
+}
+
+#[test]
+fn ui_alias_is_the_same_module() {
+    let script = "import ui, { style } from 'lunarstorm:ui'; import hostui, { style as hoststyle } from 'lunarstorm:hostapi/ui';
+                  console.log(style === hoststyle, ui === hostui, typeof hostui.progress)";
+    let (code, out, err) = run(&["-e", script], &[]);
+    assert_eq!((code, out.as_str(), err.as_str()), (0, "true true function\n", ""));
 }
 
 #[test]

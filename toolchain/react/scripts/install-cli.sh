@@ -16,7 +16,7 @@ fi
 
 bin_dir="${BIN_DIR:-$HOME/.local/bin}"
 
-cargo build $flag -p lunarstorm --bin lunarstorm
+cargo build $flag -p lunarstorm --bin lunar
 
 target_dir="$(cargo metadata --format-version 1 --no-deps | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')"
 binary="$target_dir/$profile/lunarstorm"

@@ -18,6 +18,8 @@ description = "Lunarstorm runtime CLI host: the `run` and `jbn` commands of the 
 
 [dependencies]
 lunarstorm-runtime = { path = "../../core" }
+# HostApi: the terminal API is its area `ui` (src/ui.rs).
+lunar-extension-hostapi = { path = "../../../extensions/hostapi" }
 # `.jbn` packages: `jbn key`, `jbn build`, and `run` of a package.
 lunarstorm-jbn = { path = "../../jbn" }
 lunarstorm-vm-quickjs = { path = "../../engines/quickjs" }

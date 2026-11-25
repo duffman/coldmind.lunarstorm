@@ -52,6 +52,10 @@ const BROKEN: i32 = 70;
 pub struct Cli {
     /// The program name, used in usage lines and for external commands.
     program: String,
+    /// The prefix of external commands: `<prefix>-<name>` on `PATH`. Defaults to the
+    /// program name; the `lunar` binary sets `lunarstorm` so `lunar pack` runs
+    /// `lunarstorm-pack`.
+    prefix: String,
     /// The brand mark at the top of help screens, e.g. `☾ lunarstorm`.
     mark: String,
     /// The program version.
@@ -85,8 +89,10 @@ impl Cli {
     /// # Returns
     /// The CLI.
     pub fn new(program: impl Into<String>, mark: impl Into<String>, version: impl Into<String>, tagline: impl Into<String>) -> Self {
+        let program = program.into();
         Self {
-            program: program.into(),
+            prefix: program.clone(),
+            program,
             mark: mark.into(),
             version: version.into(),
             tagline: tagline.into(),
@@ -104,6 +110,18 @@ impl Cli {
     /// The CLI.
     pub fn detail(mut self, detail: impl Into<String>) -> Self {
         self.detail = detail.into();
+        self
+    }
+
+    /// Sets the prefix of external commands.
+    ///
+    /// # Arguments
+    /// * `prefix` - external commands are `<prefix>-<name>` on `PATH`.
+    ///
+    /// # Returns
+    /// The CLI.
+    pub fn external_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = prefix.into();
         self
     }
 
@@ -336,12 +354,12 @@ impl Cli {
     /// * `name` - the command word.
     ///
     /// # Returns
-    /// The first executable `<program>-<name>` on `PATH`.
+    /// The first executable `<prefix>-<name>` on `PATH`.
     fn external(&self, name: &str) -> Option<PathBuf> {
         if name.is_empty() || name.contains(std::path::MAIN_SEPARATOR) {
             return None;
         }
-        let file = format!("{}-{name}", self.program);
+        let file = format!("{}-{name}", self.prefix);
         std::env::split_paths(&std::env::var_os("PATH")?).map(|dir| dir.join(&file)).find(|path| executable(path))
     }
 
@@ -353,7 +371,7 @@ impl Cli {
     /// # Returns
     /// The command names, sorted, without duplicates.
     fn externals(&self, root: &Command) -> Vec<String> {
-        let prefix = format!("{}-", self.program);
+        let prefix = format!("{}-", self.prefix);
         let mut names: Vec<String> = std::env::var_os("PATH")
             .map(|path| std::env::split_paths(&path).collect::<Vec<_>>())
             .unwrap_or_default()

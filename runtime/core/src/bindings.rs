@@ -26,13 +26,15 @@ pub struct Bindings<V: Vm> {
     installers: Vec<Installer<V>>,
     /// `(specifier, source)` of host modules.
     modules: Vec<(&'static str, &'static str)>,
+    /// Names of the functions on `ops`, for [`Bindings::merge`]'s collision check.
+    functions: Vec<&'static str>,
 }
 
 impl<V: Vm> Default for Bindings<V> {
     /// # Returns
     /// An empty set.
     fn default() -> Self {
-        Self { installers: Vec::new(), modules: Vec::new() }
+        Self { installers: Vec::new(), modules: Vec::new(), functions: Vec::new() }
     }
 }
 
@@ -55,6 +57,7 @@ impl<V: Vm> Bindings<V> {
     where
         F: for<'a> Fn(&Call<'a, V>) -> Outcome<V::Value<'a>> + 'static,
     {
+        self.functions.push(name);
         self.installers.push(Box::new(move |scope, ops| {
             let function = scope.function(name, f)?;
             scope.set(ops, name, function)
@@ -98,6 +101,44 @@ impl<V: Vm> Bindings<V> {
     pub(crate) fn extend(&mut self, other: Self) {
         self.installers.extend(other.installers);
         self.modules.extend(other.modules);
+        self.functions.extend(other.functions);
+    }
+
+    /// Adds an extension's or a plugin's set after this one, refusing what would
+    /// take another binding's place.
+    ///
+    /// Decision: an extension serves only `lunarstorm:<extension>` and
+    /// `lunarstorm:<extension>/...`, and neither a module nor an `ops` function may
+    /// replace one already bound (by the host or an earlier extension). A silent
+    /// replacement would change another component's behaviour depending on
+    /// installation order.
+    ///
+    /// # Arguments
+    /// * `owner` - the namespace the modules must lie in, after `lunarstorm:`: an
+    ///   extension's name (`probe`), or a plugin's path (`hostapi/ui`).
+    /// * `other` - the bindings to add.
+    ///
+    /// # Errors
+    /// `module <specifier> is outside lunarstorm:<owner>`, or
+    /// `<module or ops.function> is already bound`; the caller adds whose.
+    pub fn merge(&mut self, owner: &str, other: Self) -> Result<(), String> {
+        let namespace = format!("lunarstorm:{owner}");
+        for (specifier, _) in &other.modules {
+            let inside = specifier.strip_prefix(namespace.as_str()).is_some_and(|rest| rest.is_empty() || rest.starts_with('/'));
+            if !inside {
+                return Err(format!("module {specifier} is outside {namespace}"));
+            }
+            if self.modules.iter().any(|(bound, _)| bound == specifier) {
+                return Err(format!("module {specifier} is already bound"));
+            }
+        }
+        for name in &other.functions {
+            if self.functions.contains(name) {
+                return Err(format!("ops.{name} is already bound"));
+            }
+        }
+        self.extend(other);
+        Ok(())
     }
 
     /// Splits the set for `start`.

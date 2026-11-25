@@ -21,6 +21,10 @@
 use std::net::SocketAddr;
 use std::time::{Instant, SystemTime};
 
+use lunarstorm_vm::Vm;
+
+use crate::extension::{ExtensionSet, Manifest};
+
 /// One of the two standard output streams.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stream {
@@ -83,6 +87,28 @@ pub trait Host: 'static {
     /// Whether scripts may `import` `lunarstorm:worker` and start workers. A host
     /// that sets it must also implement [`Host::worker_host`].
     const WORKERS: bool = false;
+
+    /// The host's extensions, as a tuple of [`crate::Extension`]s; `()` for none.
+    ///
+    /// Decision: an associated type, so the Runtime installs and calls them
+    /// statically. Associated type defaults are unstable, so every host states it,
+    /// `type Extensions<V: Vm> = ();` when it has none.
+    type Extensions<V: Vm>: ExtensionSet<V>;
+
+    /// Builds this host's extensions for one Runtime. Called by
+    /// [`crate::Runtime::start`]; a worker's Runtime calls it on the worker's own
+    /// host, so every Runtime gets instances of its own.
+    ///
+    /// # Returns
+    /// The set.
+    fn extensions<V: Vm>(&self) -> Self::Extensions<V>;
+
+    /// # Returns
+    /// The manifest: which extensions and plugins are active. The default uses
+    /// none, which leaves every extension inert.
+    fn manifest(&self) -> &Manifest {
+        Manifest::empty()
+    }
 
     /// # Returns
     /// `process.argv`: by Node's convention the runtime's name, the script's name,

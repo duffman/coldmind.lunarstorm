@@ -1,0 +1,190 @@
+//! HostApi: the extension through which a host gives its programs the host's own
+//! API.
+//!
+//! HostApi opens one plugin host, `area`. Each API area a host offers is a plugin
+//! there, an [`Area`], and the host's manifest selects the active ones:
+//!
+//! | module | exports |
+//! |---|---|
+//! | `lunarstorm:hostapi` | `areas`: the names of the active areas, in manifest order |
+//! | `lunarstorm:hostapi/<area>` | the API of one active area |
+//!
+//! A host installs it with its areas as a tuple, e.g.
+//! `type Extensions<V: Vm> = (HostApi<V, (Ui,)>,);`.
+//!
+//! Decisions:
+//! - An area is a plugin with the extension's own shape: a name and a
+//!   [`Bindings`] set per Runtime. HostApi only selects, orders and fences them.
+//! - An area serves only `lunarstorm:hostapi/<area>` and below; HostApi refuses
+//!   anything else, so one area cannot shadow another.
+//! - The plugin host is `Many` and `Optional`: a host may expose any number of
+//!   areas, and a program with none still gets `areas`, empty.
+
+use std::marker::PhantomData;
+
+use lunarstorm_runtime::vm::{Scope, Vm};
+use lunarstorm_runtime::{Bindings, Cardinality, Extension, PluginHost, Requirement, Use};
+
+/// The extension's name, and the first segment of its module specifiers.
+pub const NAME: &str = "hostapi";
+
+/// The name of HostApi's plugin host.
+pub const PLUGIN_HOST: &str = "area";
+
+/// The source of `lunarstorm:hostapi`.
+const SOURCE: &str = include_str!("../js/hostapi.js");
+
+/// One API area of a host: a plugin of HostApi's plugin host `area`.
+pub trait Area<V: Vm>: 'static {
+    /// The area's name, `[a-z][a-z0-9]{0,31}`. Its modules are
+    /// `lunarstorm:hostapi/<NAME>` and below.
+    const NAME: &'static str;
+
+    /// Builds what the area installs in one Runtime. Called when the manifest
+    /// lists the area.
+    ///
+    /// # Arguments
+    /// * `using` - HostApi's manifest entry: the active areas and HostApi's
+    ///   configuration.
+    ///
+    /// # Returns
+    /// The area's natives and modules.
+    ///
+    /// # Errors
+    /// A message; the Runtime fails to start with
+    /// `extension hostapi: area <NAME>: <message>`.
+    fn bindings(&self, using: &Use<'_>) -> Result<Bindings<V>, String>;
+}
+
+/// A host's areas as one static type: `()`, `(A,)`, `(A, B)`, ... up to 8.
+pub trait AreaSet<V: Vm>: 'static {
+    /// # Returns
+    /// Every member's name, in tuple order.
+    fn names(&self) -> Vec<&'static str>;
+
+    /// Builds one member's bindings.
+    ///
+    /// # Arguments
+    /// * `name` - the area's name.
+    /// * `using` - HostApi's manifest entry.
+    ///
+    /// # Returns
+    /// The bindings, or `None` when no member has that name.
+    fn bindings(&self, name: &str, using: &Use<'_>) -> Option<Result<Bindings<V>, String>>;
+}
+
+impl<V: Vm> AreaSet<V> for () {
+    /// # Returns
+    /// No names.
+    fn names(&self) -> Vec<&'static str> {
+        Vec::new()
+    }
+
+    /// # Returns
+    /// `None`: there are no members.
+    fn bindings(&self, _name: &str, _using: &Use<'_>) -> Option<Result<Bindings<V>, String>> {
+        None
+    }
+}
+
+/// Implements [`AreaSet`] for a tuple of areas.
+macro_rules! area_set {
+    ($($member:ident $index:tt),+) => {
+        impl<V: Vm, $($member: Area<V>),+> AreaSet<V> for ($($member,)+) {
+            /// # Returns
+            /// Every member's name, in tuple order.
+            fn names(&self) -> Vec<&'static str> {
+                vec![$($member::NAME),+]
+            }
+
+            /// Builds the bindings of the member called `name`.
+            ///
+            /// # Arguments
+            /// * `name` - the area's name.
+            /// * `using` - HostApi's manifest entry.
+            ///
+            /// # Returns
+            /// The bindings, or `None` when no member has that name.
+            fn bindings(&self, name: &str, using: &Use<'_>) -> Option<Result<Bindings<V>, String>> {
+                $(
+                    if name == $member::NAME {
+                        return Some(self.$index.bindings(using));
+                    }
+                )+
+                None
+            }
+        }
+    };
+}
+
+area_set!(A 0);
+area_set!(A 0, B 1);
+area_set!(A 0, B 1, C 2);
+area_set!(A 0, B 1, C 2, D 3);
+area_set!(A 0, B 1, C 2, D 3, E 4);
+area_set!(A 0, B 1, C 2, D 3, E 4, F 5);
+area_set!(A 0, B 1, C 2, D 3, E 4, F 5, G 6);
+area_set!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7);
+
+/// The HostApi extension over the areas `A`.
+pub struct HostApi<V, A> {
+    /// The areas this host offers.
+    areas: A,
+    /// The engine the areas bind to.
+    engine: PhantomData<fn() -> V>,
+}
+
+impl<V: Vm, A: AreaSet<V>> HostApi<V, A> {
+    /// # Arguments
+    /// * `areas` - the areas this host offers, as a tuple.
+    ///
+    /// # Returns
+    /// The extension, for [`lunarstorm_runtime::Host::extensions`].
+    pub fn new(areas: A) -> Self {
+        Self { areas, engine: PhantomData }
+    }
+}
+
+impl<V: Vm, A: AreaSet<V>> Extension<V> for HostApi<V, A> {
+    const NAME: &'static str = NAME;
+
+    /// # Returns
+    /// The plugin host `area`, offering every member of `A`.
+    fn plugin_hosts(&self) -> Vec<PluginHost> {
+        vec![PluginHost { name: PLUGIN_HOST, cardinality: Cardinality::Many, requirement: Requirement::Optional, plugins: self.areas.names() }]
+    }
+
+    /// Builds `lunarstorm:hostapi` and the bindings of every active area, in
+    /// manifest order.
+    ///
+    /// # Arguments
+    /// * `using` - HostApi's manifest entry, already checked against
+    ///   [`Extension::plugin_hosts`].
+    ///
+    /// # Returns
+    /// The bindings.
+    ///
+    /// # Errors
+    /// `area <name>: <message>` when an area fails or serves a module outside
+    /// `lunarstorm:hostapi/<name>`.
+    fn bindings(&self, using: &Use<'_>) -> Result<Bindings<V>, String> {
+        let names: Vec<String> = using.plugins().to_vec();
+        let mut areas = Bindings::<V>::new();
+        for name in &names {
+            let built = self.areas.bindings(name, using).ok_or_else(|| format!("no area {name}"))?;
+            let built = built.map_err(|e| format!("area {name}: {e}"))?;
+            areas.merge(&format!("{NAME}/{name}"), built).map_err(|e| format!("area {name}: {e}"))?;
+        }
+        let mut bindings = Bindings::<V>::new()
+            .values(move |scope, ops| {
+                let items = names.iter().map(|name| scope.string(name)).collect::<Result<Vec<_>, _>>()?;
+                let areas = scope.array(&items)?;
+                scope.set(ops, "hostapi_areas", areas)
+            })
+            .module("lunarstorm:hostapi", SOURCE);
+        // The areas, already fenced to their own paths, go after HostApi's module;
+        // the merge refuses an `ops` name two areas both bind.
+        bindings.merge(NAME, areas)?;
+        Ok(bindings)
+    }
+}

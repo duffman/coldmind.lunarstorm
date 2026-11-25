@@ -3130,6 +3130,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "lunar-extension"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "lunar-extension-hostapi"
+version = "0.1.0"
+dependencies = [
+ "lunarstorm-runtime",
+ "lunarstorm-vm-quickjs",
+]
+
+[[package]]
 name = "lunarstorm"
 version = "0.1.0"
 dependencies = [
@@ -3185,6 +3201,7 @@ name = "lunarstorm-host-cli"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "lunar-extension-hostapi",
  "lunarstorm-cli-contract",
  "lunarstorm-cliui",
  "lunarstorm-jbn",
@@ -3305,6 +3322,7 @@ dependencies = [
  "bytes",
  "crossbeam-channel",
  "libc",
+ "lunar-extension",
  "lunarstorm-http1",
  "lunarstorm-jbn",
  "lunarstorm-modules",

@@ -35,6 +35,13 @@ struct MemoryHost {
 }
 
 impl Host for MemoryHost {
+    /// No extensions.
+    type Extensions<V: lunarstorm_runtime::vm::Vm> = ();
+
+    /// # Returns
+    /// The empty set.
+    fn extensions<V: lunarstorm_runtime::vm::Vm>(&self) -> Self::Extensions<V> {}
+
     /// The tests read the pulse.
     const PULSE: bool = true;
 

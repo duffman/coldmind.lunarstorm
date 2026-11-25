@@ -14,7 +14,7 @@ use lunarstorm_cli_host::Cli;
 
 /// Runs the command line and exits with its status.
 fn main() {
-    let cli = Cli::new("lunarstorm", "☾ lunarstorm", env!("CARGO_PKG_VERSION"), "JavaScript runtime, desktop build tools and frontend tools");
+    let cli = Cli::new("lunar", "☾ lunarstorm", env!("CARGO_PKG_VERSION"), "JavaScript runtime, desktop build tools and frontend tools").external_prefix("lunarstorm");
     #[cfg(feature = "runtime")]
     let cli = cli.detail(lunarstorm_host_cli::engine()).package(lunarstorm_host_cli::package());
     #[cfg(feature = "build")]
