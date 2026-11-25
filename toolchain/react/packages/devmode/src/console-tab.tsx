@@ -3,7 +3,7 @@
  * evaluates in the page's global scope.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
-import { capture, type EntryType, type LogEntry, type NetRecord } from "./capture.ts";
+import { capture, type EntryType, type LogEntry } from "./capture.ts";
 import { usePersisted, Value } from "./ui.tsx";
 
 /** Filter buttons and the entry types each one shows. */
@@ -54,18 +54,17 @@ export function statusClass(status: number): string {
 }
 
 /** One rendered entry. */
-function Row({ e, onOpenInApi }: { e: LogEntry; onOpenInApi: (n: NetRecord) => void }) {
+function Row({ e }: { e: LogEntry }) {
   const time = new Date(e.time).toLocaleTimeString(undefined, { hour12: false });
   if (e.net) {
     const n = e.net;
     return (
       <div className="lsdm-row lsdm-t-net">
         <span className="lsdm-time">{time}</span>
-        <span className="lsdm-method">{n.method}</span>
+        <span className={`lsdm-method lsdm-m-${n.method}`}>{n.method}</span>
         <span className={`lsdm-status ${statusClass(n.status)}`}>{n.status || "ERR"}</span>
         <span className="lsdm-url" title={n.url}>{n.url}</span>
         <span className="lsdm-dim">{n.error ?? `${n.ms} ms`}</span>
-        <button className="lsdm-link" title="Open this request in the API executor" onClick={() => onOpenInApi(n)}>→ API</button>
       </div>
     );
   }
@@ -83,9 +82,8 @@ function Row({ e, onOpenInApi }: { e: LogEntry; onOpenInApi: (n: NetRecord) => v
 
 /**
  * The console tab.
- * @param props.onOpenInApi called with a request row's details when "→ API" is clicked
  */
-export function ConsoleTab({ onOpenInApi }: { onOpenInApi: (n: NetRecord) => void }) {
+export function ConsoleTab() {
   const entries = useSyncExternalStore(capture.subscribe, capture.snapshot);
   const [filter, setFilter] = usePersisted("console.filter", "all");
   const [search, setSearch] = useState("");
@@ -148,7 +146,7 @@ export function ConsoleTab({ onOpenInApi }: { onOpenInApi: (n: NetRecord) => voi
     <div className="lsdm-console">
       <div className="lsdm-toolbar">
         {FILTERS.map(([id, label]) => (
-          <button key={id} className={filter === id ? "lsdm-chip lsdm-on" : "lsdm-chip"} onClick={() => setFilter(id)}>
+          <button key={id} className={`lsdm-chip lsdm-f-${id}${filter === id ? " lsdm-on" : ""}`} onClick={() => setFilter(id)}>
             {label}{counts[id] ? <span className={`lsdm-count lsdm-c-${id}`}>{counts[id]}</span> : null}
           </button>
         ))}
@@ -163,7 +161,7 @@ export function ConsoleTab({ onOpenInApi }: { onOpenInApi: (n: NetRecord) => voi
           stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
         }}
       >
-        {shown.length ? shown.map((e) => <Row key={e.id} e={e} onOpenInApi={onOpenInApi} />) : <div className="lsdm-empty">No entries</div>}
+        {shown.length ? shown.map((e) => <Row key={e.id} e={e} />) : <div className="lsdm-empty">No entries</div>}
       </div>
       <div className="lsdm-repl">
         <span className="lsdm-prompt">›</span>
