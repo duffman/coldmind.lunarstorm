@@ -1,10 +1,13 @@
 #!/bin/sh
 # Builds, launches and drives the Lunarstorm binaries. Run from anywhere in the repo.
 #
-#   driver.sh build                     debug build of lunar, lunarstorm-web, lunarstorm-debug
+#   driver.sh build [--fresh]           debug build of lunar, lunarstorm-web, lunarstorm-debug;
+#                                       --fresh rebuilds every workspace crate from this checkout
 #   driver.sh cli                       lunar smoke: --version, -e, a script file using node:fs
 #   driver.sh pipeline <project> [out]  lunar build -p <project> -o <out> (default .scratch/run-lunarstorm/dist)
-#   driver.sh web <dir> [steps...]      serve a built dir (zebra.json) with lunarstorm-web, keep it
+#   driver.sh runtime-ipc               workers + lunarstorm:ipc through runtime/core/examples/ipc-demo.rs
+#   driver.sh project                   lunar project init -> compile (.jbn) -> run --trust
+#   driver.sh web <dir> [steps...]     serve a built dir (zebra.json) with lunarstorm-web, keep it
 #                                       running, and run driver.mjs steps against it (open is implied)
 #   driver.sh desktop <dir> [png]       open <dir> in lunarstorm-debug, wait for its window, capture it
 #   driver.sh smoke                     all of the above on the example app, screenshots included
@@ -42,6 +45,15 @@ cmd=${1:-}
 [ $# -gt 0 ] && shift
 case "$cmd" in
   build)
+    # Decision: `--fresh` touches every tracked crate root (lib.rs, main.rs, src/bin/*.rs).
+    # Worktrees under .worktrees/ share ~/.cargo-target and write the same artifacts, and
+    # cargo then takes another branch's build as fresh for this checkout (seen: `lunar
+    # --help` showing the cli-package-help layout on main, failing two help tests).
+    # Touching one file per crate rebuilds each workspace crate from these sources;
+    # registry crates are untouched.
+    if [ "${1:-}" = --fresh ]; then
+      git ls-files '*/src/lib.rs' '*/src/main.rs' '*/src/bin/*.rs' | grep -v '^\(_trash\|\.archive\)/' | xargs touch
+    fi
     cargo build --bin lunar --bin lunarstorm-web --bin lunarstorm-debug
     ;;
   cli)
@@ -52,6 +64,18 @@ case "$cmd" in
     ;;
   pipeline)
     "$bin/lunar" build -p "$1" -o "${2:-$state/dist}"
+    ;;
+  runtime-ipc)
+    # Workers and lunarstorm:ipc are off in the CLI host (IPC = WORKERS = false); this
+    # example host turns both on.
+    cargo run -q -p lunarstorm-runtime --example ipc-demo
+    ;;
+  project)
+    # init -> compile (signed .jbn with a per-project dev key) -> run it trusted.
+    rm -rf "$state/hello"
+    "$bin/lunar" project init "$state/hello"
+    "$bin/lunar" project compile "$state/hello"
+    "$bin/lunar" run --trust "$state/hello/build/trust.json" "$state/hello/build/hello.jbn"
     ;;
   web)
     dir=$1; shift
@@ -98,7 +122,7 @@ case "$cmd" in
     echo stopped
     ;;
   *)
-    sed -n '2,15p' "$0"
+    sed -n "2,18p" "$0"
     exit 2
     ;;
 esac

@@ -107,7 +107,7 @@ impl Package for RuntimePackage {
             ),
             (
                 "EXAMPLES".to_owned(),
-                rows(&[("lunarstorm server.js --port 8080", ""), ("lunarstorm -e 'console.log(process.version)'", "")]),
+                rows(&[("lunar server.js --port 8080", ""), ("lunar -e 'console.log(process.version)'", "")]),
             ),
         ]
     }

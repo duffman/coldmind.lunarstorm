@@ -1,37 +1,50 @@
 ---
 name: run-lunarstorm
-description: Build, run, drive and screenshot the Lunarstorm binaries in this monorepo — the `lunar` CLI (run JS, build a desktop project), the browser host `lunarstorm-web` and the desktop host `lunarstorm-debug`. Use when asked to run, start, launch, smoke-test, click through or screenshot the app, a project, the example app or the starter, or to check that a change works in the real binaries rather than only in unit tests.
+description: Operate the Lunarstorm monorepo. Covers what the runtime (the Node.js-like JS runtime in runtime/), the platform (the lunar CLI, desktop process, browser host, packager that own the runtime) and the extensions (lunar-extensions, HostApi, manifests) are, and how to build, run, drive, test and screenshot them. Use when asked to run, start, launch, smoke-test, click through or screenshot the app, the example app or a project; to run JS on the runtime; to build, pack or serve a project; to add or test an extension; or to learn how the runtime, a host, the platform or extensions work before changing them.
 ---
 
-# Run Lunarstorm
+# Operate Lunarstorm
 
-Paths are relative to the repo root. The harness is `.claude/skills/run-lunarstorm/driver.sh`:
-it builds the binaries, launches them in the background and drives the UI through
-`driver.mjs`, which uses headless system Chrome over the DevTools protocol with no npm
+Paths are relative to the repo root. Harness: `.claude/skills/run-lunarstorm/driver.sh`, plus
+`driver.mjs`, which drives headless system Chrome over the DevTools protocol with no npm
 dependencies. State, logs and screenshots go to `.scratch/run-lunarstorm/`.
 
-## Prerequisites (macOS)
+## The three parts
 
-Rust (workspace toolchain), Node >= 22 (global `WebSocket`), Google Chrome in `/Applications`
-(or `CHROME=<binary>`), `swift` (Xcode CLT; finds the desktop window), `python3`.
+| part | what it is | read |
+|---|---|---|
+| **Runtime** `runtime/` | Node.js-like JS runtime: QuickJS-NG behind a VM contract (`runtime/vm`), a mio event loop with `node:*` builtins (`runtime/core`), TS/CJS/packages (`runtime/modules`), signed `.jbn` packages, a DAP debugger. A library: a **host** owns it (`runtime/hosts/cli`, `runtime/hosts/desktop`). | [runtime.md](runtime.md) |
+| **Platform** `apps/`, `platform/`, `toolchain/` | Owns the runtime and ships apps: the `lunar` CLI (runtime + build + frontend + project packages), the desktop process (`lunarstorm-debug`/`-release`: windows, WebViews, `native.*`), the browser host `lunarstorm-web`, the packager `lunarstorm-pack`; the pipeline compiles a project into the output dir they run. | [platform.md](platform.md) |
+| **Extensions** `extensions/` | lunar-extensions: modules, natives and state a host installs per Runtime, selected by the host's manifest; plugin hosts and plugins (HostApi with the CLI's `ui` area). Runtime level built; platform level design only. | [extensions.md](extensions.md) |
 
-## Run: everything (agent path, first)
+Shared crates: `crates/cli-contract`, `crates/cli-host`, `crates/cliui`, `crates/http1` (the
+runtime's HTTP/1.1 framing). For where a change belongs and how to add a crate, see the
+`lunarstorm-monorepo` skill. For adding CLI commands, see the `lunarstorm-cli` skill.
+
+## Run everything (agent path, first)
 
 ```sh
 .claude/skills/run-lunarstorm/driver.sh smoke
 ```
 
-Builds `lunar`, `lunarstorm-web` and `lunarstorm-debug` (debug, about 20 s warm), runs the
-CLI, builds the starter, and drives the example app in the browser:
+The smoke run does this:
+1. Builds `lunar`, `lunarstorm-web` and `lunarstorm-debug`.
+2. Runs the CLI and builds the starter.
+3. Drives the example app in the browser: type a name, see `Modified`, click Save, see `Saved “…”`. Screenshots: `web-before.png`, `web-after.png`.
+4. Opens the desktop window.
 
-1. type into the name field;
-2. wait for the status bar to read `Modified`;
-3. click Save;
-4. wait for `Saved “…”`.
+| subcommand | what it does |
+|---|---|
+| `build [--fresh]` | debug build of the three binaries; `--fresh` rebuilds from this checkout (see Gotchas) |
+| `cli` | runtime smoke: `--version`, `-e`, a script using `node:fs` |
+| `runtime-ipc` | workers + `lunarstorm:ipc`; the CLI host has them off, the `ipc-demo` host turns them on |
+| `project` | `lunar project init` → `compile` (signed `.jbn`) → `run --trust` |
+| `pipeline <project> [out]` | `lunar build` into an output dir |
+| `web <dir> [steps…]` | serve an output dir and drive it; keeps running until `stop` |
+| `desktop <dir> [png]` | real window plus capture |
+| `stop` | stop what `web` and `desktop` started |
 
-It writes `web-before.png` and `web-after.png`, then opens the desktop window.
-
-## Run: the UI in a browser (the interactive path)
+## Drive the UI in a browser
 
 ```sh
 .claude/skills/run-lunarstorm/driver.sh web platform/examples/app \
@@ -39,14 +52,8 @@ It writes `web-before.png` and `web-after.png`, then opens the desktop window.
   type input.vcl-edit ' 2' wait .vcl-statusbar Modified \
   click text=Save wait .vcl-statusbar Saved \
   text .vcl-listbox shot .scratch/run-lunarstorm/web-after.png
-.claude/skills/run-lunarstorm/driver.sh stop
-```
-
-`web <dir>` serves the directory on a free port. The server keeps running until `stop`, and
-its URL is in `.scratch/run-lunarstorm/web.url`. Run more steps against it directly:
-
-```sh
 node .claude/skills/run-lunarstorm/driver.mjs open "$(cat .scratch/run-lunarstorm/web.url)/" eval 'document.body.innerText'
+.claude/skills/run-lunarstorm/driver.sh stop
 ```
 
 | step | what it does |
@@ -59,58 +66,50 @@ node .claude/skills/run-lunarstorm/driver.mjs open "$(cat .scratch/run-lunarstor
 | `eval <js>` | prints the result of the expression |
 | `shot <png>` | screenshot |
 
-Page console output and exceptions, including the backend Worker's, print as `[page] …`.
+Page console output and Worker exceptions print as `[page] …`.
 
-Selectors come from `frontend/vcl.js`: every control is `.vcl-<type>` (`input.vcl-edit`,
-`button.vcl-button`, `.vcl-listbox`, `.vcl-statusbar`). Controls have no name attribute, so
-address buttons by caption (`text=Save`).
+Controls are `.vcl-<type>`, for example `input.vcl-edit`, `.vcl-listbox` and `.vcl-statusbar`.
+Address buttons by caption. Each page load starts a fresh backend, so state does not carry
+across `open`s.
 
-## Run: CLI and pipeline
+## Runtime, extensions and the desktop window
 
 ```sh
 .claude/skills/run-lunarstorm/driver.sh cli
+.claude/skills/run-lunarstorm/driver.sh runtime-ipc
+.claude/skills/run-lunarstorm/driver.sh project
+~/.cargo-target/debug/lunar -e 'import ui from "lunarstorm:ui"; import { areas } from "lunarstorm:hostapi"; console.log(Object.keys(ui), areas)'
 .claude/skills/run-lunarstorm/driver.sh pipeline templates/starters/desktop .scratch/run-lunarstorm/dist
-```
-
-## Run: desktop host
-
-```sh
 .claude/skills/run-lunarstorm/driver.sh desktop platform/examples/app .scratch/run-lunarstorm/desktop.png
 .claude/skills/run-lunarstorm/driver.sh stop
 ```
 
-This opens a real tao/wry window, waits for its CoreGraphics window id, and captures it. The
-host log is in `.scratch/run-lunarstorm/desktop.log`.
-
-## Test (focused)
+## Test (focused; never the whole workspace)
 
 ```sh
+cargo test -q -p lunarstorm-runtime --test modules --test worker --test ipc --test extensions
+cargo test -q -p lunar-extension-hostapi
+cargo test -q -p lunarstorm-vm-quickjs
 cargo test -q -p lunarstorm-web
 cargo test -q -p lunarstorm --test ui --test cli --test commands
 ```
 
 ## Gotchas
 
-- **`lunarstorm-web` and `lunarstorm-debug` take a built directory** (one holding
-  `zebra.json`), not a source project. Pointing them at `templates/starters/desktop` fails
-  with `templates/starters/desktop/zebra.json: No such file or directory`. Build it first
-  (`driver.sh pipeline …`), or use `platform/examples/app`, which is hand-written output.
-- **Built projects render a blank page.** The pipeline embeds a dummy WebView runtime (commit
-  `e59dce6`): `frontend/vcl.js` exports `mount = _load => {}`, so `#root` stays empty and
-  nothing errors. Drive the UI on `platform/examples/app`, which has its own working `vcl.js`.
-- **The desktop capture needs Screen Recording permission** for the terminal running the agent
-  (System Settings > Privacy & Security > Screen & System Audio Recording). Without it,
-  `screencapture` prints `could not create image from window` (also with the sandbox off),
-  and `driver.sh desktop` exits 3 after confirming the window opened. The browser path
-  shows the same frontend and backend and needs no permission.
-- **In the browser the status bar reads `Ready · browser/web`.** The in-page host answers
-  `os.info` itself; every other `native.*` call is refused, not faked.
-- **`~/.cargo-target/debug` is on `PATH` in `~/.zshrc`,** so a bare `lunar` may be the debug
-  build rather than `~/.local/bin/lunar`. The driver always uses the debug build it just made.
+- **One shared target, several checkouts.** `~/.cargo-target` is shared by `main` and every worktree in `.worktrees/`, and they write the same artifacts. Cargo then takes another branch's build as fresh, so a plain `cargo build` does not relink.
+  - Seen: `lunar --help` on `main` showed the `cli-package-help` worktree's RUNTIME/BUILD sections, and `top_help_lists_every_package_and_the_host_commands` failed with `missing "COMMANDS"`.
+  - Fix: `driver.sh build --fresh` (16 s), which touches every crate root and rebuilds.
+- **Hosts take output dirs, not source projects.** `lunarstorm-web` and `lunarstorm-debug` need a directory holding `zebra.json`. Given `templates/starters/desktop` they fail with `templates/starters/desktop/zebra.json: No such file or directory`. Build first.
+- **Built projects render blank.** The pipeline embeds a dummy WebView runtime (`e59dce6`) whose `mount` is `_load => {}`. Drive the UI on `platform/examples/app`.
+- **The CLI has no workers, IPC, `fetch` or `http.request`.** `lunarstorm:worker` and `lunarstorm:ipc` are "module not found" under `lunar`; use `driver.sh runtime-ipc`. See runtime.md for the builtins.
+- **Desktop capture needs Screen Recording permission** for the terminal (System Settings > Privacy & Security > Screen & System Audio Recording). Without it, `screencapture` says `could not create image from window`, even with the sandbox off. `driver.sh desktop` then exits 3 after confirming the window opened.
+- **In the browser the status bar reads `Ready · browser/web`.** The in-page host answers only `os.info`; every other `native.*` call is refused.
+- **`lunar` on `PATH` may not be the build you think.** `~/.zshrc` puts `~/.cargo-target/debug` on `PATH`, ahead of `~/.local/bin/lunar`.
 
 ## Troubleshooting
 
 | symptom | fix |
 |---|---|
-| `zebra.json: No such file or directory` | the host was given a source project; build it first (see Gotchas) |
-| `screencapture refused: …`, exit 3 | grant Screen Recording (see Gotchas); the window itself is fine |
+| `zebra.json: No such file or directory` | the host got a source project; run `driver.sh pipeline` first |
+| `screencapture refused: …`, exit 3 | grant Screen Recording; the window itself is fine |
+| `Error resolving module 'lunarstorm:worker' … module not found` | expected under `lunar`; use `driver.sh runtime-ipc` |
