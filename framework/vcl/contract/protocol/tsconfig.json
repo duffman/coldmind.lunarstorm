@@ -1,6 +1,0 @@
-{
-  "extends": "@coldmind/config/tsconfig.base.json",
-  "include": [
-    "."
-  ]
-}

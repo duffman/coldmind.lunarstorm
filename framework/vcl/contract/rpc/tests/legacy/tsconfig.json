@@ -1,5 +1,0 @@
-{
-  "extends": "@coldmind/config/tsconfig.base.json",
-  "compilerOptions": { "experimentalDecorators": true, "useDefineForClassFields": false },
-  "include": ["."]
-}

@@ -1,5 +1,0 @@
-{
-  "extends": "@coldmind/config/tsconfig.base.json",
-  "compilerOptions": { "types": ["bun"], "allowImportingTsExtensions": true },
-  "include": ["*.ts"]
-}

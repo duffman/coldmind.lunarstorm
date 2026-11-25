@@ -121,3 +121,6 @@ Thumbs.db
 .remember/
 .playwright-mcp/
 .archive/
+
+# Linked worktrees (git worktree add .worktrees/<branch>).
+.worktrees/
