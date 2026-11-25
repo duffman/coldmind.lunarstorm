@@ -197,6 +197,12 @@ impl Instance<QuickJs> for QuickInstance {
         if let Some(bytes) = limits.stack {
             runtime.set_max_stack_size(bytes);
         }
+        // Decision: applied only when the owner asks; `None` keeps the engine's
+        // default (256 KiB, growing 1.5x after each collection), so existing runtimes
+        // are unchanged. Adopted from `quickjs_es_runtime`'s builder.
+        if let Some(bytes) = limits.gc_threshold {
+            runtime.set_gc_threshold(bytes);
+        }
         // The three engine hooks share the callbacks; they take `&self`, so a plain
         // `Rc` is enough and a rejection reported during a module load cannot
         // conflict with the load in progress.
@@ -646,11 +652,27 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
         Value::new_int(self.clone(), value)
     }
 
-    /// Integral values are stored as engine integers, which the interpreter
-    /// handles faster than doubles.
+    /// Boxes a number with the engine's own rule (`JS_NewNumber`): integral values
+    /// become engine integers, which the interpreter handles faster than doubles,
+    /// and everything else stays a double.
+    ///
+    /// Defect fixed: the binding's `Value::new_number` normalized with
+    /// `value as i32` and `value == int as f64`, which stored `-0.0` as integer `+0`,
+    /// so `1 / -0` came out as `+Infinity` in JS. Decision: call the engine's
+    /// normalization instead of keeping a copy of it here, so both sides apply one
+    /// rule. Dropped alternative: patching the binding's copy, which other callers
+    /// of `rquickjs` would then depend on.
+    ///
+    /// # Arguments
+    /// * `value` - the number.
+    ///
+    /// # Returns
+    /// The boxed value, owned by this scope.
     #[inline]
     fn number(&self, value: f64) -> Value<'s> {
-        Value::new_number(self.clone(), value)
+        // SAFETY: the context is live for the scope's lifetime; `JS_NewNumber` returns
+        // an owned reference, which `Value` takes over without a second increment.
+        unsafe { Value::from_raw(self.clone(), qjs::JS_NewNumber(self.as_raw().as_ptr(), value)) }
     }
 
     #[inline]
@@ -921,5 +943,36 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
     #[inline]
     fn local(&self, handle: &Persistent<Value<'static>>) -> Value<'s> {
         handle.clone().restore(self).expect("persistent handle used in the instance that created it")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Callbacks for an instance that never loads a module or sees a rejection.
+    struct Quiet;
+
+    impl Callbacks<QuickJs> for Quiet {
+        fn resolve<'s>(&self, _scope: &Ctx<'s>, _base: &str, _name: &str) -> Result<String, String> {
+            Err(String::from("no modules in this test"))
+        }
+
+        fn load<'s>(&self, _scope: &Ctx<'s>, _name: &str) -> Result<Load, String> {
+            Err(String::from("no modules in this test"))
+        }
+
+        fn rejection<'s>(&self, _scope: &Ctx<'s>, _promise: usize, _reason: Value<'s>, _handled: bool) {}
+    }
+
+    /// A configured threshold reaches the engine unchanged, read back from the
+    /// runtime the instance created.
+    #[test]
+    fn gc_threshold_reaches_the_engine() {
+        let limits = Limits { gc_threshold: Some(1 << 20), ..Limits::default() };
+        let instance = QuickInstance::new(&limits, Quiet).expect("instance creation");
+        // SAFETY: the runtime is alive for the instance's lifetime, and the getter only reads it.
+        let threshold = unsafe { qjs::JS_GetGCThreshold(instance.runtime.as_raw().as_ptr()) };
+        assert_eq!(threshold, 1 << 20);
     }
 }

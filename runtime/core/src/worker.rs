@@ -492,7 +492,7 @@ fn launch<V: Vm, H: Host>(launch: Launch<H>) -> Result<JoinHandle<()>, String> {
             let work = AssertUnwindSafe(|| -> Exit {
                 let built = (|| -> Result<Runtime<V, H>, String> {
                     let mut runtime = Runtime::<V, H>::new(factory()).map_err(|e| format!("cannot create the event loop: {e}"))?;
-                    runtime.limits(Limits { memory: Some(memory), stack: None });
+                    runtime.limits(Limits { memory: Some(memory), stack: None, gc_threshold: None });
                     runtime.as_worker(Link { outbound, parent: parent.clone() }, inbound, control.terminated.clone());
                     runtime.start()?;
                     *lock(&control.interrupt) = runtime.interrupt();

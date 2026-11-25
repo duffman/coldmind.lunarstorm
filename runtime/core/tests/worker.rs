@@ -315,6 +315,13 @@ fn a_worker_can_start_workers_and_the_messages_travel_up_the_chain() {
     assert_eq!(outcome.out, "a got: hello from b\n{\"state\":\"fulfilled\"}\n");
 }
 
+/// A worker that registered a listener stays alive while idle and ends only on `close()`.
+///
+/// Fixes a flaky ordering: the script used to sleep 150 ms after `postMessage('hi')` and
+/// assume the reply had arrived, so a worker slower than 150 ms to boot (cold glue
+/// compile, parallel tests) printed `still alive` before `heard hi`. Decision: wait for
+/// the first reply, then idle 150 ms; the 300 ms busy boot in the fixture makes the slow
+/// case run every time. A longer sleep was not used, since it only narrows the race.
 #[test]
 fn a_worker_with_a_listener_lives_until_it_closes() {
     let outcome = scenario::<true>(
@@ -322,12 +329,17 @@ fn a_worker_with_a_listener_lives_until_it_closes() {
         &[(
             "listener.js",
             "import { onMessage, close, postMessage } from 'lunarstorm:worker';
+             const ready = Date.now() + 300;
+             while (Date.now() < ready) {}
              onMessage((m) => { postMessage('heard ' + m); if (m === 'bye') close(); });",
         )],
         "import { spawn } from 'lunarstorm:worker';
          const w = spawn('listener.js');
-         w.onMessage((m) => console.log(m));
+         let heard;
+         const first = new Promise((resolve) => { heard = resolve; });
+         w.onMessage((m) => { console.log(m); heard(); });
          w.postMessage('hi');
+         await first;
          await new Promise((resolve) => setTimeout(resolve, 150));
          console.log('still alive');
          w.postMessage('bye');
