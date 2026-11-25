@@ -1,4 +1,4 @@
-//! End-to-end tests of the command-line interface (`src/cli.rs` and the
+//! End-to-end tests of the command-line interface (`runtime/hosts/cli/src/command.rs` and the
 //! `lunarstorm-cliui` package): help, version,
 //! usage errors, color control, error reports and the `lunarstorm:ui` module.
 //! Each test runs the real `lunarstorm` binary; the last one runs it on a
@@ -66,7 +66,7 @@ fn help_and_version_are_plain_when_piped() {
     let (code, out, _) = run(&["--help"], &[]);
     assert_eq!(code, 0);
     assert!(!out.contains('\x1b'), "{out:?}");
-    for part in ["☾ lunarstorm v", "USAGE", "OPTIONS", "--color <when>", "lunarstorm:ui", "NO_COLOR"] {
+    for part in ["☾ lunarstorm v", "USAGE", "RUNTIME"] {
         assert!(out.contains(part), "missing {part:?} in {out}");
     }
 

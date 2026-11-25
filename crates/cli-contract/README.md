@@ -15,7 +15,7 @@ The contract between the `lunarstorm` command line and the packages mounted on i
 | `Failure` | `Usage { message, hint }` (status 2), `Failed { message, status }`; constructors `usage()`, `failed()` |
 | `Run`, `Enter` | boxed handler types: `Fn(&mut Invocation) -> Result<i32, Failure>` / `Result<(), Failure>` |
 
-A package crate exports `pub fn package() -> Box<dyn Package>`; see `lunarstorm_host_cli::package()` (`runtime/hosts/cli/src/cli.rs`) for a complete example.
+A package crate exports `pub fn package() -> Box<dyn Package>`; see `lunarstorm_host_cli::command::package()` (`runtime/hosts/cli/src/command.rs`) for a complete example.
 
 ## How it fits
 

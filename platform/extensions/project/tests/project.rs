@@ -16,7 +16,7 @@ use std::path::Path;
 /// # Returns
 /// The exit status.
 fn lunar(words: &[&str]) -> i32 {
-    Cli::new("lunar", "lunar", "0", "test").package(lunarstorm_project::package()).run(words.iter().map(|w| (*w).to_owned()).collect())
+    Cli::new("lunar", "lunar", "0", "test").package(lunarstorm_project::command::package()).run(words.iter().map(|w| (*w).to_owned()).collect())
 }
 
 /// # Arguments

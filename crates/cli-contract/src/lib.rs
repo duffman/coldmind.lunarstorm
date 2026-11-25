@@ -54,7 +54,7 @@ pub type Section = (String, Vec<(String, String)>);
 /// What a crate exports to be mounted on the `lunarstorm` command line.
 ///
 /// Implementations are usually a unit struct returned by a `package()` function in
-/// the crate, e.g. `lunarstorm_host_cli::package()`.
+/// the crate, e.g. `lunarstorm_host_cli::command::package()`, always in the crate's `src/command.rs`.
 pub trait Package {
     /// Identifies the package in diagnostics (`"runtime"`, `"build"`), e.g. when two
     /// packages claim the same command name.
@@ -62,6 +62,23 @@ pub trait Package {
     /// # Returns
     /// A short, stable, lowercase id.
     fn id(&self) -> &'static str;
+
+    /// Names the package's block on the top-level help screen.
+    ///
+    /// # Returns
+    /// The block's title, shown in capitals (`"runtime"` → `RUNTIME`); the id by
+    /// default.
+    fn title(&self) -> &'static str {
+        self.id()
+    }
+
+    /// Describes the package in one line, next to its title on the top-level help screen.
+    ///
+    /// # Returns
+    /// The headline; empty by default, which shows the title alone.
+    fn headline(&self) -> &'static str {
+        ""
+    }
 
     /// Describes the package's commands.
     ///

@@ -63,12 +63,24 @@ Every command has `--help`, and `lunar help <command>...` prints the same screen
 ```rust
 pub trait Package {
     fn id(&self) -> &'static str;              // "runtime", "build": used in mount errors
+    fn title(&self) -> &'static str { … }      // help block title, shown in capitals; the id by default
+    fn headline(&self) -> &'static str { … }   // one line next to the title; empty by default
     fn commands(&self) -> Vec<Command>;        // top-level commands, in help order
     fn sections(&self) -> Vec<Section> { … }   // extra top-level help sections (MODULES, …)
 }
 ```
 
-A crate exports it as `pub fn package() -> Box<dyn Package>`. The package names its
+A crate exports it as `pub fn package() -> Box<dyn Package>` from `src/command.rs`,
+always that file, and `apps/lunarstorm` mounts it as `<crate>::command::package()`:
+
+| package    | file                                         |
+|------------|----------------------------------------------|
+| `runtime`  | `runtime/hosts/cli/src/command.rs`           |
+| `build`    | `toolchain/crates/pipeline/src/command.rs`   |
+| `frontend` | `toolchain/crates/cli/src/command.rs`        |
+| `project`  | `platform/extensions/project/src/command.rs` |
+
+The package names its
 own top-level commands. For a namespace (`runtime eval`), use a command with children.
 For a root command (`run`), use a command without them.
 

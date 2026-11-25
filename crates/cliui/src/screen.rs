@@ -4,7 +4,7 @@
 //! ([`Brand`], [`Section`]); layout and color live here, so every Lunarstorm tool
 //! gets the same look.
 
-use crate::term::{Pen, CYAN, RED, VIOLET};
+use crate::term::{Pen, Rgb, CYAN, RED, VIOLET};
 
 /// Width the left column of a help row is padded to.
 const LEFT_WIDTH: usize = 22;
@@ -25,6 +25,42 @@ pub struct Brand<'a> {
 /// empty description is printed unpadded (usage lines, examples).
 pub type Section<'a> = (&'a str, &'a [(&'a str, &'a str)]);
 
+/// Colors of a help screen's tables, one per table in order, repeating after the
+/// last.
+///
+/// Decision: six steps along the brand gradient ([`VIOLET`] to [`CYAN`], then one
+/// teal past it), so every block has its own color and all of them match the mark.
+pub const PALETTE: [Rgb; 6] = [(167, 139, 250), (129, 140, 248), (96, 165, 250), (56, 189, 248), (34, 211, 238), (45, 212, 191)];
+
+/// Percent of each channel a table's arguments column keeps of the table's color.
+const SHADE: u16 = 55;
+
+/// One row of a three-column table: command, arguments, description.
+pub type Row<'a> = (&'a str, &'a str, &'a str);
+
+/// A three-column table with a title: the title and its rows.
+pub type Table<'a> = (&'a str, &'a [Row<'a>]);
+
+/// One part of a help screen.
+pub enum Part<'a> {
+    /// A two-column section in the accent color.
+    Rows(Section<'a>),
+    /// A command table in its own palette color.
+    Table(Table<'a>),
+}
+
+/// Darkens a color for a table's arguments column.
+///
+/// # Arguments
+/// * `color` - the table's color.
+///
+/// # Returns
+/// The color with each channel at [`SHADE`] percent.
+fn shade((r, g, b): Rgb) -> Rgb {
+    let scale = |c: u8| u8::try_from(u16::from(c) * SHADE / 100).unwrap_or(c);
+    (scale(r), scale(g), scale(b))
+}
+
 /// # Arguments
 /// * `pen` - the target stream's pen.
 /// * `brand` - the tool's identity.
@@ -37,20 +73,43 @@ pub fn brand(pen: Pen, brand: &Brand) -> String {
 
 /// Builds a help screen.
 ///
+/// Tables share their column widths, so the columns line up from one table to the
+/// next. Widths are measured on the plain text, before any color is added. Each
+/// table takes the next [`PALETTE`] color for its title and commands; its arguments
+/// are faint and in a darker shade of that color.
+///
 /// # Arguments
 /// * `pen` - the target stream's pen.
 /// * `identity` - the tool's identity.
-/// * `sections` - the sections, top to bottom.
+/// * `parts` - the sections and tables, top to bottom.
 ///
 /// # Returns
 /// The screen, newline-terminated.
-pub fn help(pen: Pen, identity: &Brand, sections: &[Section]) -> String {
+pub fn help(pen: Pen, identity: &Brand, parts: &[Part]) -> String {
+    let rows = || parts.iter().filter_map(|part| if let Part::Table((_, rows)) = part { Some(*rows) } else { None }).flatten();
+    let name_width = rows().map(|(name, _, _)| name.chars().count()).max().unwrap_or(0);
+    let args_width = rows().map(|(_, args, _)| args.chars().count()).max().unwrap_or(0);
     let mut out = format!("\n  {}\n  {}\n", brand(pen, identity), pen.sgr("2", identity.tagline));
-    for (title, rows) in sections {
-        out.push_str(&format!("\n  {}\n", pen.sgr("1", title)));
-        for (left, right) in *rows {
-            let left = if right.is_empty() { (*left).to_owned() } else { format!("{left:<LEFT_WIDTH$}") };
-            out.push_str(&format!("    {}{right}\n", pen.rgb(CYAN, &left)));
+    let mut tables = 0;
+    for part in parts {
+        match part {
+            Part::Rows((title, rows)) => {
+                out.push_str(&format!("\n  {}\n", pen.sgr("1", title)));
+                for (left, right) in *rows {
+                    let left = if right.is_empty() { (*left).to_owned() } else { format!("{left:<LEFT_WIDTH$}") };
+                    out.push_str(&format!("    {}{right}\n", pen.rgb(CYAN, &left)));
+                }
+            }
+            Part::Table((title, rows)) => {
+                let color = PALETTE[tables % PALETTE.len()];
+                tables += 1;
+                out.push_str(&format!("\n  {}\n", pen.sgr(&format!("1;{}", pen.fg(color)), title)));
+                for (name, args, about) in *rows {
+                    let name = pen.rgb(color, &format!("{name:<name_width$}"));
+                    let args = pen.sgr(&format!("2;{}", pen.fg(shade(color))), &format!("{args:<args_width$}"));
+                    out.push_str(&format!("    {name}  {args}  {about}\n"));
+                }
+            }
         }
     }
     out + "\n"
@@ -112,4 +171,38 @@ fn distance(a: &str, b: &str) -> usize {
         }
     }
     row[b.len()]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::term::Depth;
+
+    /// Each table takes the next palette color for its title and commands, and its
+    /// arguments are faint in a darker shade of that color.
+    #[test]
+    fn each_table_has_its_own_palette_color_and_faint_darker_arguments() {
+        let identity = Brand { mark: "m", version: "1", tagline: "t" };
+        let first: &[Row] = &[("run", "<file>", "runs")];
+        let second: &[Row] = &[("build", "[options]", "builds")];
+        let screen = help(Pen(Depth::True), &identity, &[Part::Table(("A", first)), Part::Table(("B", second))]);
+        let fg = |(r, g, b): Rgb| format!("38;2;{r};{g};{b}");
+        assert!(screen.contains(&format!("\x1b[1;{}mA\x1b[0m", fg(PALETTE[0]))), "{screen:?}");
+        assert!(screen.contains(&format!("\x1b[1;{}mB\x1b[0m", fg(PALETTE[1]))), "{screen:?}");
+        assert!(screen.contains(&format!("\x1b[2;{}m<file>", fg(shade(PALETTE[0])))), "{screen:?}");
+        assert!(screen.contains(&format!("\x1b[2;{}m[options]", fg(shade(PALETTE[1])))), "{screen:?}");
+    }
+
+    /// The columns line up across tables, and a plain stream gets no escape codes.
+    #[test]
+    fn table_columns_line_up_across_tables_on_a_plain_stream() {
+        let identity = Brand { mark: "m", version: "1", tagline: "t" };
+        let first: &[Row] = &[("run", "<file>", "runs")];
+        let second: &[Row] = &[("transpile", "[options] <file>", "transpiles")];
+        let screen = help(Pen(Depth::Plain), &identity, &[Part::Table(("A", first)), Part::Table(("B", second))]);
+        assert!(!screen.contains('\x1b'), "{screen:?}");
+        let column = |text: &str| screen.lines().find_map(|line| line.find(text)).unwrap();
+        assert_eq!(column("runs"), column("transpiles"), "{screen}");
+        assert_eq!(column("<file>"), column("[options] <file>"), "{screen}");
+    }
 }

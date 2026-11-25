@@ -25,6 +25,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
+pub use command::package;
 pub use lunarstorm_model::{Code, Diagnostic, Project};
 
 /// Why a build produced no output.

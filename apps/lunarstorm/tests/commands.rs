@@ -61,9 +61,29 @@ fn starter() -> PathBuf {
 fn top_help_lists_every_package_and_the_host_commands() {
     let (status, out, _) = run(&["--help"], None);
     assert_eq!(status, 0);
-    for part in ["COMMANDS", "run a script", "(default)", "build a desktop project", "describe", "completions", "MODULES"] {
+    for part in [
+        "RUNTIME — run and debug JavaScript on the Lunarstorm runtime",
+        "BUILD — build desktop projects for the native host",
+        "run a script",
+        "(default)",
+        "build a desktop project",
+        "describe",
+        "completions",
+    ] {
         assert!(out.contains(part), "missing {part:?} in {out}");
     }
+    for gone in ["OPTIONS", "ENVIRONMENT", "MODULES"] {
+        assert!(!out.contains(gone), "{gone:?} is not on the top-level screen: {out}");
+    }
+    // Each command row is a three-column table row: name, arguments, description, with
+    // the description column starting at the same place in every block.
+    let row = |name: &str| out.lines().find(|line| line.trim_start().starts_with(&format!("{name} "))).unwrap_or_default().to_owned();
+    let (run_row, build_row, help_row) = (row("run"), row("build"), row("help"));
+    assert!(build_row.contains("[options] [<command>]"), "{build_row}");
+    assert!(help_row.contains("<command>..."), "{help_row}");
+    let column = |line: &str, text: &str| line.find(text).unwrap_or_else(|| panic!("{text:?} not in {line:?}"));
+    assert_eq!(column(&run_row, "run a script"), column(&build_row, "build a desktop project"), "{out}");
+    assert_eq!(column(&run_row, "run a script"), column(&help_row, "print the help"), "{out}");
     let (status, out, _) = run(&["build", "--help"], None);
     assert_eq!(status, 0);
     for part in ["lunar build [options] [<command>]", "types", "check", "-p, --project <dir>", "[default: .]", "--color <when>"] {

@@ -83,7 +83,7 @@ the ones it leaves off cost nothing at run time.
 
 ## How a host runs a program
 
-The CLI host's `run` command (`runtime/hosts/cli/src/cli.rs`) shows the full sequence:
+The CLI host's `run` command (`runtime/hosts/cli/src/command.rs`) shows the full sequence:
 
 ```rust
 let mut runtime = Runtime::<QuickJs, CliHost>::new(CliHost::new(argv))?;  // 1. host + Runtime

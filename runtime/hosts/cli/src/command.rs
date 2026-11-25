@@ -1,11 +1,15 @@
-//! The `run` command: runs a script, a `.jbn` package, or code given with `-e`, on
-//! a Runtime this host owns; and `jbn key` / `jbn build`, which make signing keys
-//! and compile an entry into a signed `.jbn` package.
+//! The `runtime` package of the `lunar` command line: `run`, `debug` and `jbn`.
 //!
-//! The command line itself (parsing, help, usage errors, `--color`, `--version`) is
-//! the host's (`lunarstorm-cli-host`); this module says what `run` accepts and does.
-//! The former hand-written parser is archived in
-//! `.archive/2026-11-24/runtime/hosts/cli/src/cli.rs`.
+//! Every crate that adds commands to `lunar` exposes them from `src/command.rs` as
+//! `command::package()`; `apps/lunarstorm/src/main.rs` mounts this one behind the
+//! `runtime` feature. The host (`lunarstorm-cli-host`) parses the command line,
+//! renders help and dispatches; this module holds the specs and the handlers.
+//!
+//! `run` runs a script, a `.jbn` package, or code given with `-e`, on a Runtime this
+//! host owns; `jbn key` / `jbn build` make signing keys and compile an entry into a
+//! signed `.jbn` package. The former hand-written parser is archived in
+//! `.archive/2026-11-24/runtime/hosts/cli/src/cli.rs`; this file was `src/cli.rs`
+//! until the CLI packages were given one file name.
 //!
 //! Decisions:
 //! - This is the one place the engine is chosen: `Runtime<QuickJs, CliHost>`.
@@ -55,6 +59,12 @@ impl Package for RuntimePackage {
     }
 
     /// # Returns
+    /// The runtime's line on the top-level help screen.
+    fn headline(&self) -> &'static str {
+        "run and debug JavaScript on the Lunarstorm runtime"
+    }
+
+    /// # Returns
     /// The `run` command.
     fn commands(&self) -> Vec<Command> {
         vec![Command::new("run", "run a script, or code given with -e, on the Lunarstorm runtime")
@@ -93,23 +103,10 @@ impl Package for RuntimePackage {
     }
 
     /// # Returns
-    /// The modules scripts can import, and examples.
+    /// The examples. The MODULES section is not shown on the top-level help screen.
     fn sections(&self) -> Vec<Section> {
         let rows = |rows: &[(&str, &str)]| rows.iter().map(|(left, right)| ((*left).to_owned(), (*right).to_owned())).collect();
-        vec![
-            (
-                "MODULES".to_owned(),
-                rows(&[
-                    ("node:*", "events net http fs fs/promises path process buffer timers"),
-                    ("lunarstorm:ui", "style, progress bars and spinners for the terminal"),
-                    ("lunarstorm:hostapi", "the host's API areas; lunarstorm:hostapi/ui is lunarstorm:ui"),
-                ]),
-            ),
-            (
-                "EXAMPLES".to_owned(),
-                rows(&[("lunar server.js --port 8080", ""), ("lunar -e 'console.log(process.version)'", "")]),
-            ),
-        ]
+        vec![("EXAMPLES".to_owned(), rows(&[("lunar server.js --port 8080", ""), ("lunar -e 'console.log(process.version)'", "")]))]
     }
 }
 
