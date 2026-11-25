@@ -11,5 +11,6 @@
 
 mod cli;
 mod host;
+mod ui;
 
 pub use cli::{engine, package};

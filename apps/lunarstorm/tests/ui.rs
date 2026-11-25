@@ -169,6 +169,20 @@ fn ui_module_prints_only_final_lines_when_piped() {
 }
 
 #[test]
+fn hostapi_lists_ui() {
+    let (code, out, err) = run(&["-e", "import { areas } from 'lunarstorm:hostapi'; console.log(areas.join())"], &[]);
+    assert_eq!((code, out.as_str(), err.as_str()), (0, "ui\n", ""));
+}
+
+#[test]
+fn ui_alias_is_the_same_module() {
+    let script = "import ui, { style } from 'lunarstorm:ui'; import hostui, { style as hoststyle } from 'lunarstorm:hostapi/ui';
+                  console.log(style === hoststyle, ui === hostui, typeof hostui.progress)";
+    let (code, out, err) = run(&["-e", script], &[]);
+    assert_eq!((code, out.as_str(), err.as_str()), (0, "true true function\n", ""));
+}
+
+#[test]
 fn ui_module_animates_on_a_terminal_and_restores_the_cursor() {
     // A pseudo-terminal 100 columns wide stands in for the user's terminal.
     let (mut master, mut slave) = (0, 0);

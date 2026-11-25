@@ -47,6 +47,7 @@
 //!   per [`POLL_GAP`], not once per step.
 
 use crate::bindings::Bindings;
+use crate::extension::ExtensionSet;
 use crate::channel::{Channel, Inbox, Nudge};
 use crate::ipc::Ipc;
 use crate::worker::{Link, WorkerEvent, Workers};
@@ -583,6 +584,14 @@ impl<V: Vm, H: Host> Runtime<V, H> {
         if self.engine.is_some() {
             return Err(String::from("the runtime is already started"));
         }
+        // The host's extensions, fresh for this Runtime (a worker's come from the
+        // worker's own host): the manifest is checked against what the host offers,
+        // then each used extension's bindings join the host's own, before the VM
+        // exists, so a manifest error leaves no instance behind.
+        let host = &self.shared.host;
+        let extensions = host.extensions::<V>();
+        crate::extension::check(host.manifest(), &ExtensionSet::<V>::offers(&extensions)).map_err(|errors| errors.join("\n"))?;
+        ExtensionSet::<V>::install(&extensions, host.manifest(), &mut self.bindings)?;
         let (installers, modules) = self.bindings.take();
         self.hosted = modules.iter().map(|(name, _)| *name).collect();
         let loader = Loader::<V, H>::new(

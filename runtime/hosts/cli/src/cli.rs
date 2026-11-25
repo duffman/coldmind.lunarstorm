@@ -102,6 +102,7 @@ impl Package for RuntimePackage {
                 rows(&[
                     ("node:*", "events net http fs fs/promises path process buffer timers"),
                     ("lunarstorm:ui", "style, progress bars and spinners for the terminal"),
+                    ("lunarstorm:hostapi", "the host's API areas; lunarstorm:hostapi/ui is lunarstorm:ui"),
                 ]),
             ),
             (

@@ -188,6 +188,13 @@ fn explain(description: &str) -> String {
 }
 
 impl<S: Shell> Host for DesktopHost<S> {
+    /// No extensions.
+    type Extensions<V: lunarstorm_runtime::vm::Vm> = ();
+
+    /// # Returns
+    /// The empty set.
+    fn extensions<V: lunarstorm_runtime::vm::Vm>(&self) -> Self::Extensions<V> {}
+
     /// The watchdog reads the pulse to enforce the execution budget.
     const PULSE: bool = true;
 
