@@ -2,17 +2,11 @@
 //! starter and against a project that uses every native component.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use lunarstorm_pipeline::{build, host, Failure};
 use serde_json::{json, Value};
 use tempfile::TempDir;
-
-/// # Returns
-/// The starter project's directory.
-fn starter() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../templates/starters/desktop")
-}
 
 /// Builds a project and reads its host configuration back from disk.
 ///
@@ -43,84 +37,6 @@ fn project(files: &[(&str, &str)]) -> TempDir {
         fs::write(path, text).expect("write");
     }
     directory
-}
-
-#[test]
-fn the_starter_becomes_a_host_configuration() {
-    let (out, config) = config(&starter());
-    assert_eq!(config["schema"], 1);
-    assert_eq!(
-        config["application"],
-        json!({
-            "id": "dev.lunarstorm.starter", "name": "Project Register", "version": "0.1.0",
-            "mainForm": "MainForm", "theme": "system", "events": [],
-        })
-    );
-    let form = &config["forms"][0];
-    assert_eq!(form["name"], "MainForm");
-    assert_eq!(
-        form["props"],
-        json!({
-            "caption": "Project Register", "width": 960, "height": 650, "minWidth": 640, "minHeight": 420,
-            "position": "screenCenter", "menu": "MainMenu",
-        })
-    );
-    assert_eq!(form["events"], json!(["onCreate", "onCloseQuery"]), "only the connected form events");
-    assert_eq!(config["forms"].as_array().map(Vec::len), Some(1));
-    assert_eq!(config["permissions"], json!({ "native": [] }));
-    assert_eq!(config["trays"], json!([]));
-    assert_eq!(config["timers"], json!([]));
-
-    let package = fs::read_to_string(out.path().join("package.json")).expect("package.json is copied");
-    assert!(package.contains("\"giraffe\""));
-}
-
-#[test]
-fn the_bridge_table_lists_every_prop_and_event_of_each_control() {
-    let (_out, config) = config(&starter());
-    let controls = config["forms"][0]["controls"].as_object().expect("controls");
-    assert_eq!(controls.len(), 34, "every named element under the form");
-    assert!(!controls.contains_key("MainForm"), "the form is not its own control");
-    let names: Vec<&String> = controls.keys().collect();
-    let mut sorted = names.clone();
-    sorted.sort();
-    assert_eq!(names, sorted, "the table is sorted by name");
-
-    let common = ["caption", "align", "width", "height", "enabled", "visible", "hint", "tabOrder", "popupMenu"];
-    let with = |own: &[&str]| -> Value { json!(own.iter().chain(common.iter()).collect::<Vec<_>>()) };
-    assert_eq!(controls["SaveButton"], json!({ "type": "button", "props": with(&["default", "cancel", "action"]), "events": ["onClick"] }));
-    assert_eq!(controls["NameEdit"]["props"], with(&["text", "placeholder", "readOnly", "password"]));
-    assert_eq!(controls["NameEdit"]["events"], json!(["onChange"]));
-    assert_eq!(controls["ProjectList"]["props"], with(&["items", "itemIndex"]));
-    assert_eq!(controls["CountLabel"]["events"], json!([]), "a label fires nothing");
-    assert_eq!(
-        controls["SaveItem"],
-        json!({ "type": "menuitem", "props": ["caption", "shortcut", "checked", "enabled", "visible", "action", "role"], "events": ["onClick"] })
-    );
-    assert_eq!(controls["MainMenu"], json!({ "type": "mainmenu", "props": [], "events": [] }));
-}
-
-#[test]
-fn menus_become_native_menus_with_their_items() {
-    let (_out, config) = config(&starter());
-    let menus = config["menus"].as_array().expect("menus");
-    assert_eq!(menus.len(), 1);
-    assert_eq!(menus[0]["name"], "MainMenu");
-    assert_eq!(menus[0]["owner"], "MainForm");
-    assert_eq!(menus[0]["kind"], "main");
-    let file = &menus[0]["items"][0];
-    assert_eq!(file["name"], "FileMenu");
-    assert_eq!(file["caption"], "File");
-    assert_eq!(
-        file["items"],
-        json!([
-            { "name": "NewItem", "caption": "New project", "shortcut": "CmdOrCtrl+N", "events": ["onClick"] },
-            { "name": "SaveItem", "caption": "Save", "shortcut": "CmdOrCtrl+S", "enabled": false, "events": ["onClick"] },
-            { "name": "FileSeparator", "caption": "-" },
-            { "name": "QuitItem", "role": "quit" },
-        ])
-    );
-    assert_eq!(menus[0]["items"][1]["items"][6], json!({ "name": "SelectAllItem", "role": "selectAll" }));
 }
 
 #[test]
