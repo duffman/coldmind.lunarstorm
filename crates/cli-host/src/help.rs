@@ -40,7 +40,7 @@ pub(crate) fn render(pen: Pen, brand: &Brand, sections: &[Section]) -> String {
 /// # Arguments
 /// * `program` - the program name, e.g. `lunarstorm`.
 /// * `root` - the host's root command.
-/// * `groups` - one block per package, then the host's own block.
+/// * `groups` - one block per package.
 /// * `extra` - the packages' own sections.
 /// * `prefix` - the prefix of external commands, e.g. `lunarstorm`.
 /// * `externals` - names of `<prefix>-<name>` programs found on `PATH`.
@@ -77,10 +77,16 @@ pub(crate) fn top(
         .collect();
     // Fix: the label used the program name, so `lunar` listed `lunar-hello` for the
     // `lunarstorm-hello` it runs. Decision: label with the prefix the lookup uses.
-    blocks.push((
-        format!("EXTERNAL — {prefix}-<name> programs on PATH"),
-        externals.iter().map(|name| (name.clone(), String::new(), format!("runs {prefix}-{name}"))).collect(),
-    ));
+    // The host's own commands and the external programs, as the COMMANDS list showed
+    // them before the screen was split per package.
+    let mut host: Vec<(String, String, String)> = root
+        .children
+        .iter()
+        .filter(|child| !groups.iter().any(|group| group.commands.contains(&child.name)))
+        .map(|child| (child.name.clone(), arguments(child), child.about.clone()))
+        .collect();
+    host.extend(externals.iter().map(|name| (name.clone(), String::new(), format!("external: {prefix}-{name}"))));
+    blocks.push(("COMMANDS".to_owned(), host));
     // Decision: the screen renders two columns, so the command and arguments columns
     // are joined here, padded to the widest in every block; the table then lines up
     // across blocks. Changing `lunarstorm-cliui` to a third column was not needed.
@@ -95,16 +101,9 @@ pub(crate) fn top(
             .collect();
         sections.push((title.clone(), rows));
     }
-    sections.extend([
-        ("OPTIONS".to_owned(), option_rows(&root.args.iter().collect::<Vec<_>>())),
-        (
-            "ENVIRONMENT".to_owned(),
-            vec![
-                ("NO_COLOR".to_owned(), "disable color".to_owned()),
-                ("FORCE_COLOR".to_owned(), "0 off, 1 basic, 2 256 colors, 3 truecolor".to_owned()),
-            ],
-        ),
-    ]);
+    // Decision: the top-level screen is the package blocks only; the OPTIONS and
+    // ENVIRONMENT sections are not shown here (`--color`, `NO_COLOR` and
+    // `FORCE_COLOR` still work, and every command's own help lists its options).
     sections.extend(extra.iter().cloned());
     sections
 }

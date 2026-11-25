@@ -64,15 +64,16 @@ fn top_help_lists_every_package_and_the_host_commands() {
     for part in [
         "RUNTIME — run and debug JavaScript on the Lunarstorm runtime",
         "BUILD — build desktop projects for the native host",
-        "LUNARSTORM — built into the command line",
         "run a script",
         "(default)",
         "build a desktop project",
         "describe",
         "completions",
-        "MODULES",
     ] {
         assert!(out.contains(part), "missing {part:?} in {out}");
+    }
+    for gone in ["OPTIONS", "ENVIRONMENT", "MODULES"] {
+        assert!(!out.contains(gone), "{gone:?} is not on the top-level screen: {out}");
     }
     // Each command row is a three-column table row: name, arguments, description, with
     // the description column starting at the same place in every block.
@@ -174,8 +175,7 @@ fn unknown_commands_run_external_programs_from_path() {
     let (status, out, _) = run(&["hello", "a", "--b"], Some(&bin));
     assert_eq!((status, out.as_str()), (5, "hello a --b\n"));
     let (_, help, _) = run(&["--help"], Some(&bin));
-    assert!(help.contains("EXTERNAL — lunarstorm-<name> programs on PATH"), "{help}");
-    assert!(help.contains("runs lunarstorm-hello"), "{help}");
+    assert!(help.contains("external: lunarstorm-hello"), "{help}");
 }
 
 #[cfg(feature = "runtime")]

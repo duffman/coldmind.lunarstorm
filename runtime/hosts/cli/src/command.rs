@@ -103,23 +103,10 @@ impl Package for RuntimePackage {
     }
 
     /// # Returns
-    /// The modules scripts can import, and examples.
+    /// The examples. The MODULES section is not shown on the top-level help screen.
     fn sections(&self) -> Vec<Section> {
         let rows = |rows: &[(&str, &str)]| rows.iter().map(|(left, right)| ((*left).to_owned(), (*right).to_owned())).collect();
-        vec![
-            (
-                "MODULES".to_owned(),
-                rows(&[
-                    ("node:*", "events net http fs fs/promises path process buffer timers"),
-                    ("lunarstorm:ui", "style, progress bars and spinners for the terminal"),
-                    ("lunarstorm:hostapi", "the host's API areas; lunarstorm:hostapi/ui is lunarstorm:ui"),
-                ]),
-            ),
-            (
-                "EXAMPLES".to_owned(),
-                rows(&[("lunarstorm server.js --port 8080", ""), ("lunarstorm -e 'console.log(process.version)'", "")]),
-            ),
-        ]
+        vec![("EXAMPLES".to_owned(), rows(&[("lunarstorm server.js --port 8080", ""), ("lunarstorm -e 'console.log(process.version)'", "")]))]
     }
 }
 

@@ -66,7 +66,7 @@ fn help_and_version_are_plain_when_piped() {
     let (code, out, _) = run(&["--help"], &[]);
     assert_eq!(code, 0);
     assert!(!out.contains('\x1b'), "{out:?}");
-    for part in ["☾ lunarstorm v", "USAGE", "OPTIONS", "--color <when>", "lunarstorm:ui", "NO_COLOR"] {
+    for part in ["☾ lunarstorm v", "USAGE", "RUNTIME"] {
         assert!(out.contains(part), "missing {part:?} in {out}");
     }
 

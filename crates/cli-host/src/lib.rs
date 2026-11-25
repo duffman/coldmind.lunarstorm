@@ -192,11 +192,6 @@ impl Cli {
             sections.extend(package.sections());
             groups.push(group);
         }
-        groups.push(Group {
-            title: "LUNARSTORM".to_owned(),
-            headline: "built into the command line".to_owned(),
-            commands: BUILTINS[..3].iter().map(|name| (*name).to_owned()).collect(),
-        });
         // The built-ins' handlers are placeholders that make them runnable for the
         // parser; `act` answers them itself because they need the whole tree.
         // Fix: `lunarstorm help` reached the default command, which ran a script named
