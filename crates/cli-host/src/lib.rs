@@ -346,12 +346,12 @@ impl Cli {
         let leaf = path[path.len() - 1];
         let tagline = if path.len() == 1 { self.tagline.as_str() } else { leaf.about.as_str() };
         let brand = Brand { mark: &self.mark, version: &self.version, tagline };
-        let sections = if path.len() == 1 {
+        let parts = if path.len() == 1 {
             help::top(&self.program, &self.prefix, &tree.root, &tree.groups, &tree.sections, &self.externals(&tree.root))
         } else {
-            help::command(&self.program, path)
+            help::command(&self.program, path).into_iter().map(help::Part::Rows).collect()
         };
-        help::render(pen, &brand, &sections)
+        help::render(pen, &brand, &parts)
     }
 
     /// Builds the version line.

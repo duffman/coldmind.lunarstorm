@@ -17,21 +17,54 @@ const HOST_OPTIONS: [(&str, &str); 2] = [("-h, --help", "print help"), ("-v, --v
 /// description)` rows.
 type Block = (String, Vec<(String, String, String)>);
 
-/// Renders owned sections with `lunarstorm-cliui`.
+/// One owned part of a help screen, as [`screen::Part`] borrows it.
+pub(crate) enum Part {
+    /// A two-column section.
+    Rows(Section),
+    /// A command table; `lunarstorm-cliui` gives each its own palette color.
+    Table(Block),
+}
+
+/// Renders owned parts with `lunarstorm-cliui`.
 ///
 /// # Arguments
 /// * `pen` - the target stream's pen.
 /// * `brand` - the identity at the top of the screen.
-/// * `sections` - the sections, top to bottom; empty ones are skipped.
+/// * `parts` - the sections and tables, top to bottom; empty ones are skipped.
 ///
 /// # Returns
 /// The screen.
-pub(crate) fn render(pen: Pen, brand: &Brand, sections: &[Section]) -> String {
-    let sections: Vec<&Section> = sections.iter().filter(|(_, rows)| !rows.is_empty()).collect();
-    let rows: Vec<Vec<(&str, &str)>> =
-        sections.iter().map(|(_, rows)| rows.iter().map(|(left, right)| (left.as_str(), right.as_str())).collect()).collect();
-    let borrowed: Vec<screen::Section> =
-        sections.iter().zip(&rows).map(|((title, _), rows)| (title.as_str(), rows.as_slice())).collect();
+pub(crate) fn render(pen: Pen, brand: &Brand, parts: &[Part]) -> String {
+    let parts: Vec<&Part> = parts
+        .iter()
+        .filter(|part| match part {
+            Part::Rows((_, rows)) => !rows.is_empty(),
+            Part::Table((_, rows)) => !rows.is_empty(),
+        })
+        .collect();
+    // The borrowed rows first, then the parts that point into them.
+    let pairs: Vec<Vec<(&str, &str)>> = parts
+        .iter()
+        .map(|part| match part {
+            Part::Rows((_, rows)) => rows.iter().map(|(left, right)| (left.as_str(), right.as_str())).collect(),
+            Part::Table(_) => Vec::new(),
+        })
+        .collect();
+    let triples: Vec<Vec<screen::Row>> = parts
+        .iter()
+        .map(|part| match part {
+            Part::Table((_, rows)) => rows.iter().map(|(name, args, about)| (name.as_str(), args.as_str(), about.as_str())).collect(),
+            Part::Rows(_) => Vec::new(),
+        })
+        .collect();
+    let borrowed: Vec<screen::Part> = parts
+        .iter()
+        .zip(pairs.iter().zip(&triples))
+        .map(|(part, (pairs, triples))| match part {
+            Part::Rows((title, _)) => screen::Part::Rows((title.as_str(), pairs.as_slice())),
+            Part::Table((title, _)) => screen::Part::Table((title.as_str(), triples.as_slice())),
+        })
+        .collect();
     screen::help(pen, brand, &borrowed)
 }
 
@@ -46,7 +79,7 @@ pub(crate) fn render(pen: Pen, brand: &Brand, sections: &[Section]) -> String {
 /// * `externals` - names of `<prefix>-<name>` programs found on `PATH`.
 ///
 /// # Returns
-/// The sections.
+/// The parts: USAGE, one table per package, the COMMANDS table, then `extra`.
 pub(crate) fn top(
     program: &str,
     prefix: &str,
@@ -54,7 +87,7 @@ pub(crate) fn top(
     groups: &[Group],
     extra: &[Section],
     externals: &[String],
-) -> Vec<Section> {
+) -> Vec<Part> {
     let mut usage = vec![(format!("{program} [options] <command> [args...]"), String::new())];
     if let Some(default) = root.children.iter().find(|child| child.default) {
         usage.push((format!("{program} {}", usage_tail(default)), String::new()));
@@ -87,25 +120,17 @@ pub(crate) fn top(
         .collect();
     host.extend(externals.iter().map(|name| (name.clone(), String::new(), format!("external: {prefix}-{name}"))));
     blocks.push(("COMMANDS".to_owned(), host));
-    // Decision: the screen renders two columns, so the command and arguments columns
-    // are joined here, padded to the widest in every block; the table then lines up
-    // across blocks. Changing `lunarstorm-cliui` to a third column was not needed.
-    let all = || blocks.iter().flat_map(|(_, rows)| rows);
-    let name_width = all().map(|(name, _, _)| name.chars().count()).max().unwrap_or(0);
-    let left_width = all().map(|(_, args, _)| name_width + 2 + args.chars().count()).max().unwrap_or(0) + 2;
-    let mut sections = vec![("USAGE".to_owned(), usage)];
-    for (title, rows) in &blocks {
-        let rows = rows
-            .iter()
-            .map(|(name, args, about)| (format!("{:<left_width$}", format!("{name:<name_width$}  {args}")), about.clone()))
-            .collect();
-        sections.push((title.clone(), rows));
-    }
+    // Decision: the blocks go to `lunarstorm-cliui` as tables, which aligns the three
+    // columns across them and colors each block from one palette. Joining the
+    // command and arguments into one padded column here was dropped: it left no way
+    // to color the arguments apart from the command.
+    let mut parts = vec![Part::Rows(("USAGE".to_owned(), usage))];
+    parts.extend(blocks.into_iter().map(Part::Table));
     // Decision: the top-level screen is the package blocks only; the OPTIONS and
     // ENVIRONMENT sections are not shown here (`--color`, `NO_COLOR` and
     // `FORCE_COLOR` still work, and every command's own help lists its options).
-    sections.extend(extra.iter().cloned());
-    sections
+    parts.extend(extra.iter().cloned().map(Part::Rows));
+    parts
 }
 
 /// Builds the help screen of one command.
