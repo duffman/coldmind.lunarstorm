@@ -23,7 +23,7 @@ clients() { for n in 1 2 3 4; do node "$here/client.js" "$1" $port 16 "$secs" & 
 
 {
   echo "== $(date '+%Y-%m-%d %H:%M') $(sysctl -n machdep.cpu.brand_string), ${secs}s per measurement"
-  for rt in "$here/../../_build/lunarstorm" node bun; do
+  for rt in "$here/../../_build/lunar" node bun; do
     command -v "$rt" >/dev/null || continue
     echo "-- $(basename "$rt") $("$rt" --version 2>/dev/null | head -1)"
     serve "$rt" http

@@ -79,7 +79,7 @@ impl Cli {
         input: Option<&[u8]>,
         directory: Option<&Path>,
     ) -> Self {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_lunarstorm"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_lunar"));
         command
             .args(args)
             .stdin(if input.is_some() {

@@ -22,6 +22,13 @@ struct TestHost {
 }
 
 impl Host for TestHost {
+    /// No extensions.
+    type Extensions<V: lunarstorm_runtime::vm::Vm> = ();
+
+    /// # Returns
+    /// The empty set.
+    fn extensions<V: lunarstorm_runtime::vm::Vm>(&self) -> Self::Extensions<V> {}
+
     fn args(&self) -> Vec<String> {
         Vec::new()
     }
@@ -182,6 +189,24 @@ fn package_reads_go_through_the_host_policy() {
     let (out, uncaught) = run(dir.path(), "main.mjs");
     assert_eq!(out, "");
     assert!(uncaught.iter().any(|e| e.contains("permission denied")), "{uncaught:?}");
+}
+
+/// Defect: QuickJS formats a thrown message into a 256-byte buffer, so a resolve
+/// error naming two long paths lost its end, and with it the reason ("permission
+/// denied by host policy"). The paths here make the message longer than that on
+/// any checkout.
+#[test]
+fn a_long_resolve_error_keeps_its_reason() {
+    let deep = "d".repeat(150);
+    let (main, manifest, index) = (format!("{deep}/main.mjs"), format!("{deep}/node_modules/secret-lib/package.json"), format!("{deep}/node_modules/secret-lib/index.js"));
+    let dir = project(&[
+        (&main, "import x from 'secret-lib';\nconsole.log(x);\n"),
+        (&manifest, r#"{"name":"secret-lib","main":"index.js"}"#),
+        (&index, "module.exports = 1;\n"),
+    ]);
+    let (out, uncaught) = run(dir.path(), &main);
+    assert_eq!(out, "");
+    assert!(uncaught.iter().any(|e| e.len() > 256 && e.contains("permission denied by host policy")), "{uncaught:?}");
 }
 
 /// A signing key and a trust store that trusts it.

@@ -13,7 +13,7 @@ publish = false
 description = "Lunarstorm command line: the runtime (`run`), the desktop build tools (`build`) and the frontend tools (`serve`, `bundle`, `preview`, `transpile`)"
 
 [[bin]]
-name = "lunarstorm"
+name = "lunar"
 path = "src/main.rs"
 
 [features]

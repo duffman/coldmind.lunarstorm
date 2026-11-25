@@ -21,6 +21,13 @@ struct TestHost<const IPC: bool> {
 }
 
 impl<const IPC: bool> Host for TestHost<IPC> {
+    /// No extensions.
+    type Extensions<V: lunarstorm_runtime::vm::Vm> = ();
+
+    /// # Returns
+    /// The empty set.
+    fn extensions<V: lunarstorm_runtime::vm::Vm>(&self) -> Self::Extensions<V> {}
+
     const IPC: bool = IPC;
 
     /// # Returns
