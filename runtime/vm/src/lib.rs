@@ -96,6 +96,13 @@ pub struct Limits {
     pub memory: Option<usize>,
     /// Native stack size in bytes available to JS.
     pub stack: Option<usize>,
+    /// Bytes of live memory at which the engine starts a collection. `None` keeps the
+    /// engine's default, which then grows by 1.5x after each collection.
+    ///
+    /// Decision: a knob, not a tuned value. Adopted from the `quickjs_es_runtime`
+    /// builder (`gc_threshold`), which sets the same engine threshold; no benchmark
+    /// shows a gain from changing it yet.
+    pub gc_threshold: Option<usize>,
 }
 
 /// Heap statistics of an [`Instance`].

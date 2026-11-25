@@ -197,6 +197,12 @@ impl Instance<QuickJs> for QuickInstance {
         if let Some(bytes) = limits.stack {
             runtime.set_max_stack_size(bytes);
         }
+        // Decision: applied only when the owner asks; `None` keeps the engine's
+        // default (256 KiB, growing 1.5x after each collection), so existing runtimes
+        // are unchanged. Adopted from `quickjs_es_runtime`'s builder.
+        if let Some(bytes) = limits.gc_threshold {
+            runtime.set_gc_threshold(bytes);
+        }
         // The three engine hooks share the callbacks; they take `&self`, so a plain
         // `Rc` is enough and a rejection reported during a module load cannot
         // conflict with the load in progress.
@@ -520,6 +526,24 @@ fn declare<'js>(ctx: &Ctx<'js>, name: &str, source: ModuleSource) -> rquickjs::R
     Ok(module)
 }
 
+/// The bytes QuickJS lent for a string, without asserting they are UTF-8.
+///
+/// Decision: the binding's `CString::as_str` builds a `&str` unchecked, which is
+/// undefined behaviour for a string with an unpaired surrogate (QuickJS encodes it
+/// as WTF-8); reading the pointer and length avoids ever forming that `&str`.
+///
+/// # Arguments
+/// * `text` - the lent string.
+///
+/// # Returns
+/// Its bytes, without the terminating NUL; valid while `text` lives.
+#[inline]
+fn cstring_bytes<'a>(text: &'a rquickjs::CString<'_>) -> &'a [u8] {
+    // SAFETY: `as_ptr` and `len` describe the buffer QuickJS lent, which stays
+    // alive until `text` is dropped.
+    unsafe { std::slice::from_raw_parts(text.as_ptr().cast::<u8>(), text.len()) }
+}
+
 /// Converts a binding error into the contract's marker, leaving an exception
 /// pending in the context in every case.
 ///
@@ -646,11 +670,27 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
         Value::new_int(self.clone(), value)
     }
 
-    /// Integral values are stored as engine integers, which the interpreter
-    /// handles faster than doubles.
+    /// Boxes a number with the engine's own rule (`JS_NewNumber`): integral values
+    /// become engine integers, which the interpreter handles faster than doubles,
+    /// and everything else stays a double.
+    ///
+    /// Defect fixed: the binding's `Value::new_number` normalized with
+    /// `value as i32` and `value == int as f64`, which stored `-0.0` as integer `+0`,
+    /// so `1 / -0` came out as `+Infinity` in JS. Decision: call the engine's
+    /// normalization instead of keeping a copy of it here, so both sides apply one
+    /// rule. Dropped alternative: patching the binding's copy, which other callers
+    /// of `rquickjs` would then depend on.
+    ///
+    /// # Arguments
+    /// * `value` - the number.
+    ///
+    /// # Returns
+    /// The boxed value, owned by this scope.
     #[inline]
     fn number(&self, value: f64) -> Value<'s> {
-        Value::new_number(self.clone(), value)
+        // SAFETY: the context is live for the scope's lifetime; `JS_NewNumber` returns
+        // an owned reference, which `Value` takes over without a second increment.
+        unsafe { Value::from_raw(self.clone(), qjs::JS_NewNumber(self.as_raw().as_ptr(), value)) }
     }
 
     #[inline]
@@ -745,11 +785,21 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
         value.as_number()
     }
 
+    /// Defect fixed: the binding's `CString::as_str` assumes QuickJS's encoding is
+    /// UTF-8, but QuickJS keeps an unpaired surrogate as its 3-byte WTF-8 form
+    /// ("Keep unmatched surrogate code points", quickjs.c `JS_ToCStringLen2`), so
+    /// `'a\uD800b'` reached natives as an invalid `&str`. Decision: validate the
+    /// lent bytes and throw a `TypeError` for an unpaired surrogate. Dropped
+    /// alternative: replacing it with U+FFFD, which needs a copy and silently
+    /// changes the text a native sees (a path, a key).
     #[inline]
     fn with_str<R>(&self, value: &Value<'s>, f: impl FnOnce(&str) -> R) -> Outcome<R> {
         match value.as_string() {
             Some(string) => match string.clone().to_cstring() {
-                Ok(text) => Ok(f(text.as_str())),
+                Ok(text) => match std::str::from_utf8(cstring_bytes(&text)) {
+                    Ok(text) => Ok(f(text)),
+                    Err(_) => Err(thrown(self, Exception::throw_type(self, "string contains an unpaired surrogate"))),
+                },
                 Err(error) => Err(thrown(self, error)),
             },
             None => Err(thrown(self, Exception::throw_type(self, "expected a string"))),
@@ -760,7 +810,8 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
     fn with_bytes<R>(&self, value: &Value<'s>, f: impl FnOnce(&[u8]) -> R) -> Outcome<R> {
         if let Some(string) = value.as_string() {
             return match string.clone().to_cstring() {
-                Ok(text) => Ok(f(text.as_str().as_bytes())),
+                // Raw bytes, not `as_str()`: see `cstring_bytes`.
+                Ok(text) => Ok(f(cstring_bytes(&text))),
                 Err(error) => Err(thrown(self, error)),
             };
         }
@@ -921,5 +972,36 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
     #[inline]
     fn local(&self, handle: &Persistent<Value<'static>>) -> Value<'s> {
         handle.clone().restore(self).expect("persistent handle used in the instance that created it")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Callbacks for an instance that never loads a module or sees a rejection.
+    struct Quiet;
+
+    impl Callbacks<QuickJs> for Quiet {
+        fn resolve<'s>(&self, _scope: &Ctx<'s>, _base: &str, _name: &str) -> Result<String, String> {
+            Err(String::from("no modules in this test"))
+        }
+
+        fn load<'s>(&self, _scope: &Ctx<'s>, _name: &str) -> Result<Load, String> {
+            Err(String::from("no modules in this test"))
+        }
+
+        fn rejection<'s>(&self, _scope: &Ctx<'s>, _promise: usize, _reason: Value<'s>, _handled: bool) {}
+    }
+
+    /// A configured threshold reaches the engine unchanged, read back from the
+    /// runtime the instance created.
+    #[test]
+    fn gc_threshold_reaches_the_engine() {
+        let limits = Limits { gc_threshold: Some(1 << 20), ..Limits::default() };
+        let instance = QuickInstance::new(&limits, Quiet).expect("instance creation");
+        // SAFETY: the runtime is alive for the instance's lifetime, and the getter only reads it.
+        let threshold = unsafe { qjs::JS_GetGCThreshold(instance.runtime.as_raw().as_ptr()) };
+        assert_eq!(threshold, 1 << 20);
     }
 }

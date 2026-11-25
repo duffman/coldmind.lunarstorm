@@ -1,0 +1,26 @@
+{
+  "name": "@lunarstorm/devmode",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "In-app dev mode for React apps: a developer console (console/errors/network capture, JS REPL) and a Postman-style API executor",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^17.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "happy-dom": "^17.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
