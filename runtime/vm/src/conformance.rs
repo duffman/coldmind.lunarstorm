@@ -210,6 +210,12 @@ fn values<V: Vm>() {
         check("int", scope.as_number(&scope.int(-7)) == Some(-7.0));
         check("number", scope.as_number(&scope.number(1.5)) == Some(1.5));
         check("number is not a boolean", scope.as_bool(&scope.int(1)).is_none());
+        // Negative zero must stay a float: an integer zero would make 1 / -0 positive
+        // infinity on the JS side, so the sign is checked from both sides.
+        let negative_zero = scope.number(-0.0);
+        check("negative zero keeps its sign in Rust", scope.as_number(&negative_zero).is_some_and(f64::is_sign_negative));
+        scope.set(&scope.global(), "negativeZero", negative_zero).expect("conformance: global");
+        check("negative zero reaches JS as -0", scope.as_number(&eval::<V>(&scope, "1 / negativeZero")) == Some(f64::NEG_INFINITY));
         let string = scope.string("h\u{e9}llo \u{263e}").expect("conformance: string");
         check("string kind", scope.kind(&string) == Kind::String);
         check("string round trip", text::<V>(&scope, &string) == "h\u{e9}llo \u{263e}");
@@ -496,7 +502,7 @@ fn limits<V: Vm>() {
     if !V::capabilities().memory_limits {
         return;
     }
-    let (instance, _) = boot::<V>(&Limits { memory: Some(8 << 20), stack: None });
+    let (instance, _) = boot::<V>(&Limits { memory: Some(8 << 20), stack: None, gc_threshold: None });
     let context = instance.context().expect("conformance: context creation");
     context.enter(|scope| {
         check("allocation past the memory limit throws", scope.eval("const all = []; for (;;) all.push(new Array(4096).fill(1));").is_err());

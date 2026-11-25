@@ -445,7 +445,7 @@ fn lifecycle_errors_are_reported_not_panics() {
     assert_eq!(runtime.load(Source::Text { name: "a.js".into(), code: String::new() }).err().as_deref(), Some("the runtime is not started"));
     assert_eq!(runtime.call("x", &[]).err().as_deref(), Some("the runtime is not started"));
     assert!(runtime.interrupt().is_none());
-    runtime.limits(Limits { memory: Some(64 * 1024 * 1024), stack: None });
+    runtime.limits(Limits { memory: Some(64 * 1024 * 1024), stack: None, gc_threshold: None });
     runtime.start().expect("start");
     assert_eq!(runtime.start().err().as_deref(), Some("the runtime is already started"));
     assert_eq!(runtime.call("x", &[]).err().as_deref(), Some("no module is loaded"));
@@ -490,6 +490,34 @@ fn queued_immediates_do_not_poll_the_kernel_every_turn() {
     let polls = runtime.polls();
     assert!(polls > 0, "the worker result needs at least one kernel poll");
     assert!(polls * 100 <= turns, "{polls} kernel polls for {turns} immediate turns: more than 1 poll per 100 turns");
+}
+
+/// Pins the order and arguments of immediates and ticks before their queues are
+/// reworked: arguments reach the callback, a cancelled immediate never runs, a
+/// tick queued inside an immediate runs before the next immediate of the same
+/// batch, and an immediate queued inside a batch waits for the next turn.
+#[test]
+fn immediates_and_ticks_keep_order_and_arguments() {
+    let mut runtime = boot(
+        MemoryHost::default(),
+        Bindings::new(),
+        r#"
+        const log = (...args) => console.log(...args);
+        setImmediate((x, y) => log("imm1", x, y), "a", "b");
+        const cancelled = setImmediate(() => log("never"));
+        clearImmediate(cancelled);
+        setImmediate(() => {
+          log("imm2");
+          setImmediate(() => log("imm4"));
+          process.nextTick((z) => log("tick-in-imm", z), "z");
+        });
+        setImmediate(() => log("imm3"));
+        process.nextTick(() => log("tick0"));
+        Promise.resolve().then(() => log("promise0"));
+        "#,
+    );
+    assert_eq!(runtime.run(), 0);
+    assert_eq!(stdout(&runtime), "tick0\npromise0\nimm1 a b\nimm2\ntick-in-imm z\nimm3\nimm4\n");
 }
 
 #[test]
@@ -553,7 +581,7 @@ fn a_held_loop_sleeps_until_work_is_posted() {
 #[should_panic(expected = "the engine ran out of memory")]
 fn a_caught_out_of_memory_error_still_ends_the_program() {
     let mut runtime = Runtime::<QuickJs, MemoryHost>::new(MemoryHost::default()).expect("event loop");
-    runtime.limits(Limits { memory: Some(8 << 20), stack: None });
+    runtime.limits(Limits { memory: Some(8 << 20), stack: None, gc_threshold: None });
     runtime.start().expect("start");
     let code = "const hoard = [];\n\
                 try { for (;;) hoard.push(new Array(65536).fill(1)); } catch { hoard.length = 0; }\n\

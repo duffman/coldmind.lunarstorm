@@ -204,17 +204,25 @@
    */
   function runImmediate() {
     if (immAt === immBatch.length) {
+      // Defect fixed: a fresh array per batch and per drained callback allocated on
+      // every immediate of a chain. Decision: the two arrays swap roles and the
+      // drained one is cleared with `length = 0`, the same reuse `ticks()` has.
+      const spent = immBatch;
       immBatch = immQueue;
-      immQueue = [];
+      immQueue = spent;
+      spent.length = 0;
       immAt = 0;
     }
     const handle = immBatch[immAt++];
     const more = immAt < immBatch.length;
     if (!more) {
-      immBatch = [];
+      immBatch.length = 0;
       immAt = 0;
     }
-    if (handle && handle.live) handle.fn(...handle.args);
+    if (handle && handle.live) {
+      if (handle.args.length) handle.fn(...handle.args);
+      else handle.fn();
+    }
     return more;
   }
 
