@@ -8,7 +8,11 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# Fix: `dist` ignored the directory, so the prebuilt dist/vcl.js that
+# lunarstorm-pipeline embeds (src/frontend.rs) was never tracked and a fresh
+# clone did not compile. Decision: ignore the contents and re-include vcl.js.
+dist/*
+!dist/vcl.js
 dist-ssr
 *.local
 
