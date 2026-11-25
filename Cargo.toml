@@ -87,6 +87,7 @@ members = [
     "platform/desktop",
     "platform/pack",
     "platform/web",
+    "platform/extensions/project",
     "crates/cliui",
     "crates/cli-contract",
     "crates/cli-host",

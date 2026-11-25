@@ -6,6 +6,7 @@
 //! | `runtime` | `lunarstorm-host-cli`      | `run` (default command)       |
 //! | `build`   | `lunarstorm-pipeline`      | `build`, `build types`, `build check` |
 //! | `frontend`| `devtools-cli`             | `serve`, `bundle`, `preview`, `transpile` |
+//! | `project` | `lunarstorm-project`       | `project init`, `insight`, `compile`, `sign` |
 //!
 //! The host adds `describe`, `completions`, `--color`, `--help`, `--version` and
 //! external `lunarstorm-<name>` commands. See `doc/cli.md`.
@@ -21,5 +22,7 @@ fn main() {
     let cli = cli.package(lunarstorm_pipeline::command::package());
     #[cfg(feature = "frontend")]
     let cli = cli.package(devtools_cli::package());
+    #[cfg(feature = "project")]
+    let cli = cli.package(lunarstorm_project::package());
     std::process::exit(cli.run(std::env::args().skip(1).collect()));
 }

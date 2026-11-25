@@ -13,4 +13,4 @@ mod cli;
 mod host;
 mod ui;
 
-pub use cli::{engine, package};
+pub use cli::{compile, engine, package};

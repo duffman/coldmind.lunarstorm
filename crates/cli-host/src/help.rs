@@ -35,17 +35,20 @@ pub(crate) fn render(pen: Pen, brand: &Brand, sections: &[Section]) -> String {
 /// * `program` - the program name, e.g. `lunarstorm`.
 /// * `root` - the host's root command.
 /// * `extra` - the packages' own sections.
-/// * `externals` - names of `lunarstorm-<name>` programs found on `PATH`.
+/// * `prefix` - the prefix of external commands, e.g. `lunarstorm`.
+/// * `externals` - names of `<prefix>-<name>` programs found on `PATH`.
 ///
 /// # Returns
 /// The sections.
-pub(crate) fn top(program: &str, root: &Command, extra: &[Section], externals: &[String]) -> Vec<Section> {
+pub(crate) fn top(program: &str, prefix: &str, root: &Command, extra: &[Section], externals: &[String]) -> Vec<Section> {
     let mut usage = vec![(format!("{program} [options] <command> [args...]"), String::new())];
     if let Some(default) = root.children.iter().find(|child| child.default) {
         usage.push((format!("{program} {}", usage_tail(default)), String::new()));
     }
     let mut commands = command_rows(root);
-    commands.extend(externals.iter().map(|name| (name.clone(), format!("external: {program}-{name}"))));
+    // Fix: the label used the program name, so `lunar` listed `lunar-hello` for the
+    // `lunarstorm-hello` it runs. Decision: label with the prefix the lookup uses.
+    commands.extend(externals.iter().map(|name| (name.clone(), format!("external: {prefix}-{name}"))));
     let mut sections = vec![
         ("USAGE".to_owned(), usage),
         ("COMMANDS".to_owned(), commands),
