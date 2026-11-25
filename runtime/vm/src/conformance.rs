@@ -218,6 +218,16 @@ fn values<V: Vm>() {
         let name = scope.get(&thrown, "name").expect("conformance: error name");
         check("with_str throws a TypeError", text::<V>(&scope, &name) == "TypeError");
         check("exception is cleared once taken", scope.kind(&scope.exception()) == Kind::Undefined);
+        // A JS string is UTF-16 and may hold an unpaired surrogate, which has no
+        // UTF-8 encoding. `with_str` hands out `&str`, so it must refuse such a
+        // string rather than lend bytes that are not UTF-8.
+        let lone = scope.eval("'a\\uD800b'").expect("conformance: lone surrogate string");
+        check("with_str rejects an unpaired surrogate", scope.with_str(&lone, |_| ()).is_err());
+        let thrown = scope.exception();
+        let name = scope.get(&thrown, "name").expect("conformance: error name");
+        check("with_str throws a TypeError for an unpaired surrogate", text::<V>(&scope, &name) == "TypeError");
+        let paired = scope.eval("'a\\uD83D\\uDE00b'").expect("conformance: surrogate pair string");
+        check("with_str accepts a surrogate pair", text::<V>(&scope, &paired) == "a\u{1F600}b");
     });
 }
 
