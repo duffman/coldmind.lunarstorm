@@ -1,0 +1,13 @@
+# What every lunar-extension shares, at every level: names, the manifest, plugin
+# host rules and the load-time checks. No VM and no platform dependency, so the
+# runtime level (`lunarstorm-runtime`) and the platform level use the same rules.
+[package]
+name = "lunar-extension"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Lunarstorm extensions: names, manifest, plugin hosts and load-time checks"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json.workspace = true

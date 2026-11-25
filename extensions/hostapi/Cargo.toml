@@ -1,0 +1,16 @@
+# HostApi: the extension through which a host gives its programs the host's own
+# API. Each API area is a plugin of its plugin host `area`; the manifest selects
+# the active ones.
+[package]
+name = "lunar-extension-hostapi"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Lunarstorm HostApi extension: a host's API areas as plugins"
+
+[dependencies]
+lunarstorm-runtime = { path = "../../runtime/core" }
+
+[dev-dependencies]
+# Tests need a real engine; the library itself names none.
+lunarstorm-vm-quickjs = { path = "../../runtime/engines/quickjs" }

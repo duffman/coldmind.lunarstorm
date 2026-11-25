@@ -17,7 +17,7 @@ use std::process::Command;
 /// # Returns
 /// `(exit status, stdout, stderr)`.
 fn run(args: &[&str], path: Option<&Path>) -> (i32, String, String) {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_lunarstorm"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_lunar"));
     command.args(args).env_remove("NO_COLOR").env_remove("FORCE_COLOR").env_remove("COLORTERM");
     if let Some(dir) = path {
         let inherited = std::env::var_os("PATH").unwrap_or_default();
@@ -66,7 +66,7 @@ fn top_help_lists_every_package_and_the_host_commands() {
     }
     let (status, out, _) = run(&["build", "--help"], None);
     assert_eq!(status, 0);
-    for part in ["lunarstorm build [options] [<command>]", "types", "check", "-p, --project <dir>", "[default: .]", "--color <when>"] {
+    for part in ["lunar build [options] [<command>]", "types", "check", "-p, --project <dir>", "[default: .]", "--color <when>"] {
         assert!(out.contains(part), "missing {part:?} in {out}");
     }
 }
@@ -101,15 +101,15 @@ fn build_check_and_types_run_the_pipeline() {
 fn usage_errors_name_the_path_the_user_typed() {
     let (status, _, err) = run(&["biuld"], None);
     assert_eq!(status, 2);
-    assert_eq!(err, "error: unknown command 'biuld'\n  hint: did you mean 'build'?\n  usage: lunarstorm --help\n");
+    assert_eq!(err, "error: unknown command 'biuld'\n  hint: did you mean 'build'?\n  usage: lunar --help\n");
 
     let (status, _, err) = run(&["build", "--projet", "x"], None);
     assert_eq!(status, 2);
-    assert_eq!(err, "error: unknown option '--projet'\n  hint: did you mean '--project'?\n  usage: lunarstorm build --help\n");
+    assert_eq!(err, "error: unknown option '--projet'\n  hint: did you mean '--project'?\n  usage: lunar build --help\n");
 
     let (status, _, err) = run(&["run"], None);
     assert_eq!(status, 2);
-    assert!(err.contains("run needs <file.js> or -e <code>") && err.contains("usage: lunarstorm run --help"), "{err}");
+    assert!(err.contains("run needs <file.js> or -e <code>") && err.contains("usage: lunar run --help"), "{err}");
 }
 
 #[cfg(all(feature = "runtime", feature = "build"))]
@@ -131,7 +131,7 @@ fn describe_prints_the_whole_tree() {
 #[test]
 fn completion_follows_the_tree() {
     let (_, script, _) = run(&["completions", "bash"], None);
-    assert!(script.contains("complete -o default -F _lunarstorm lunarstorm"), "{script}");
+    assert!(script.contains("complete -o default -F _lunar lunar"), "{script}");
     let (_, script, _) = run(&["completions", "zsh"], None);
     assert!(script.starts_with("autoload -U +X bashcompinit"), "{script}");
 
@@ -264,7 +264,7 @@ fn debug_stops_at_a_typescript_breakpoint_on_its_original_line() {
     )
     .expect("main");
     let path = main.to_str().expect("utf-8 path").replace('\\', "\\\\");
-    let mut child = Command::new(env!("CARGO_BIN_EXE_lunarstorm"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lunar"))
         .args(["debug", main.to_str().expect("utf-8 path")])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -373,7 +373,7 @@ fn debug_with_exception_filter(name: &str, source: &str, filter: &str) -> (Vec<S
     let dir = scratch(name);
     let main = dir.join("main.ts");
     std::fs::write(&main, source).expect("main");
-    let mut child = Command::new(env!("CARGO_BIN_EXE_lunarstorm"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lunar"))
         .args(["debug", main.to_str().expect("utf-8 path")])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

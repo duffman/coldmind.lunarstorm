@@ -76,6 +76,7 @@ Runtime calls it, always on the loop thread.
 | `const PULSE` | the pulse counter, for a host that enforces an execution budget |
 | `const IPC`, `ipc_send(bytes)` | `lunarstorm:ipc` and the receiving end of its `send` |
 | `const WORKERS`, `worker_host()` | `lunarstorm:worker`, and a factory for the host of each new worker |
+| `type Extensions<V>`, `extensions()`, `manifest()` | the host's extension set and the manifest that selects from it (`extensions.md`) |
 
 The capability switches are associated constants: each host enables exactly the capabilities it uses, and
 the ones it leaves off cost nothing at run time.
@@ -86,16 +87,17 @@ The CLI host's `run` command (`runtime/hosts/cli/src/cli.rs`) shows the full seq
 
 ```rust
 let mut runtime = Runtime::<QuickJs, CliHost>::new(CliHost::new(argv))?;  // 1. host + Runtime
-runtime.register(host::bindings());                                       // 2. host's modules and natives
-runtime.start()?;                                                         // 3. VM, glue, core modules
+runtime.register(host::bindings());                                       // 2. host's own modules and natives
+runtime.start()?;                                                         // 3. manifest, extensions, VM, glue
 runtime.load(source)?;                                                    // 4. the program
 runtime.run()                                                             // 5. the loop, until idle or exit
 ```
 
 1. **Create.** `Runtime::new` takes the host by value; from then on the Runtime owns it.
-2. **Register.** The host adds its own modules and native functions (today with `Bindings`; with
-   extensions, see `extensions.md`).
-3. **Start.** The Runtime creates the VM instance and installs its JS glue. The glue is compiled once per
+2. **Register.** The host adds its own modules and native functions with `Bindings`. These are installed
+   in this Runtime only.
+3. **Start.** The Runtime checks the host's manifest against `Host::extensions`, merges the bindings of
+   each used extension, creates the VM instance and installs its JS glue. The glue is compiled once per
    process and loaded from that image by every later Runtime, worker Runtimes included.
 4. **Load.** The program's entry module is loaded and evaluated.
 5. **Drive.** Two ways:
@@ -134,14 +136,16 @@ its own VM, loop and thread, the model of Node's `worker_threads`:
 3. The worker's Runtime starts with that host and runs the worker's entry module.
 4. The two Runtimes exchange messages (JSON values and `Uint8Array`) through bounded channels.
 
-Each Runtime holds its own state. Everything a host installs in a Runtime, extensions included, is
-installed again in each worker's Runtime, as instances of their own.
+Each Runtime holds its own state. A worker's Runtime starts with the worker's host, so the host's
+extensions are installed again in it, as instances of their own. Bindings the host registers with
+`register` belong to the Runtime they were registered on; a worker does not get them.
 
 ## Writing a host
 
 1. Implement `Host` for the environment: its services, its policy, the capability constants it uses, and
    `worker_host` when it enables workers.
 2. Bind the engine: `Runtime<QuickJs, MyHost>`.
-3. Install the host's extensions and modules before `Runtime::start`.
-4. Ship the host's manifest (`extensions.md`).
+3. State the extension set (`type Extensions<V: Vm> = ();` for none) and register the host's own modules
+   before `Runtime::start`.
+4. Ship the host's manifest and return it from `Host::manifest` (`extensions.md`).
 5. Drive the loop with `run()`, or with `poll(Wait)` from the host's own loop.

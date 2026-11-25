@@ -533,7 +533,7 @@ fn version_flags_are_successful_clean_and_match_the_cli_package() {
         assert_success(&output);
         assert_eq!(
             output.stdout.trim(),
-            concat!("lunarstorm ", env!("CARGO_PKG_VERSION"))
+            concat!("lunar ", env!("CARGO_PKG_VERSION"))
         );
         assert!(output.stderr.is_empty(), "{}", output.stderr);
     }

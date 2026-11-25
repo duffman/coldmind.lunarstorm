@@ -13,6 +13,7 @@ One Cargo workspace (`Cargo.toml`) and one pnpm workspace (`pnpm-workspace.yaml`
 | command line | [`apps/lunarstorm`](apps/lunarstorm) | the `lunarstorm` binary: `run`, `build`, `describe`, `completions` |
 | shared crates | [`crates/`](crates) | `cliui`, `cli-contract`, `cli-host`, `http1` |
 | runtime (spec §5) | [`runtime/`](runtime) | `vm` contract, `core` Runtime, `engines/` (QuickJS, rquickjs), `hosts/` (cli, desktop) |
+| extensions | [`extensions/`](extensions) | `core` (`lunar-extension`: names, manifest, load-time checks), `hostapi` (a host's API areas as plugins) |
 | platform (spec §6) | [`platform/`](platform) | desktop process, packager, browser host, example project |
 | toolchain (spec §4) | [`toolchain/`](toolchain) | `model` + `pipeline` (the compiler), the older devtools dev-server crates, vendored `oj_*`, `jetpack` |
 | JS framework | [`framework/`](framework) | `@desktop/forms`, VCL, foundation, reactive, net, shared config |

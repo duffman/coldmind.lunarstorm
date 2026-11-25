@@ -6,6 +6,8 @@ description = "The Lunarstorm Runtime: event loop, timers, modules, fs and net, 
 
 [dependencies]
 lunarstorm-vm = { path = "../vm" }
+# Extension names, manifest and load-time checks, shared with the platform level.
+lunar-extension = { path = "../../extensions/core" }
 # Files and packages as ES modules: TypeScript, JSON, CommonJS, package.json.
 lunarstorm-modules = { path = "../modules" }
 # Signed .jbn packages: built from a module graph, run as bytecode.

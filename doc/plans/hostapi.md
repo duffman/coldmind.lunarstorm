@@ -1,6 +1,6 @@
 # Build plan: HostApi, the first host extension
 
-Status: **plan, not started.** Concepts: `runtime/core/doc/hosts.md`, `runtime/core/doc/extensions.md`.
+Status: **built** on branch `runtime-extensions`. Concepts: `runtime/core/doc/hosts.md`, `runtime/core/doc/extensions.md`.
 
 ## Goal
 

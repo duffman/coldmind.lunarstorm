@@ -7,7 +7,7 @@ use core::{
 };
 
 use alloc::{
-    ffi::{CString, NulError},
+    ffi::NulError,
     string::{FromUtf8Error, ToString as _},
 };
 
@@ -141,6 +141,44 @@ pub enum Error {
     Unknown,
 }
 
+/// Throws an error of the class `throw` creates, carrying the whole message.
+///
+/// Fix: QuickJS formats a thrown message into a 256-byte buffer (`JS_MakeError`),
+/// so a longer message, such as a resolve error naming two long paths, lost its
+/// end, and with it the reason. Decision: throw with an empty message, then set
+/// `message` on the thrown object from a string of any length; QuickJS keeps the
+/// message out of `stack`, so nothing else holds the empty text. Dropped
+/// alternative: a larger C buffer, which only moves the limit.
+///
+/// # Arguments
+/// * `ctx` - the context to throw in.
+/// * `throw` - the QuickJS function that throws the wanted class
+///   (`JS_ThrowTypeError`, ...).
+/// * `message` - the error's message.
+///
+/// # Returns
+/// `JS_EXCEPTION`, with the error pending in `ctx`.
+///
+/// # Safety
+/// `ctx` must be a live context on the current thread.
+unsafe fn throw_whole(
+    ctx: &Ctx,
+    throw: unsafe extern "C" fn(*mut qjs::JSContext, *const core::ffi::c_char, ...) -> qjs::JSValue,
+    message: &str,
+) -> qjs::JSValue {
+    let ctx = ctx.as_ptr();
+    throw(ctx, ERROR_FORMAT_STR.as_ptr(), c"".as_ptr());
+    let error = qjs::JS_GetException(ctx);
+    let text = qjs::JS_NewStringLen(ctx, message.as_ptr().cast(), message.len() as _);
+    if qjs::JS_VALUE_GET_NORM_TAG(text) == qjs::JS_TAG_EXCEPTION {
+        // Out of memory for the text: the error keeps its empty message.
+        qjs::JS_FreeValue(ctx, qjs::JS_GetException(ctx));
+    } else if qjs::JS_SetPropertyStr(ctx, error, c"message".as_ptr(), text) < 0 {
+        qjs::JS_FreeValue(ctx, qjs::JS_GetException(ctx));
+    }
+    qjs::JS_Throw(ctx, error)
+}
+
 impl Error {
     #[cfg(feature = "loader")]
     /// Create resolving error
@@ -271,17 +309,6 @@ impl Error {
         matches!(self, Self::TooManyArgs { .. } | Self::MissingArgs { .. })
     }
 
-    /// Optimized conversion to [`CString`]
-    pub(crate) fn to_cstring(&self) -> CString {
-        // stringify error with NUL at end
-        let mut message = alloc::format!("{self}\0").into_bytes();
-
-        message.pop(); // pop last NUL because CString add this later
-
-        // TODO: Replace by `CString::from_vec_with_nul_unchecked` later when it will be stabilized
-        unsafe { CString::from_vec_unchecked(message) }
-    }
-
     /// Throw an exception
     pub(crate) fn throw(&self, ctx: &Ctx) -> qjs::JSValue {
         use Error::*;
@@ -294,45 +321,17 @@ impl Error {
             | IntoJs { .. }
             | TooManyArgs { .. }
             | MissingArgs { .. } => {
-                let message = self.to_cstring();
-                unsafe {
-                    qjs::JS_ThrowTypeError(
-                        ctx.as_ptr(),
-                        ERROR_FORMAT_STR.as_ptr(),
-                        message.as_ptr(),
-                    )
-                }
+                unsafe { throw_whole(ctx, qjs::JS_ThrowTypeError, &self.to_string()) }
             }
             AsSlice(_) => {
-                let message = self.to_cstring();
-                unsafe {
-                    qjs::JS_ThrowReferenceError(
-                        ctx.as_ptr(),
-                        ERROR_FORMAT_STR.as_ptr(),
-                        message.as_ptr(),
-                    )
-                }
+                unsafe { throw_whole(ctx, qjs::JS_ThrowReferenceError, &self.to_string()) }
             }
             #[cfg(feature = "loader")]
             Resolving { .. } | Loading { .. } => {
-                let message = self.to_cstring();
-                unsafe {
-                    qjs::JS_ThrowReferenceError(
-                        ctx.as_ptr(),
-                        ERROR_FORMAT_STR.as_ptr(),
-                        message.as_ptr(),
-                    )
-                }
+                unsafe { throw_whole(ctx, qjs::JS_ThrowReferenceError, &self.to_string()) }
             }
             Unknown => {
-                let message = self.to_cstring();
-                unsafe {
-                    qjs::JS_ThrowInternalError(
-                        ctx.as_ptr(),
-                        ERROR_FORMAT_STR.as_ptr(),
-                        message.as_ptr(),
-                    )
-                }
+                unsafe { throw_whole(ctx, qjs::JS_ThrowInternalError, &self.to_string()) }
             }
             error => {
                 unsafe {

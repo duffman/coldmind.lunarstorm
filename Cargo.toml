@@ -31,6 +31,11 @@
 #     engines/quickjs   VM adapter wrapping QuickJS
 #     engines/rquickjs  the engine binding (rquickjs + quickjs-ng C source), adopted
 #                       from upstream 0.14.0 and owned here: core, macro, sys, examples
+#   extensions/  lunar-extensions: functionality a host installs in its Runtimes,
+#                selected by the host's manifest:
+#     core            lunar-extension: names, manifest, plugin hosts, load-time
+#                     checks (no VM), shared by the runtime and platform levels
+#     hostapi         HostApi: a host's API areas as plugins (lunarstorm:hostapi)
 #   platform/    the Lunarstorm platform, spec section 6 (the product):
 #     desktop         native desktop process: lib + `lunarstorm-debug`, `lunarstorm-release`
 #     pack            `lunarstorm-pack`: archive, attach, package and sign per OS
@@ -77,6 +82,8 @@ members = [
     "runtime/compiler/crates/qjs-reference",
     "runtime/hosts/cli",
     "runtime/hosts/desktop",
+    "extensions/core",
+    "extensions/hostapi",
     "platform/desktop",
     "platform/pack",
     "platform/web",

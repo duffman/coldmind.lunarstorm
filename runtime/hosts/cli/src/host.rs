@@ -8,17 +8,47 @@
 //! - Stdout and stderr are written with `write(2)` directly. The Runtime already
 //!   batches stdout into one buffer per loop turn, so a second layer of buffering
 //!   in front of the descriptor would only add a copy.
-//! - The terminal natives (`color`, `tty`, `columns`, `live`) and the
-//!   `lunarstorm:ui` module are registered here, not built into the Runtime: a
-//!   host without a terminal has no use for them.
+//! - The terminal API is the HostApi area `ui` ([`crate::ui`]), selected by the
+//!   host's manifest (`manifest.json`). The host's own bindings keep `ops.color`
+//!   and `ops.tty`, which the Runtime's console reads, and `lunarstorm:ui`, the
+//!   specifier scripts used before HostApi.
 
+use lunar_extension_hostapi::HostApi;
 use lunarstorm_cliui::{report, term};
-use lunarstorm_runtime::vm::{Call, Scope, Vm};
-use lunarstorm_runtime::{Access, Bindings, Host, Log, Stream};
+use lunarstorm_runtime::vm::{Scope, Vm};
+use lunarstorm_runtime::{Access, Bindings, Host, Log, Manifest, Stream};
 use std::io;
+use std::sync::OnceLock;
 
-/// Specifier scripts import the terminal UI module by.
+use crate::ui::Ui;
+
+/// Specifier scripts import the terminal UI module by, besides
+/// `lunarstorm:hostapi/ui`.
 pub const UI_NAME: &str = "lunarstorm:ui";
+
+/// `lunarstorm:ui`: a re-export of the area's module.
+///
+/// Decision: a re-export, not a second registration of `UI_SOURCE`, so both
+/// specifiers name one module instance with one live region.
+const UI_ALIAS: &str = "export * from 'lunarstorm:hostapi/ui'; export { default } from 'lunarstorm:hostapi/ui';";
+
+/// The host's manifest: the extensions and plugins every program of this host
+/// gets.
+///
+/// Decision: it lives with the host and is embedded when the host is built; a
+/// script cannot change it.
+const MANIFEST: &str = include_str!("../manifest.json");
+
+/// # Returns
+/// The parsed [`MANIFEST`], parsed once per process.
+///
+/// # Panics
+/// When `manifest.json` is not a manifest, a fault of the build that the test
+/// `the_manifest_matches_the_host` catches.
+fn manifest() -> &'static Manifest {
+    static PARSED: OnceLock<Manifest> = OnceLock::new();
+    PARSED.get_or_init(|| Manifest::parse(MANIFEST).expect("manifest.json of lunarstorm-host-cli"))
+}
 /// Most bytes `getentropy(2)` hands out per call.
 const ENTROPY_CHUNK: usize = 256;
 
@@ -83,6 +113,21 @@ fn put(fd: i32, mut bytes: &[u8]) {
 }
 
 impl Host for CliHost {
+    /// HostApi with the terminal area.
+    type Extensions<V: Vm> = (HostApi<V, (Ui,)>,);
+
+    /// # Returns
+    /// A fresh set for one Runtime.
+    fn extensions<V: Vm>(&self) -> Self::Extensions<V> {
+        (HostApi::new((Ui,)),)
+    }
+
+    /// # Returns
+    /// The host's embedded manifest.
+    fn manifest(&self) -> &Manifest {
+        manifest()
+    }
+
     /// # Returns
     /// `process.argv` as the command line gave it.
     fn args(&self) -> Vec<String> {
@@ -165,8 +210,9 @@ impl Host for CliHost {
     }
 }
 
-/// Builds the bindings this host registers: the terminal natives and the
-/// `lunarstorm:ui` module built on them.
+/// Builds the bindings this host registers itself: the terminal facts the
+/// Runtime's console reads, and the `lunarstorm:ui` specifier. The terminal API
+/// is the HostApi area `ui` ([`crate::ui`]).
 ///
 /// # Returns
 /// The set for `Runtime::register`. It is generic over the engine: the same
@@ -180,13 +226,22 @@ pub fn bindings<V: Vm>() -> Bindings<V> {
             let tty = |fd| scope.boolean(term::is_tty(fd));
             scope.set(ops, "tty", scope.array(&[tty(1), tty(2)])?)
         })
-        // The terminal width now; a resize is seen on the next redraw.
-        .function("columns", |call: &Call<'_, V>| Ok(call.scope().int(i32::from(term::columns()))))
-        // Enters or leaves the live region: hides or restores the cursor.
-        .function("live", |call: &Call<'_, V>| {
-            let scope = call.scope();
-            term::live(call.args().first().and_then(|on| scope.as_bool(on)).unwrap_or(false));
-            Ok(scope.undefined())
-        })
-        .module(UI_NAME, lunarstorm_cliui::UI_SOURCE)
+        .module(UI_NAME, UI_ALIAS)
+}
+
+#[cfg(test)]
+mod tests {
+    use lunarstorm_runtime::{check, ExtensionSet};
+    use lunarstorm_vm_quickjs::QuickJs;
+
+    use super::*;
+
+    /// `manifest.json` parses and uses only what this host offers.
+    #[test]
+    fn the_manifest_matches_the_host() {
+        let host = CliHost::new(Vec::new());
+        let offers = ExtensionSet::<QuickJs>::offers(&host.extensions::<QuickJs>());
+        assert_eq!(check(host.manifest(), &offers), Ok(()));
+        assert!(host.manifest().using("hostapi").is_some_and(|using| using.has("ui")));
+    }
 }

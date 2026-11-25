@@ -106,7 +106,7 @@ try {
   for (const line of artifacts.split("\n")) {
     if (!line.startsWith("{")) continue;
     const artifact = JSON.parse(line);
-    if (artifact.reason === "compiler-artifact" && artifact.target?.name === "lunarstorm" && artifact.target.kind.includes("bin") && artifact.executable) cli = artifact.executable;
+    if (artifact.reason === "compiler-artifact" && artifact.target?.name === "lunar" && artifact.target.kind.includes("bin") && artifact.executable) cli = artifact.executable;
   }
   if (!cli || !existsSync(cli)) throw new Error("Cargo did not report the unified CLI executable");
   await run("Rust workspace contracts", ["cargo", "test", "--locked", "--workspace"], {}, false, 1);
