@@ -19,7 +19,7 @@ use std::time::Duration;
 /// # Returns
 /// The finished process: status, stdout and stderr.
 fn eval(code: &str, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lunarstorm"))
+    Command::new(env!("CARGO_BIN_EXE_lunar"))
         .arg("-e")
         .arg(code)
         .args(args)
@@ -191,7 +191,7 @@ server.listen(0, '127.0.0.1', () => console.log(server.address().port));
 
 #[test]
 fn http_keep_alive_pipelining_bodies_and_streaming() {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_lunarstorm"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lunar"))
         .arg("-e")
         .arg(HTTP_SERVER)
         .stdout(Stdio::piped())
@@ -249,7 +249,7 @@ fn http_keep_alive_pipelining_bodies_and_streaming() {
 
 #[test]
 fn http_rejects_malformed_and_smuggling_requests() {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_lunarstorm"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lunar"))
         .arg("-e")
         .arg(HTTP_SERVER)
         .stdout(Stdio::piped())
@@ -338,7 +338,7 @@ fn modules_import_files_and_builtins() {
            basename(import.meta.filename), process.argv.slice(2));\n",
     )
     .expect("write main");
-    let out = Command::new(env!("CARGO_BIN_EXE_lunarstorm"))
+    let out = Command::new(env!("CARGO_BIN_EXE_lunar"))
         .arg(dir.join("main.mjs"))
         .args(["x", "y"])
         .output()
@@ -488,7 +488,7 @@ fn json_import_with_attributes_runs() {
         "import d from './d.json' with { type: 'json' };\nconsole.log(d.a);\n",
     )
     .expect("write module");
-    let out = Command::new(env!("CARGO_BIN_EXE_lunarstorm"))
+    let out = Command::new(env!("CARGO_BIN_EXE_lunar"))
         .arg(&main)
         .output()
         .expect("spawn lunarstorm");
@@ -510,7 +510,7 @@ fn long_script_of_member_assignments_runs() {
     }
     source.push_str("console.log(Object.keys(o).length);");
     std::fs::write(&main, source).expect("write script");
-    let out = Command::new(env!("CARGO_BIN_EXE_lunarstorm"))
+    let out = Command::new(env!("CARGO_BIN_EXE_lunar"))
         .arg(&main)
         .output()
         .expect("spawn lunarstorm");

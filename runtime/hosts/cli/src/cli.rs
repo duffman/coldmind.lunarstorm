@@ -26,7 +26,7 @@ use lunarstorm_vm_quickjs::QuickJs;
 use std::path::{Path, PathBuf};
 
 /// The name scripts see as `process.argv[0]`.
-const ARGV0: &str = "lunarstorm";
+const ARGV0: &str = "lunar";
 
 /// The runtime's package.
 struct RuntimePackage;

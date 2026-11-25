@@ -63,7 +63,7 @@ fn help_describes_each_command_and_exits_successfully() {
             assert!(output.stderr.is_empty(), "{}", output.stderr);
             assert!(output.stdout.contains("USAGE"), "{}", output.stdout);
             assert!(
-                output.stdout.contains(&format!("lunarstorm {name}")),
+                output.stdout.contains(&format!("lunar {name}")),
                 "{}",
                 output.stdout
             );

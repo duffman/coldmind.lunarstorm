@@ -1,6 +1,6 @@
 # The `lunarstorm` command line
 
-One binary, `lunarstorm`, fronts every Lunarstorm tool. The tools are **packages**:
+One binary, `lunar`, fronts every Lunarstorm tool. The tools are **packages**:
 each crate that wants commands exports a description of them (a command tree with its
 arguments) and the handlers to run them. The binary decides which packages it mounts;
 the **host** parses the command line against their descriptions, renders help and
@@ -23,30 +23,30 @@ code and no serde. A package never depends on another package or on the host.
 ## Using it
 
 ```text
-lunarstorm [options] <command> [args...]
-lunarstorm [options] <file.js> [args...]        # `run` is the default command
+lunar [options] <command> [args...]
+lunar [options] <file.js> [args...]        # `run` is the default command
 
-lunarstorm app.js --port 8080                   # = lunarstorm run app.js --port 8080
-lunarstorm -e 'console.log(1)'                  # = lunarstorm run -e '...'
-lunarstorm jbn key signing.der > trust.json     # new signing key, and a trust file for it
-lunarstorm jbn build src/main.ts -o app.jbn --key signing.der
-lunarstorm run --trust trust.json app.jbn       # run a signed package (or LUNARSTORM_TRUST)
-lunarstorm debug app.ts --port 8080             # Debug Adapter Protocol on stdin/stdout; script stdout → stderr
-lunarstorm build -p templates/starters/desktop  # build into <project>/dist
-lunarstorm build -p app -o out                  # build into out/
-lunarstorm build types -p app                   # write app/src/desktop.d.ts
-lunarstorm build check -p app                   # report compile errors, write nothing
-lunarstorm serve ./app --port 5173              # frontend dev server with hot updates
-lunarstorm bundle ./app -o dist                 # production frontend bundle
-lunarstorm preview ./app --port 4173            # serve an existing bundle
-lunarstorm transpile src/main.ts                # one TS/TSX/JS/JSX module to JavaScript
-lunarstorm help build types                     # = lunarstorm build types --help
-lunarstorm describe                             # the whole command tree as JSON
-source <(lunarstorm completions zsh)            # completion (also: bash)
-lunarstorm pack ...                             # runs `lunarstorm-pack ...` from PATH
+lunar app.js --port 8080                   # = lunar run app.js --port 8080
+lunar -e 'console.log(1)'                  # = lunar run -e '...'
+lunar jbn key signing.der > trust.json     # new signing key, and a trust file for it
+lunar jbn build src/main.ts -o app.jbn --key signing.der
+lunar run --trust trust.json app.jbn       # run a signed package (or LUNARSTORM_TRUST)
+lunar debug app.ts --port 8080             # Debug Adapter Protocol on stdin/stdout; script stdout → stderr
+lunar build -p templates/starters/desktop  # build into <project>/dist
+lunar build -p app -o out                  # build into out/
+lunar build types -p app                   # write app/src/desktop.d.ts
+lunar build check -p app                   # report compile errors, write nothing
+lunar serve ./app --port 5173              # frontend dev server with hot updates
+lunar bundle ./app -o dist                 # production frontend bundle
+lunar preview ./app --port 4173            # serve an existing bundle
+lunar transpile src/main.ts                # one TS/TSX/JS/JSX module to JavaScript
+lunar help build types                     # = lunar build types --help
+lunar describe                             # the whole command tree as JSON
+source <(lunar completions zsh)            # completion (also: bash)
+lunar pack ...                             # runs `lunarstorm-pack ...` from PATH
 ```
 
-Every command has `--help`, and `lunarstorm help <command>...` prints the same screen. The host adds these options at every level:
+Every command has `--help`, and `lunar help <command>...` prints the same screen. The host adds these options at every level:
 `--color <auto|always|never>` (global), `-h/--help` and `-v/--version`.
 
 | Exit status | Meaning |
@@ -154,11 +154,11 @@ returns `Ok(1)`.
 4. At the top level, a word that names nothing is handled in this order:
    - an external `lunarstorm-<word>` on `PATH`;
    - an unknown command, with a hint, when it is a near-miss of a command name and not
-     an existing file (so `lunarstorm biuld` gives a hint instead of a "module not found");
+     an existing file (so `lunar biuld` gives a hint instead of a "module not found");
    - otherwise it goes to the default command, where it is read again.
 
    An option unknown at the top level also goes to the default command, so
-   `lunarstorm -e code` reaches `run`.
+   `lunar -e code` reaches `run`.
 5. After the last word, env variables and defaults fill absent arguments, then
    required arguments are checked.
 
@@ -183,7 +183,7 @@ is not part of it.
 
 ```json
 {
-  "program": "lunarstorm", "version": "0.1.0",
+  "program": "lunar", "version": "0.1.0",
   "options":  [ <arg> ],
   "commands": [ { "name", "about", "aliases", "default", "options_first", "runs",
                   "args": [ <arg> ], "commands": [ … ], "examples": [ … ] } ]
@@ -197,8 +197,8 @@ the parser uses.
 
 ## Completion
 
-`lunarstorm completions bash|zsh` prints a script. The script only forwards the words
-typed so far to the hidden `lunarstorm __complete <words…>`, which answers from the
+`lunar completions bash|zsh` prints a script. The script only forwards the words
+typed so far to the hidden `lunar __complete <words…>`, which answers from the
 live tree with:
 - the choices of the option before the cursor;
 - options, when the word starts with `-`;
@@ -209,7 +209,7 @@ dynamic, mounting a package never requires regenerating the script.
 
 ## External commands
 
-`lunarstorm foo args…` runs the first executable `lunarstorm-foo` on `PATH` when no
+`lunar foo args…` runs the first executable `lunarstorm-foo` on `PATH` when no
 mounted command is named `foo`, and returns its exit status. The top-level help lists
 the externals it finds. Externals own their own `--help`. With `_build/` on `PATH`,
 the platform binaries (`lunarstorm-pack`, `lunarstorm-web`, `lunarstorm-debug`, …) show
