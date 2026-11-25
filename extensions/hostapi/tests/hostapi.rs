@@ -3,7 +3,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use lunar_extension_hostapi::{Area, HostApi};
+use lunar_extension_hostapi::{Arg, Area, Function, HostApi};
 use lunarstorm_runtime::vm::{Call, Scope, Vm};
 use lunarstorm_runtime::{Access, Bindings, Host, Log, Manifest, Runtime, Source, Stream, Use};
 use lunarstorm_vm_quickjs::QuickJs;
@@ -13,6 +13,10 @@ struct Alpha;
 
 impl<V: Vm> Area<V> for Alpha {
     const NAME: &'static str = "alpha";
+
+    /// `name()`, described for the spec, with an optional repeated argument to show both flags.
+    const FUNCTIONS: &'static [Function] =
+        &[Function { name: "name", summary: "The area's name.", args: &[Arg { name: "suffix", optional: true, multiple: true }] }];
 
     /// # Returns
     /// A native and the module over it.
@@ -216,4 +220,19 @@ fn unknown_area_is_a_load_error() {
 fn an_area_outside_its_path_is_refused() {
     let run = run(r#"["stray"]"#, "");
     assert_eq!(run.start.as_deref(), Some("extension hostapi: area stray: module lunarstorm:hostapi/alpha is outside lunarstorm:hostapi/stray"));
+}
+
+#[test]
+fn spec_describes_every_offered_area() {
+    let spec = HostApi::<QuickJs, _>::new((Alpha, Beta, Stray)).spec();
+    assert_eq!(
+        spec,
+        serde_json::json!({"version": 1, "areas": [
+            {"name": "alpha", "module": "lunarstorm:hostapi/alpha", "functions": [
+                {"name": "name", "summary": "The area's name.", "args": [{"name": "suffix", "optional": true, "multiple": true}]}
+            ]},
+            {"name": "beta", "module": "lunarstorm:hostapi/beta", "functions": []},
+            {"name": "stray", "module": "lunarstorm:hostapi/stray", "functions": []}
+        ]})
+    );
 }

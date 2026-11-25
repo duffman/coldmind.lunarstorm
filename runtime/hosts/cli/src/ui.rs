@@ -7,7 +7,7 @@
 //! those stay with the host's own bindings ([`crate::host::bindings`]) because the
 //! Runtime's console reads `ops.color` whether or not the area is used.
 
-use lunar_extension_hostapi::Area;
+use lunar_extension_hostapi::{Arg, Area, Function};
 use lunarstorm_cliui::term;
 use lunarstorm_runtime::vm::{Call, Scope, Vm};
 use lunarstorm_runtime::{Bindings, Use};
@@ -20,6 +20,17 @@ pub struct Ui;
 
 impl<V: Vm> Area<V> for Ui {
     const NAME: &'static str = "ui";
+
+    /// The functions `ui.js` exports, for the HostApi spec. `style` is an object of
+    /// styling functions, not a call, so it is not listed.
+    const FUNCTIONS: &'static [Function] = &[
+        Function {
+            name: "progress",
+            summary: "Starts a progress bar; options total, label, width, bytes.",
+            args: &[Arg { name: "options", optional: true, multiple: false }],
+        },
+        Function { name: "spinner", summary: "Starts a spinner for work of unknown length.", args: &[Arg { name: "label", optional: true, multiple: false }] },
+    ];
 
     /// Builds the terminal natives and the module over them.
     ///
@@ -39,5 +50,24 @@ impl<V: Vm> Area<V> for Ui {
                 Ok(scope.undefined())
             })
             .module(MODULE, lunarstorm_cliui::UI_SOURCE))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Ui;
+    use lunar_extension_hostapi::HostApi;
+    use lunarstorm_vm_quickjs::QuickJs;
+
+    /// The spec names the area's module and its two functions with their optional argument.
+    #[test]
+    fn spec_lists_the_terminal_functions() {
+        let spec = HostApi::<QuickJs, _>::new((Ui,)).spec();
+        let area = &spec["areas"][0];
+        assert_eq!(area["module"], "lunarstorm:hostapi/ui");
+        let names: Vec<_> = area["functions"].as_array().unwrap().iter().map(|f| f["name"].as_str().unwrap().to_owned()).collect();
+        assert_eq!(names, ["progress", "spinner"]);
+        assert_eq!(area["functions"][1]["args"][0]["name"], "label");
+        assert_eq!(area["functions"][1]["args"][0]["optional"], true);
     }
 }
