@@ -325,7 +325,7 @@ impl Cli {
         let tagline = if path.len() == 1 { self.tagline.as_str() } else { leaf.about.as_str() };
         let brand = Brand { mark: &self.mark, version: &self.version, tagline };
         let sections = if path.len() == 1 {
-            help::top(&self.program, &tree.root, &tree.sections, &self.externals(&tree.root))
+            help::top(&self.program, &self.prefix, &tree.root, &tree.sections, &self.externals(&tree.root))
         } else {
             help::command(&self.program, path)
         };

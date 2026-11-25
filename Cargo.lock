@@ -3154,6 +3154,7 @@ dependencies = [
  "lunarstorm-cli-host",
  "lunarstorm-host-cli",
  "lunarstorm-pipeline",
+ "lunarstorm-project",
  "serde_json",
 ]
 
@@ -3313,6 +3314,19 @@ dependencies = [
  "tao",
  "tray-icon",
  "wry",
+]
+
+[[package]]
+name = "lunarstorm-project"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek",
+ "lunarstorm-cli-contract",
+ "lunarstorm-cli-host",
+ "lunarstorm-host-cli",
+ "lunarstorm-jbn",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

@@ -277,13 +277,34 @@ fn build(invocation: &mut Invocation) -> Result<i32, Failure> {
     let version = values.text("package-version").unwrap_or("0.0.0").to_owned();
     let release = values.int("release").and_then(|n| u64::try_from(n).ok()).ok_or_else(|| Failure::usage("--release must be a non-negative number"))?;
 
-    let mut runtime = Runtime::<QuickJs, CliHost>::new(CliHost::new(vec![String::from(ARGV0)]))
-        .map_err(|e| Failure::failed(format!("cannot create the event loop: {e}")))?;
-    runtime.register(host::bindings());
-    runtime.start().map_err(|e| Failure::failed(format!("bootstrap failed: {e}")))?;
-    let builder = runtime.package(&entry, &name, &version, release).map_err(Failure::failed)?;
+    let builder = compile(&entry, &name, &version, release).map_err(Failure::failed)?;
     let bytes = builder.build(&signer).map_err(|e| Failure::failed(e.to_string()))?;
     std::fs::write(&output, &bytes).map_err(|e| Failure::failed(format!("cannot write {}: {e}", output.display())))?;
     eprintln!("{}: {name} {version}, {} bytes", output.display(), bytes.len());
     Ok(0)
+}
+
+/// Compiles an entry and everything it imports to bytecode, on the same Runtime and
+/// host modules `run` uses, so a package links exactly as its sources would.
+///
+/// Decision: public so other command-line packages (`lunar project compile`) build
+/// packages through this one path instead of a Runtime of their own.
+///
+/// # Arguments
+/// * `entry` - the program's entry file.
+/// * `name` - the package name.
+/// * `version` - the package version.
+/// * `release` - the release number trust stores compare against.
+///
+/// # Returns
+/// The unsigned package, ready for `Builder::build` with a signer.
+///
+/// # Errors
+/// The event loop or bootstrap failed, or a module does not resolve or compile.
+pub fn compile(entry: &Path, name: &str, version: &str, release: u64) -> Result<lunarstorm_jbn::Builder, String> {
+    let mut runtime = Runtime::<QuickJs, CliHost>::new(CliHost::new(vec![String::from(ARGV0)]))
+        .map_err(|e| format!("cannot create the event loop: {e}"))?;
+    runtime.register(host::bindings());
+    runtime.start().map_err(|e| format!("bootstrap failed: {e}"))?;
+    runtime.package(entry, name, version, release)
 }
