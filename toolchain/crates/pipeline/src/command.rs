@@ -47,6 +47,12 @@ impl Package for BuildPackage {
     }
 
     /// # Returns
+    /// The pipeline's line on the top-level help screen.
+    fn headline(&self) -> &'static str {
+        "build desktop projects for the native host"
+    }
+
+    /// # Returns
     /// The `build` command tree.
     fn commands(&self) -> Vec<Command> {
         let project = Arg::option("project")

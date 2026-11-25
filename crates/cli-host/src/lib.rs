@@ -75,6 +75,23 @@ pub struct Tree {
     pub root: Command,
     /// The packages' extra help sections.
     pub sections: Vec<Section>,
+    /// One block per mounted package, in mount order, for the top-level help screen.
+    pub groups: Vec<Group>,
+}
+
+/// One package's block on the top-level help screen.
+///
+/// Decision: the top-level screen lists commands per package (title, headline, then a
+/// command / arguments / description table) so a reader sees which crate contributes
+/// what; the host's own commands and external programs get blocks of their own.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Group {
+    /// The block title, e.g. `RUNTIME`.
+    pub title: String,
+    /// One line next to the title; may be empty.
+    pub headline: String,
+    /// The names of the block's top-level commands, in help order.
+    pub commands: Vec<String>,
 }
 
 impl Cli {
@@ -155,8 +172,12 @@ impl Cli {
         let mut root = Command::new(&self.program, &self.tagline).arg(color);
         let mut owners: Vec<(String, &str)> = BUILTINS.iter().map(|name| ((*name).to_owned(), "the host")).collect();
         let mut sections = Vec::new();
+        let mut groups = Vec::new();
         for package in &self.packages {
+            let mut group =
+                Group { title: package.title().to_uppercase(), headline: package.headline().to_owned(), commands: Vec::new() };
             for command in package.commands() {
+                group.commands.push(command.name.clone());
                 for name in std::iter::once(&command.name).chain(&command.aliases) {
                     if let Some((_, owner)) = owners.iter().find(|(taken, _)| taken == name) {
                         return Err(format!("command '{name}' of package '{}' is already defined by {owner}", package.id()));
@@ -169,7 +190,13 @@ impl Cli {
                 root.children.push(command);
             }
             sections.extend(package.sections());
+            groups.push(group);
         }
+        groups.push(Group {
+            title: "LUNARSTORM".to_owned(),
+            headline: "built into the command line".to_owned(),
+            commands: BUILTINS[..3].iter().map(|name| (*name).to_owned()).collect(),
+        });
         // The built-ins' handlers are placeholders that make them runnable for the
         // parser; `act` answers them itself because they need the whole tree.
         // Fix: `lunarstorm help` reached the default command, which ran a script named
@@ -190,7 +217,7 @@ impl Cli {
         for child in &root.children {
             check(child, &[&root], &self.program)?;
         }
-        Ok(Tree { root, sections })
+        Ok(Tree { root, sections, groups })
     }
 
     /// Runs a command line to completion.
@@ -325,7 +352,7 @@ impl Cli {
         let tagline = if path.len() == 1 { self.tagline.as_str() } else { leaf.about.as_str() };
         let brand = Brand { mark: &self.mark, version: &self.version, tagline };
         let sections = if path.len() == 1 {
-            help::top(&self.program, &self.prefix, &tree.root, &tree.sections, &self.externals(&tree.root))
+            help::top(&self.program, &self.prefix, &tree.root, &tree.groups, &tree.sections, &self.externals(&tree.root))
         } else {
             help::command(&self.program, path)
         };

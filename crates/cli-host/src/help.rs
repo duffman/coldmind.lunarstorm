@@ -8,8 +8,14 @@ use lunarstorm_cli_contract::{Arg, ArgKind, Command, Section};
 use lunarstorm_cliui::screen::{self, Brand};
 use lunarstorm_cliui::term::Pen;
 
+use crate::Group;
+
 /// The host's rows for `--help` and `--version`, shown in every OPTIONS section.
 const HOST_OPTIONS: [(&str, &str); 2] = [("-h, --help", "print help"), ("-v, --version", "print the version")];
+
+/// One block of the top-level command table: its title and `(command, arguments,
+/// description)` rows.
+type Block = (String, Vec<(String, String, String)>);
 
 /// Renders owned sections with `lunarstorm-cliui`.
 ///
@@ -34,24 +40,62 @@ pub(crate) fn render(pen: Pen, brand: &Brand, sections: &[Section]) -> String {
 /// # Arguments
 /// * `program` - the program name, e.g. `lunarstorm`.
 /// * `root` - the host's root command.
+/// * `groups` - one block per package, then the host's own block.
 /// * `extra` - the packages' own sections.
 /// * `prefix` - the prefix of external commands, e.g. `lunarstorm`.
 /// * `externals` - names of `<prefix>-<name>` programs found on `PATH`.
 ///
 /// # Returns
 /// The sections.
-pub(crate) fn top(program: &str, prefix: &str, root: &Command, extra: &[Section], externals: &[String]) -> Vec<Section> {
+pub(crate) fn top(
+    program: &str,
+    prefix: &str,
+    root: &Command,
+    groups: &[Group],
+    extra: &[Section],
+    externals: &[String],
+) -> Vec<Section> {
     let mut usage = vec![(format!("{program} [options] <command> [args...]"), String::new())];
     if let Some(default) = root.children.iter().find(|child| child.default) {
         usage.push((format!("{program} {}", usage_tail(default)), String::new()));
     }
-    let mut commands = command_rows(root);
+    let mut blocks: Vec<Block> = groups
+        .iter()
+        .map(|group| {
+            let title = if group.headline.is_empty() { group.title.clone() } else { format!("{} — {}", group.title, group.headline) };
+            let rows = group
+                .commands
+                .iter()
+                .filter_map(|name| root.children.iter().find(|child| &child.name == name))
+                .map(|child| {
+                    let about = if child.default { format!("{} (default)", child.about) } else { child.about.clone() };
+                    (child.name.clone(), arguments(child), about)
+                })
+                .collect();
+            (title, rows)
+        })
+        .collect();
     // Fix: the label used the program name, so `lunar` listed `lunar-hello` for the
     // `lunarstorm-hello` it runs. Decision: label with the prefix the lookup uses.
-    commands.extend(externals.iter().map(|name| (name.clone(), format!("external: {prefix}-{name}"))));
-    let mut sections = vec![
-        ("USAGE".to_owned(), usage),
-        ("COMMANDS".to_owned(), commands),
+    blocks.push((
+        format!("EXTERNAL — {prefix}-<name> programs on PATH"),
+        externals.iter().map(|name| (name.clone(), String::new(), format!("runs {prefix}-{name}"))).collect(),
+    ));
+    // Decision: the screen renders two columns, so the command and arguments columns
+    // are joined here, padded to the widest in every block; the table then lines up
+    // across blocks. Changing `lunarstorm-cliui` to a third column was not needed.
+    let all = || blocks.iter().flat_map(|(_, rows)| rows);
+    let name_width = all().map(|(name, _, _)| name.chars().count()).max().unwrap_or(0);
+    let left_width = all().map(|(_, args, _)| name_width + 2 + args.chars().count()).max().unwrap_or(0) + 2;
+    let mut sections = vec![("USAGE".to_owned(), usage)];
+    for (title, rows) in &blocks {
+        let rows = rows
+            .iter()
+            .map(|(name, args, about)| (format!("{:<left_width$}", format!("{name:<name_width$}  {args}")), about.clone()))
+            .collect();
+        sections.push((title.clone(), rows));
+    }
+    sections.extend([
         ("OPTIONS".to_owned(), option_rows(&root.args.iter().collect::<Vec<_>>())),
         (
             "ENVIRONMENT".to_owned(),
@@ -60,7 +104,7 @@ pub(crate) fn top(program: &str, prefix: &str, root: &Command, extra: &[Section]
                 ("FORCE_COLOR".to_owned(), "0 off, 1 basic, 2 256 colors, 3 truecolor".to_owned()),
             ],
         ),
-    ];
+    ]);
     sections.extend(extra.iter().cloned());
     sections
 }
@@ -110,6 +154,20 @@ pub(crate) fn command(program: &str, path: &[&Command]) -> Vec<Section> {
 /// has children (in brackets when it also runs on its own).
 fn usage_tail(command: &Command) -> String {
     let mut parts = vec!["[options]".to_owned()];
+    parts.extend(operands(command));
+    parts.join(" ")
+}
+
+/// The words after a command's options in its usage line.
+///
+/// # Arguments
+/// * `command` - the command.
+///
+/// # Returns
+/// Its positionals' placeholders (optional ones in brackets), then `<command>` when it
+/// has children, in brackets when it also runs on its own.
+fn operands(command: &Command) -> Vec<String> {
+    let mut parts = Vec::new();
     for arg in &command.args {
         match arg.kind {
             ArgKind::Positional if !arg.required => parts.push(format!("[{}]", arg.shown_value())),
@@ -120,6 +178,24 @@ fn usage_tail(command: &Command) -> String {
     if !command.children.is_empty() {
         parts.push(if command.run.is_some() { "[<command>]".to_owned() } else { "<command>".to_owned() });
     }
+    parts
+}
+
+/// The arguments column of a top-level command row.
+///
+/// # Arguments
+/// * `command` - the command.
+///
+/// # Returns
+/// `[options]` when the command declares flags or options of its own, its
+/// positionals' placeholders (optional ones in brackets), and `<command>` when it has
+/// children (in brackets when it also runs on its own). Empty when it takes nothing.
+fn arguments(command: &Command) -> String {
+    let mut parts = Vec::new();
+    if command.args.iter().any(|arg| matches!(arg.kind, ArgKind::Flag | ArgKind::Option)) {
+        parts.push("[options]".to_owned());
+    }
+    parts.extend(operands(command));
     parts.join(" ")
 }
 

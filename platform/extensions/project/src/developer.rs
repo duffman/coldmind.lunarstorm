@@ -109,7 +109,7 @@ pub fn verify(root: &[u8; 32], developer: &str, expires: u64, public: &[u8; 32],
 /// # Errors
 /// An odd length or a non-hex digit.
 pub fn from_hex(text: &str) -> Result<Vec<u8>, String> {
-    if text.len() % 2 != 0 {
+    if !text.len().is_multiple_of(2) {
         return Err(String::from("hex has an odd length"));
     }
     (0..text.len())

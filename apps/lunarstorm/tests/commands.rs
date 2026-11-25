@@ -61,9 +61,28 @@ fn starter() -> PathBuf {
 fn top_help_lists_every_package_and_the_host_commands() {
     let (status, out, _) = run(&["--help"], None);
     assert_eq!(status, 0);
-    for part in ["COMMANDS", "run a script", "(default)", "build a desktop project", "describe", "completions", "MODULES"] {
+    for part in [
+        "RUNTIME — run and debug JavaScript on the Lunarstorm runtime",
+        "BUILD — build desktop projects for the native host",
+        "LUNARSTORM — built into the command line",
+        "run a script",
+        "(default)",
+        "build a desktop project",
+        "describe",
+        "completions",
+        "MODULES",
+    ] {
         assert!(out.contains(part), "missing {part:?} in {out}");
     }
+    // Each command row is a three-column table row: name, arguments, description, with
+    // the description column starting at the same place in every block.
+    let row = |name: &str| out.lines().find(|line| line.trim_start().starts_with(&format!("{name} "))).unwrap_or_default().to_owned();
+    let (run_row, build_row, help_row) = (row("run"), row("build"), row("help"));
+    assert!(build_row.contains("[options] [<command>]"), "{build_row}");
+    assert!(help_row.contains("<command>..."), "{help_row}");
+    let column = |line: &str, text: &str| line.find(text).unwrap_or_else(|| panic!("{text:?} not in {line:?}"));
+    assert_eq!(column(&run_row, "run a script"), column(&build_row, "build a desktop project"), "{out}");
+    assert_eq!(column(&run_row, "run a script"), column(&help_row, "print the help"), "{out}");
     let (status, out, _) = run(&["build", "--help"], None);
     assert_eq!(status, 0);
     for part in ["lunar build [options] [<command>]", "types", "check", "-p, --project <dir>", "[default: .]", "--color <when>"] {
@@ -155,7 +174,8 @@ fn unknown_commands_run_external_programs_from_path() {
     let (status, out, _) = run(&["hello", "a", "--b"], Some(&bin));
     assert_eq!((status, out.as_str()), (5, "hello a --b\n"));
     let (_, help, _) = run(&["--help"], Some(&bin));
-    assert!(help.contains("external: lunarstorm-hello"), "{help}");
+    assert!(help.contains("EXTERNAL — lunarstorm-<name> programs on PATH"), "{help}");
+    assert!(help.contains("runs lunarstorm-hello"), "{help}");
 }
 
 #[cfg(feature = "runtime")]

@@ -55,6 +55,12 @@ impl Package for RuntimePackage {
     }
 
     /// # Returns
+    /// The runtime's line on the top-level help screen.
+    fn headline(&self) -> &'static str {
+        "run and debug JavaScript on the Lunarstorm runtime"
+    }
+
+    /// # Returns
     /// The `run` command.
     fn commands(&self) -> Vec<Command> {
         vec![Command::new("run", "run a script, or code given with -e, on the Lunarstorm runtime")

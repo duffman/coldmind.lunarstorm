@@ -40,6 +40,12 @@ impl Package for FrontendPackage {
     }
 
     /// # Returns
+    /// The frontend tools' line on the top-level help screen.
+    fn headline(&self) -> &'static str {
+        "serve, bundle, preview and transpile web frontends"
+    }
+
+    /// # Returns
     /// The four commands.
     fn commands(&self) -> Vec<Command> {
         let root = || {

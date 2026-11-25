@@ -63,6 +63,8 @@ Every command has `--help`, and `lunar help <command>...` prints the same screen
 ```rust
 pub trait Package {
     fn id(&self) -> &'static str;              // "runtime", "build": used in mount errors
+    fn title(&self) -> &'static str { … }      // help block title, shown in capitals; the id by default
+    fn headline(&self) -> &'static str { … }   // one line next to the title; empty by default
     fn commands(&self) -> Vec<Command>;        // top-level commands, in help order
     fn sections(&self) -> Vec<Section> { … }   // extra top-level help sections (MODULES, …)
 }

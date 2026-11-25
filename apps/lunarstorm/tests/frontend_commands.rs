@@ -57,7 +57,8 @@ fn help_describes_each_command_and_exits_successfully() {
         ("preview", "--port"),
         ("transpile", "--sourcemap"),
     ] {
-        for args in [[name, "--help"]] {
+        {
+            let args = [name, "--help"];
             let output = Cli::spawn(&args, true).finish();
             assert_success(&output);
             assert!(output.stderr.is_empty(), "{}", output.stderr);
@@ -94,7 +95,8 @@ fn malformed_arguments_fail_without_starting_a_listener() {
 #[test]
 fn dev_and_shorthand_apply_native_config_without_javascript() {
     let project = native_project();
-    for args in [vec!["serve", project_arg(&project.0), "--no-watch"]] {
+    {
+        let args = vec!["serve", project_arg(&project.0), "--no-watch"];
         let mut process = Cli::spawn(&args, true);
         let address = process.ready();
         let page = get(address, "/");

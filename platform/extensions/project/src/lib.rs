@@ -48,6 +48,12 @@ impl Package for ProjectPackage {
     }
 
     /// # Returns
+    /// The project tools' line on the top-level help screen.
+    fn headline(&self) -> &'static str {
+        "create, inspect, compile and sign projects"
+    }
+
+    /// # Returns
     /// `project` with `init`, `insight`, `compile` and `sign`.
     fn commands(&self) -> Vec<Command> {
         let directory = || Arg::positional("dir").value(lunarstorm_cli_contract::ValueType::Path).default(".").about("the project directory");

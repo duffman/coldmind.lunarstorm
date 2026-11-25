@@ -63,6 +63,23 @@ pub trait Package {
     /// A short, stable, lowercase id.
     fn id(&self) -> &'static str;
 
+    /// Names the package's block on the top-level help screen.
+    ///
+    /// # Returns
+    /// The block's title, shown in capitals (`"runtime"` → `RUNTIME`); the id by
+    /// default.
+    fn title(&self) -> &'static str {
+        self.id()
+    }
+
+    /// Describes the package in one line, next to its title on the top-level help screen.
+    ///
+    /// # Returns
+    /// The headline; empty by default, which shows the title alone.
+    fn headline(&self) -> &'static str {
+        ""
+    }
+
     /// Describes the package's commands.
     ///
     /// # Returns
