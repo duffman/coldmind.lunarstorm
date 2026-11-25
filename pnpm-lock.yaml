@@ -296,6 +296,27 @@ importers:
         specifier: workspace:*
         version: link:../../../../framework/foundation/inject
 
+  toolchain/react/packages/devmode:
+    devDependencies:
+      '@happy-dom/global-registrator':
+        specifier: ^17.0.0
+        version: 17.6.3
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.3.0(@types/react@19.3.0)
+      happy-dom:
+        specifier: ^17.0.0
+        version: 17.6.3
+      react:
+        specifier: ^19.0.0
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.3.1(react@19.3.1)
+
   toolchain/react/packages/shell:
     devDependencies:
       '@happy-dom/global-registrator':
