@@ -2,9 +2,9 @@
 //! it shares with the standalone `lunarstorm-build` binary.
 //!
 //! ```text
-//! lunarstorm build [-p <dir>] [-o <dir>]     build the project into its output directory
-//! lunarstorm build [-p <dir>] types          write <project>/src/desktop.d.ts
-//! lunarstorm build [-p <dir>] check          extract the model and report compile errors
+//! lunar build [-p <dir>] [-o <dir>]     build the project into its output directory
+//! lunar build [-p <dir>] types          write <project>/src/desktop.d.ts
+//! lunar build [-p <dir>] check          extract the model and report compile errors
 //! ```
 //!
 //! Decisions:
@@ -78,9 +78,9 @@ impl Package for BuildPackage {
                 |invocation| Ok(write_types("lunarstorm", &invocation.context.require::<Target>()?.project)),
             ))
             .child(Command::new("check", "check the project's model and report compile errors; writes nothing").run(check))
-            .example("lunarstorm build -p templates/starters/desktop")
-            .example("lunarstorm build -p app -o out")
-            .example("lunarstorm build types -p app")]
+            .example("lunar build -p templates/starters/desktop")
+            .example("lunar build -p app -o out")
+            .example("lunar build types -p app")]
     }
 }
 

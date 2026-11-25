@@ -57,27 +57,27 @@ impl Package for FrontendPackage {
                 .arg(port("port; 0 selects a free one [default: 5173]"))
                 .arg(Arg::option("define").placeholder("<key=value>").about("compile-time JS expression; may be repeated"))
                 .arg(Arg::flag("no-watch").about("do not watch files"))
-                .example("lunarstorm serve ./app --port 5173")
+                .example("lunar serve ./app --port 5173")
                 .run(serve),
             Command::new("bundle", "bundle an HTML frontend into production JavaScript, CSS and assets")
                 .arg(root())
                 .arg(out("output directory, replaced on each bundle [default: config, then dist]"))
                 .arg(Arg::flag("no-minify").about("do not minify"))
-                .example("lunarstorm bundle ./app --out dist")
+                .example("lunar bundle ./app --out dist")
                 .run(bundle),
             Command::new("preview", "serve an existing bundle on loopback, including SPA routes; does not bundle first")
                 .arg(root())
                 .arg(out("the bundle directory [default: config, then dist]"))
                 .arg(port("port; 0 selects a free one").default("4173"))
-                .example("lunarstorm preview ./app --port 4173")
+                .example("lunar preview ./app --port 4173")
                 .run(preview),
             Command::new("transpile", "transpile one TS/TSX/JS/JSX module to JavaScript; no bundling, no type-checking")
                 .arg(Arg::positional("input").placeholder("<file|->").value(ValueType::Path).about("the module, or - for stdin").required())
                 .arg(Arg::option("out").short('o').placeholder("<file>").value(ValueType::Path).about("write JavaScript here [default: stdout; - also means stdout]"))
                 .arg(Arg::flag("sourcemap").about("external map with --out, inline map on stdout"))
                 .arg(Arg::option("loader").placeholder("<loader>").choices(&["ts", "tsx", "js", "jsx"]).about("syntax of stdin input [default: ts]"))
-                .example("lunarstorm transpile src/main.ts")
-                .example("lunarstorm transpile src/App.tsx --out dist/App.js --sourcemap")
+                .example("lunar transpile src/main.ts")
+                .example("lunar transpile src/App.tsx --out dist/App.js --sourcemap")
                 .example("cat src/main.ts | lunarstorm transpile - --loader ts")
                 .run(transpile_command),
         ]

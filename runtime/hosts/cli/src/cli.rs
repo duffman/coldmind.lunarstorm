@@ -63,20 +63,20 @@ impl Package for RuntimePackage {
             .arg(Arg::option("eval").short('e').placeholder("<code>").about("evaluate code as an ES module").ends_options())
             .arg(Arg::option("trust").placeholder("<trust.json>").env("LUNARSTORM_TRUST").about("signers a .jbn package may come from"))
             .arg(Arg::rest("script").placeholder("<file.js> [args...]").about("the script, then its own arguments (process.argv)"))
-            .example("lunarstorm server.js --port 8080")
-            .example("lunarstorm run -e 'console.log(process.version)'")
-            .example("lunarstorm run --trust trust.json app.jbn")
+            .example("lunar server.js --port 8080")
+            .example("lunar run -e 'console.log(process.version)'")
+            .example("lunar run --trust trust.json app.jbn")
             .run(run),
         Command::new("debug", "run a script under the debugger: Debug Adapter Protocol on stdin/stdout")
             .options_first()
             .arg(Arg::rest("script").placeholder("<file.js> [args...]").about("the script, then its own arguments (process.argv)"))
-            .example("lunarstorm debug server.js --port 8080")
+            .example("lunar debug server.js --port 8080")
             .run(debug),
         Command::new("jbn", "signed .jbn packages: compiled modules, run with `run --trust`")
             .child(
                 Command::new("key", "write a new Ed25519 signing key and print its trust file")
                     .arg(Arg::positional("file").placeholder("<key.der>").required().about("where to write the key (PKCS#8 DER); never overwritten"))
-                    .example("lunarstorm jbn key signing.der > trust.json")
+                    .example("lunar jbn key signing.der > trust.json")
                     .run(key),
             )
             .child(
@@ -87,7 +87,7 @@ impl Package for RuntimePackage {
                     .arg(Arg::option("name").placeholder("<name>").about("package name (default: the entry's directory name)"))
                     .arg(Arg::option("package-version").placeholder("<version>").default("0.0.0").about("package version (`--version` is the host's)"))
                     .arg(Arg::option("release").placeholder("<n>").default("1").about("release sequence number"))
-                    .example("lunarstorm jbn build src/main.ts -o app.jbn --key signing.der")
+                    .example("lunar jbn build src/main.ts -o app.jbn --key signing.der")
                     .run(build),
             )]
     }
