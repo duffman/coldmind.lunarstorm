@@ -16,8 +16,8 @@
 //! - Checks for optional abilities run only when [`Vm::capabilities`] reports them.
 
 use crate::{
-    Callbacks, Context, ErrorKind, Image, Instance, Kind, Limits, Load, ModuleMeta, ModuleSource, Scope, Vm,
-    CONTRACT_VERSION,
+    Callbacks, ClassSpec, Context, ErrorKind, Image, Instance, Kind, Limits, Load, ModuleMeta, ModuleSource, Param, Scope,
+    Sig, Ty, Vm, CONTRACT_VERSION,
 };
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -183,8 +183,13 @@ pub fn run<V: Vm>() -> usize {
         bytecode::<V>,
         rejections::<V>,
         host_objects::<V>,
+        class_subclass::<V>,
+        class_extends_builtin::<V>,
+        class_members::<V>,
+        promises::<V>,
         limits::<V>,
         interrupts::<V>,
+        declared_types::<V>,
     ];
     for run in checks {
         run();
@@ -507,6 +512,207 @@ fn host_objects<V: Vm>() {
     check("the finalizer runs when the object is collected", finalized.get());
 }
 
+/// Evaluates a script and returns its completion as text, panicking with the
+/// thrown message when it throws.
+///
+/// # Arguments
+/// * `scope` - the scope.
+/// * `source` - the script; its completion value must be a string.
+///
+/// # Returns
+/// The text.
+fn eval_text<'s, V: Vm>(scope: &V::Scope<'s>, source: &str) -> String {
+    match scope.eval(source) {
+        Ok(value) => text::<V>(scope, &value),
+        Err(_) => {
+            let thrown = scope.exception();
+            let message = scope.get(&thrown, "message").ok().and_then(|m| scope.with_str(&m, str::to_owned).ok());
+            panic!("conformance: script threw {message:?}: {source}")
+        }
+    }
+}
+
+/// A native base class `Counter`: data is the first argument as a number,
+/// `get()` reads it back through `this`.
+///
+/// # Arguments
+/// * `scope` - the scope.
+///
+/// # Returns
+/// The constructor.
+fn counter_class<'s, V: Vm>(scope: &V::Scope<'s>) -> V::Value<'s> {
+    let get = scope
+        .function("get", |call| {
+            let scope = call.scope();
+            match scope.host_data(call.this(), |count: &f64| *count) {
+                Some(count) => Ok(scope.number(count)),
+                None => Err(scope.throw_error(ErrorKind::Type, "not a Counter")),
+            }
+        })
+        .expect("conformance: function");
+    let spec = ClassSpec::<V>::new("Counter").method("get", get);
+    scope
+        .class(spec, |call| Ok(call.args().first().and_then(|arg| call.scope().as_number(arg)).unwrap_or(0.0)))
+        .expect("conformance: class")
+}
+
+/// Decisive for native classes: a JS class extends a native one, calls `super()`,
+/// and reaches both its own and the native methods and the instance's host data.
+fn class_subclass<V: Vm>() {
+    let (instance, _) = boot::<V>(&Limits::default());
+    let context = instance.context().expect("conformance: context creation");
+    context.enter(|scope| {
+        let counter = counter_class::<V>(&scope);
+        scope.set(&scope.global(), "Counter", counter).expect("conformance: set");
+        eval::<V>(&scope, "globalThis.Sub = class Sub extends Counter { constructor(n) { super(n + 1); this.own = 'own'; } twice() { return this.get() * 2; } }");
+        let report = eval_text::<V>(
+            &scope,
+            "const s = new Sub(4); [s.twice(), s.get(), s.own, s instanceof Sub, s instanceof Counter, Object.getPrototypeOf(Sub.prototype) === Counter.prototype, new Counter(3).get(), Counter.name].join()",
+        );
+        check("a JS subclass of a native class works", report == "10,5,own,true,true,true,3,Counter");
+        let sub = eval::<V>(&scope, "s");
+        check("host data is attached to a subclass instance", scope.host_data(&sub, |count: &f64| *count) == Some(5.0));
+        let foreign = eval_text::<V>(&scope, "try { Counter.prototype.get.call({}); 'no throw' } catch (e) { e.name }");
+        check("a native method rejects a foreign this", foreign == "TypeError");
+    });
+}
+
+/// Decisive for native classes: a native class extends `Uint8Array`; instances
+/// are real byte arrays and carry the native prototype methods and host data.
+fn class_extends_builtin<V: Vm>() {
+    let (instance, _) = boot::<V>(&Limits::default());
+    let context = instance.context().expect("conformance: context creation");
+    context.enter(|scope| {
+        let uint8 = eval::<V>(&scope, "Uint8Array");
+        let sum = scope
+            .function("sum", |call| {
+                let scope = call.scope();
+                let total = scope.with_bytes(call.this(), |bytes| bytes.iter().map(|b| f64::from(*b)).sum::<f64>())?;
+                let tag = scope.host_data(call.this(), |tag: &&'static str| *tag).unwrap_or("none");
+                let tagged = format!("{tag}:{total}");
+                scope.string(&tagged)
+            })
+            .expect("conformance: function");
+        let spec = ClassSpec::<V>::new("Bytes").extends(uint8).method("sum", sum);
+        let bytes = scope.class(spec, |_| Ok("tag")).expect("conformance: class");
+        scope.set(&scope.global(), "Bytes", bytes).expect("conformance: set");
+        let report = eval_text::<V>(
+            &scope,
+            "const b = new Bytes(3); b[1] = 7; b[2] = 300; [b.length, b[1], b[2], b instanceof Uint8Array, b instanceof Bytes, ArrayBuffer.isView(b), b.sum(), Object.getPrototypeOf(Bytes.prototype) === Uint8Array.prototype, Object.getOwnPropertySymbols(b).length, Object.keys(b).join('')].join()",
+        );
+        check("a native class extending Uint8Array makes real byte arrays", report == "3,7,44,true,true,true,tag:51,true,0,012");
+        let made = eval::<V>(&scope, "b");
+        check("a byte-array instance is Bytes to the contract", scope.kind(&made) == Kind::Bytes);
+        check("a byte-array instance carries host data", scope.host_data(&made, |tag: &&'static str| *tag) == Some("tag"));
+        let from = eval_text::<V>(&scope, "const f = new Bytes([1, 2]); f.sum()");
+        check("the base receives the constructor arguments", from == "tag:3");
+        let deeper = eval_text::<V>(
+            &scope,
+            "class Buf extends Bytes { hex() { return Array.from(this, (x) => x.toString(16)).join(''); } } const d = new Buf([10, 11]); [d.hex(), d.sum(), d instanceof Uint8Array, d.subarray(1).length].join()",
+        );
+        check("a JS subclass of a native Uint8Array class works", deeper == "ab,tag:21,true,1");
+    });
+}
+
+/// Native class members and call shape: `this` and `new.target`, accessors,
+/// statics, the refusal of a call without `new`, and a native class extending
+/// another one with both data kept.
+fn class_members<V: Vm>() {
+    let (instance, _) = boot::<V>(&Limits::default());
+    let context = instance.context().expect("conformance: context creation");
+    context.enter(|scope| {
+        let receiver = scope
+            .function("receiver", |call| {
+                let scope = call.scope();
+                let same = scope.identity(call.this()) == scope.identity(&scope.global());
+                let plain = scope.kind(call.new_target()) == Kind::Undefined;
+                Ok(scope.boolean(plain && !same && scope.kind(call.this()) == Kind::Object))
+            })
+            .expect("conformance: function");
+        scope.set(&scope.global(), "receiver", receiver).expect("conformance: set");
+        check("a native method sees this and no new.target", eval_text::<V>(&scope, "String({ receiver }.receiver())") == "true");
+        let value = scope
+            .function("value", |call| {
+                let scope = call.scope();
+                Ok(scope.number(scope.host_data(call.this(), |cell: &Cell<f64>| cell.get()).unwrap_or(f64::NAN)))
+            })
+            .expect("conformance: function");
+        let assign = scope
+            .function("value", |call| {
+                let scope = call.scope();
+                let next = call.args().first().and_then(|arg| scope.as_number(arg)).unwrap_or(0.0);
+                scope.host_data(call.this(), |cell: &Cell<f64>| cell.set(next));
+                Ok(scope.undefined())
+            })
+            .expect("conformance: function");
+        let origin = scope.function("origin", |call| Ok(call.scope().int(7))).expect("conformance: function");
+        let spec = ClassSpec::<V>::new("Point")
+            .accessor("value", Some(value), Some(assign))
+            .static_member("origin", origin)
+            .static_member("dimensions", scope.int(2));
+        let point = scope
+            .class(spec, |call| {
+                let scope = call.scope();
+                // `this` is the new instance and `new.target` the constructor `new` was
+                // applied to; both are recorded on the instance for the script to check.
+                scope.set(call.this(), "target", call.new_target().clone())?;
+                Ok(Cell::new(call.args().first().and_then(|arg| scope.as_number(arg)).unwrap_or(0.0)))
+            })
+            .expect("conformance: class");
+        scope.set(&scope.global(), "Point", point).expect("conformance: set");
+        let report = eval_text::<V>(
+            &scope,
+            "const p = new Point(3); const first = p.value; p.value = 9; class Q extends Point {} const q = new Q(1); [first, p.value, p.target === Point, q.target === Q, q.value, Point.origin(), Q.origin(), Point.dimensions, Object.keys(p).join('|'), Object.getOwnPropertyNames(Point.prototype).sort().join('|')].join()",
+        );
+        check("accessors, statics, this and new.target", report == "3,9,true,true,1,7,7,2,target,constructor|value");
+        let plain = eval_text::<V>(&scope, "try { Point(1); 'no throw' } catch (e) { e.name }");
+        check("calling a native class without new throws a TypeError", plain == "TypeError");
+        let named = scope.class(ClassSpec::<V>::new("Named").extends(scope.int(1)), |_| Ok(()));
+        check("extending a non-constructor throws", named.is_err());
+        let thrown = scope.exception();
+        check("extending a non-constructor throws a TypeError", text::<V>(&scope, &scope.get(&thrown, "name").expect("conformance: name")) == "TypeError");
+        let base = scope.class(ClassSpec::<V>::new("Base"), |_| Ok(1u8)).expect("conformance: class");
+        let derived = scope.class(ClassSpec::<V>::new("Derived").extends(base), |_| Ok(2u16)).expect("conformance: class");
+        scope.set(&scope.global(), "Derived", derived).expect("conformance: set");
+        let both = eval::<V>(&scope, "new Derived()");
+        check("a native subclass of a native class keeps both data", scope.host_data(&both, |a: &u8| *a) == Some(1) && scope.host_data(&both, |b: &u16| *b) == Some(2));
+    });
+}
+
+/// A host-made promise settles from Rust: fulfilled and rejected, observed by JS
+/// reactions only after jobs run; a second settle is ignored.
+fn promises<V: Vm>() {
+    let (instance, seen) = boot::<V>(&Limits::default());
+    let context = instance.context().expect("conformance: context creation");
+    let (resolve, reject) = context.enter(|scope| {
+        let (fulfilled, resolve) = scope.promise().expect("conformance: promise");
+        let (rejected, reject) = scope.promise().expect("conformance: promise");
+        scope.set(&scope.global(), "fulfilled", fulfilled).expect("conformance: set");
+        scope.set(&scope.global(), "rejected", rejected).expect("conformance: set");
+        eval::<V>(&scope, "globalThis.log = []; fulfilled.then((v) => log.push('ok:' + v)); rejected.catch((e) => log.push('err:' + e.message));");
+        while scope.run_job() {}
+        check("a host promise starts pending", eval_text::<V>(&scope, "log.join()").is_empty());
+        (resolve, reject)
+    });
+    // Settled from a later scope through the persistent resolvers.
+    context.enter(|scope| {
+        scope.settle(&resolve, Ok(scope.int(5))).expect("conformance: settle");
+        let error = scope.error(ErrorKind::Error, "no").expect("conformance: error");
+        scope.settle(&reject, Err(error)).expect("conformance: settle");
+        check("settling runs no reaction by itself", eval_text::<V>(&scope, "log.join()").is_empty());
+        while scope.run_job() {}
+        check("settled promises run their reactions as jobs", eval_text::<V>(&scope, "log.join()") == "ok:5,err:no");
+        scope.settle(&resolve, Ok(scope.int(6))).expect("conformance: settle");
+        while scope.run_job() {}
+        check("a second settle is ignored", eval_text::<V>(&scope, "log.join()") == "ok:5,err:no");
+        let stranger = scope.persist(&scope.object().expect("conformance: object"));
+        check("settle refuses a handle that is not a resolver", scope.settle(&stranger, Ok(scope.undefined())).is_err());
+        scope.exception();
+    });
+    check("a handled host rejection is not reported", seen.rejections.borrow().is_empty());
+    drop((resolve, reject));
+}
+
 /// Memory limits make allocation fail instead of growing without bound.
 fn limits<V: Vm>() {
     if !V::capabilities().memory_limits {
@@ -541,3 +747,37 @@ fn interrupts<V: Vm>() {
         seen.interrupt.set(false);
     });
 }
+
+/// Declared types check the adapter's values: kinds, optionals, unions, and a
+/// signature naming the first parameter that does not fit.
+fn declared_types<V: Vm>() {
+    let (instance, _) = boot::<V>(&Limits::default());
+    let context = instance.context().expect("conformance: context creation");
+    context.enter(|scope| {
+        let text = scope.string("x").expect("conformance: string");
+        let bytes = scope.bytes_copy(&[1]).expect("conformance: bytes");
+        let function = eval::<V>(&scope, "(() => 1)");
+        check("a string is a string", Ty::String.check::<V>(&scope, &text).is_ok());
+        check("a number is not a string", Ty::String.check::<V>(&scope, &scope.int(1)) == Err(String::from("string")));
+        check("a Uint8Array is bytes", Ty::Bytes.check::<V>(&scope, &bytes).is_ok());
+        check("a function is a function", Ty::Function(&SIG).check::<V>(&scope, &function).is_ok());
+        check("undefined fits an optional", Ty::Optional(&Ty::Number).check::<V>(&scope, &scope.undefined()).is_ok());
+        check("a union names its members", Ty::Union(&[Ty::String, Ty::Bytes]).check::<V>(&scope, &scope.null()) == Err(String::from("string | Uint8Array")));
+        check("a full call fits", SIG.check::<V>(&scope, &[scope.int(1), text.clone()]).is_ok());
+        check("a missing argument is undefined", SIG.check::<V>(&scope, &[scope.int(1)]) == Err(String::from("name must be string | Uint8Array")));
+        check("a mistyped argument is named", SIG.check::<V>(&scope, &[text, scope.int(1)]) == Err(String::from("count must be number")));
+        check("extra arguments meet the rest type", SIG.check::<V>(&scope, &[scope.int(1), bytes.clone(), scope.int(2)]) == Err(String::from("flags must be boolean | undefined")));
+        check("extra arguments that fit pass", SIG.check::<V>(&scope, &[scope.int(1), bytes, scope.boolean(true), scope.undefined()]).is_ok());
+    });
+}
+
+/// The signature [`declared_types`] checks calls against.
+const SIG: Sig = Sig {
+    params: &[
+        Param { name: "count", ty: Ty::Number, about: "" },
+        Param { name: "name", ty: Ty::Union(&[Ty::String, Ty::Bytes]), about: "" },
+    ],
+    rest: Some(Param { name: "flags", ty: Ty::Optional(&Ty::Bool), about: "" }),
+    returns: Ty::Undefined,
+    about: "",
+};

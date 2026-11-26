@@ -50,8 +50,8 @@ pub use fs::{Fs, MAX_TEXT};
 /// installed. Two hand-kept lists were rejected.
 pub type Areas = (Fs,);
 
-use lunarstorm_runtime::vm::{Call, Interrupt, Limits, Outcome, Scope, Thrown, Vm};
 use lunar_extension_hostapi::HostApi;
+use lunarstorm_runtime::vm::{Call, Interrupt, Limits, Outcome, Param, Scope, Sig, Thrown, Ty, Vm};
 use lunarstorm_runtime::{Access, Bindings, Entry, Host, Log, Manifest, Poster, Runtime, Source, Stream, Wait};
 use lunarstorm_vm_quickjs::QuickJs;
 use std::cell::{Cell, RefCell};
@@ -433,6 +433,59 @@ fn text(call: &Call<'_, Engine>, index: usize) -> Outcome<String> {
     }
 }
 
+/// Shorthand for a [`Sig`] of the backend natives: no rest parameter.
+///
+/// # Arguments
+/// * `params` - the parameters.
+/// * `returns` - the result.
+/// * `about` - one line.
+///
+/// # Returns
+/// The signature.
+const fn sig(params: &'static [Param], returns: Ty, about: &'static str) -> Sig {
+    Sig { params, rest: None, returns, about }
+}
+
+/// `desktopSend(json)`.
+const SEND: Sig = sig(&[Param { name: "json", ty: Ty::String, about: "the envelope as JSON" }], Ty::Undefined, "Sends an envelope to the desktop process.");
+/// `desktopNative(id, namespace, method, args)`.
+const NATIVE: Sig = sig(
+    &[
+        Param { name: "id", ty: Ty::Number, about: "the call id the result settles" },
+        Param { name: "namespace", ty: Ty::String, about: "the native API's namespace" },
+        Param { name: "method", ty: Ty::String, about: "the method" },
+        Param { name: "args", ty: Ty::String, about: "the arguments as a JSON array" },
+    ],
+    Ty::Undefined,
+    "Starts a native call; the result arrives through the settle hook.",
+);
+/// `desktopError(text)`.
+const ERROR: Sig = sig(&[Param { name: "text", ty: Ty::String, about: "the formatted error" }], Ty::Undefined, "Reports a handler error.");
+/// `desktopRestore()`.
+const RESTORE: Sig = sig(&[], Ty::String, "The control values carried over from the previous instance, as JSON.");
+/// `desktopSpec()`.
+const SPEC: Sig = sig(&[], Ty::String, "The host's HostApi spec, as JSON.");
+/// `desktopWork(id, method, args)`.
+const WORK: Sig = sig(
+    &[
+        Param { name: "id", ty: Ty::Number, about: "the call id the result settles" },
+        Param { name: "method", ty: Ty::String, about: "`<area>.<function>`" },
+        Param { name: "args", ty: Ty::String, about: "the arguments as a JSON array" },
+    ],
+    Ty::Undefined,
+    "Starts an area job on a worker thread.",
+);
+/// `desktopHooks(dispatch, settle)`. The hooks' own parameters are the glue's
+/// business; only their callability is checked.
+const HOOKS_SIG: Sig = sig(
+    &[
+        Param { name: "dispatch", ty: Ty::Function(&sig(&[], Ty::Undefined, "")), about: "delivers one envelope (JSON) from the desktop process" },
+        Param { name: "settle", ty: Ty::Function(&sig(&[], Ty::Undefined, "")), about: "settles a native call: (id, ok, json)" },
+    ],
+    Ty::Undefined,
+    "Hands the host the glue's two hooks.",
+);
+
 /// The bindings of one backend instance: the natives behind the glue, the glue
 /// and the two modules a backend imports.
 ///
@@ -457,34 +510,34 @@ fn text(call: &Call<'_, Engine>, index: usize) -> Outcome<String> {
 fn bindings<S: Shell>(shell: &Arc<S>, epoch: u64, restore: String, work: Work) -> Bindings<Engine> {
     let (send, native, error, worker) = (shell.clone(), shell.clone(), shell.clone(), shell.clone());
     Bindings::new()
-        .function("desktopSend", move |call: &Call<'_, Engine>| {
+        .function("desktopSend", SEND, move |call: &Call<'_, Engine>| {
             send.send(epoch, &text(call, 0)?);
             Ok(call.scope().undefined())
         })
-        .function("desktopNative", move |call: &Call<'_, Engine>| {
+        .function("desktopNative", NATIVE, move |call: &Call<'_, Engine>| {
             let scope = call.scope();
             let id = call.args().first().and_then(|id| scope.as_number(id)).unwrap_or(0.0) as u64;
             native.native(epoch, id, &text(call, 1)?, &text(call, 2)?, &text(call, 3)?);
             Ok(scope.undefined())
         })
-        .function("desktopError", move |call: &Call<'_, Engine>| {
+        .function("desktopError", ERROR, move |call: &Call<'_, Engine>| {
             error.error(epoch, &text(call, 0)?);
             Ok(call.scope().undefined())
         })
-        .function("desktopRestore", move |call: &Call<'_, Engine>| call.scope().string(&restore))
-        .function("desktopSpec", |call: &Call<'_, Engine>| {
+        .function("desktopRestore", RESTORE, move |call: &Call<'_, Engine>| call.scope().string(&restore))
+        .function("desktopSpec", SPEC, |call: &Call<'_, Engine>| {
             /// The spec's text, built once per process.
             static TEXT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
             call.scope().string(TEXT.get_or_init(|| spec().to_string()))
         })
-        .function("desktopWork", move |call: &Call<'_, Engine>| {
+        .function("desktopWork", WORK, move |call: &Call<'_, Engine>| {
             let scope = call.scope();
             let id = call.args().first().and_then(|id| scope.as_number(id)).unwrap_or(0.0) as u64;
             let (method, args) = (text(call, 1)?, text(call, 2)?);
             work.start(&worker, epoch, id, &method, args);
             Ok(scope.undefined())
         })
-        .function("desktopHooks", |call: &Call<'_, Engine>| {
+        .function("desktopHooks", HOOKS_SIG, |call: &Call<'_, Engine>| {
             let scope = call.scope();
             if let [dispatch, settle, ..] = call.args() {
                 let hooks = Hooks { dispatch: scope.persist(dispatch), settle: scope.persist(settle) };

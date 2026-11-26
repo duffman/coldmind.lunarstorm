@@ -29,7 +29,7 @@
 //!   (`debug_hooks`; [`Instance::debug`] and the `debug_*` hooks).
 
 use lunarstorm_vm::{
-    Call, Callbacks, Capabilities, Context, Descriptor, ErrorKind, Heap, Instance, Interrupt, Kind, Limits, Load,
+    Call, Callbacks, Capabilities, ClassSpec, Context, Descriptor, ErrorKind, Heap, Instance, Interrupt, Kind, Limits, Load,
     ModuleSource, Outcome, Scope, Thrown, Vm, CONTRACT_VERSION,
 };
 use rquickjs::class::{JsClass, Readable, Trace, Tracer};
@@ -46,13 +46,26 @@ unsafe extern "C" {
     /// # Returns
     /// `true` once after `JS_ThrowOutOfMemory`, then `false` until the next one.
     fn JS_JetbunnyTakeOutOfMemory(rt: *mut qjs::JSRuntime) -> bool;
+
+    /// Creates a symbol only C code can see (`quickjs.h`): properties keyed by it
+    /// are absent from every JS reflection API. Upstream QuickJS-ng API that the
+    /// vendored binding files do not bind.
+    ///
+    /// # Arguments
+    /// * `ctx` - the context.
+    /// * `description` - NUL-terminated description.
+    ///
+    /// # Returns
+    /// The symbol, or the exception sentinel when allocation fails.
+    fn JS_NewPrivateSymbol(ctx: *mut qjs::JSContext, description: *const std::ffi::c_char) -> qjs::JSValue;
 }
 use rquickjs::function::{Constructor, IntoJsFunc, ParamRequirement, Params};
 use rquickjs::loader::{ImportAttributes, Loader, Resolver};
 use rquickjs::module::{Declarations, Declared, ModuleDef};
 use rquickjs::runtime::RejectionTracker;
+use rquickjs::object::Property;
 use rquickjs::{
-    qjs, Array, Class, Ctx, Error, Exception, Function, JsLifetime, Module, Object, Persistent,
+    qjs, Array, Atom, Class, Ctx, Error, Exception, Function, JsLifetime, Module, Object, Persistent,
     String as JsString, Type, TypedArray, Value, WriteOptions,
 };
 use lunarstorm_debug::debug::{DebugLimits, DebugSessionOptions, VmDebugHandle};
@@ -588,34 +601,269 @@ where
     /// `Error::Exception` when the closure reports [`Thrown`].
     #[inline]
     fn call<'a>(&self, params: Params<'a, 'js>) -> rquickjs::Result<Value<'js>> {
-        let count = params.len();
-        let result = if count <= INLINE_ARGS {
-            let mut slots = [const { MaybeUninit::<Value<'js>>::uninit() }; INLINE_ARGS];
-            for (index, slot) in slots.iter_mut().enumerate().take(count) {
-                slot.write(params.arg(index).unwrap_or_else(|| Value::new_undefined(params.ctx().clone())));
-            }
-            // SAFETY: the first `count` slots were just initialized, and
-            // `MaybeUninit<T>` has the layout of `T`.
-            let args = unsafe { std::slice::from_raw_parts(slots.as_ptr().cast::<Value<'js>>(), count) };
-            // SAFETY: `params` and `slots` outlive this call of the closure.
-            let result = (self.0)(&unsafe { Call::new(params.ctx(), args) });
-            for slot in &mut slots[..count] {
-                // SAFETY: initialized above and not used again.
-                unsafe { slot.assume_init_drop() };
-            }
-            result
-        } else {
-            let args: Vec<Value<'js>> = (0..count).filter_map(|index| params.arg(index)).collect();
-            // SAFETY: `params` and `args` outlive this call of the closure.
-            (self.0)(&unsafe { Call::new(params.ctx(), &args) })
-        };
-        result.map_err(|Thrown| Error::Exception)
+        let this = params.this();
+        // Plain functions are not constructors (no constructor bit), so `new.target`
+        // is always undefined here.
+        let new_target = Value::new_undefined(params.ctx().clone());
+        // SAFETY: `params`, `this`, `new_target` and the lent arguments outlive this
+        // call of the closure.
+        with_args(&params, |args| (self.0)(&unsafe { Call::new(params.ctx(), &this, &new_target, args) }))
+            .map_err(|Thrown| Error::Exception)
     }
 }
 
-/// The one class behind every host object: an owned, type-erased Rust value.
-/// Dropping it is the finalizer.
-struct HostBox(Box<dyn Any>);
+/// Lends a call's arguments to a closure as a slice, from a stack array of
+/// [`INLINE_ARGS`] slots; only longer calls allocate.
+///
+/// # Arguments
+/// * `params` - the engine's view of the call.
+/// * `f` - receives the arguments.
+///
+/// # Returns
+/// The closure's result.
+#[inline]
+fn with_args<'js, R>(params: &Params<'_, 'js>, f: impl FnOnce(&[Value<'js>]) -> R) -> R {
+    let count = params.len();
+    if count <= INLINE_ARGS {
+        let mut slots = [const { MaybeUninit::<Value<'js>>::uninit() }; INLINE_ARGS];
+        for (index, slot) in slots.iter_mut().enumerate().take(count) {
+            slot.write(params.arg(index).unwrap_or_else(|| Value::new_undefined(params.ctx().clone())));
+        }
+        // SAFETY: the first `count` slots were just initialized, and
+        // `MaybeUninit<T>` has the layout of `T`.
+        let args = unsafe { std::slice::from_raw_parts(slots.as_ptr().cast::<Value<'js>>(), count) };
+        let result = f(args);
+        for slot in &mut slots[..count] {
+            // SAFETY: initialized above and not used again.
+            unsafe { slot.assume_init_drop() };
+        }
+        result
+    } else {
+        let args: Vec<Value<'js>> = (0..count).filter_map(|index| params.arg(index)).collect();
+        f(&args)
+    }
+}
+
+/// The constructor of a native class ([`Scope::class`]).
+struct ClassConstructor<T, F> {
+    /// The user's constructor: returns the instance data.
+    f: F,
+    /// The class name, for the "without new" error.
+    name: String,
+    /// Whether the class has a base that builds its instances.
+    derived: bool,
+    /// The data type the constructor returns.
+    data: std::marker::PhantomData<fn() -> T>,
+}
+
+impl<'js, T, F> IntoJsFunc<'js, ()> for ClassConstructor<T, F>
+where
+    T: 'static,
+    F: for<'a> Fn(&Call<'a, QuickJs>) -> Outcome<T> + 'static,
+{
+    /// # Returns
+    /// "Any number of arguments": the constructor checks what it needs.
+    fn param_requirements() -> ParamRequirement {
+        ParamRequirement::any()
+    }
+
+    /// Builds an instance: refuses a call without `new`, makes the object with the
+    /// prototype of `new.target` (or lets the base make it), runs the user's
+    /// constructor and attaches its data.
+    ///
+    /// Decision: a derived class reads its base from its own `[[Prototype]]` at
+    /// construction time, which is where JS's `super()` looks too, instead of
+    /// keeping a persistent handle to the base in the closure; a persistent here
+    /// would be an untraced root held by a GC-managed function.
+    ///
+    /// # Arguments
+    /// * `params` - the engine's view of the call; `this` is `new.target`.
+    ///
+    /// # Returns
+    /// The instance.
+    ///
+    /// # Errors
+    /// A `TypeError` without `new` or with a base that is not a constructor; any
+    /// exception from the base or the user's constructor.
+    fn call<'a>(&self, params: Params<'a, 'js>) -> rquickjs::Result<Value<'js>> {
+        let ctx = params.ctx().clone();
+        if !params.is_constructor() {
+            return Err(Exception::throw_type(&ctx, &format!("Class constructor {} cannot be invoked without 'new'", self.name)));
+        }
+        let new_target = params.this();
+        let class = params.function().into_object().ok_or(Error::Unknown)?;
+        let this = with_args(&params, |args| -> rquickjs::Result<Value<'js>> {
+            if self.derived {
+                let base = class.get_prototype().and_then(|base| base.into_value().into_function()).filter(Function::is_constructor);
+                let Some(base) = base else {
+                    return Err(Exception::throw_type(&ctx, "Super constructor is not a constructor"));
+                };
+                let mut raw: Vec<qjs::JSValue> = args.iter().map(Value::as_raw).collect();
+                // SAFETY: the context, base, new.target and arguments are live for the
+                // whole call; the result is owned by us unless it is the sentinel.
+                unsafe {
+                    let made = qjs::JS_CallConstructor2(ctx.as_raw().as_ptr(), base.as_raw(), new_target.as_raw(), raw.len() as _, raw.as_mut_ptr());
+                    if qjs::JS_IsException(made) {
+                        return Err(Error::Exception);
+                    }
+                    Ok(Value::from_raw(ctx.clone(), made))
+                }
+            } else {
+                // `new.target.prototype`, falling back to the class's own when it is
+                // not an object (GetPrototypeFromConstructor).
+                let proto = match new_target.as_object().map(|target| target.get::<_, Value<'js>>("prototype")).transpose()?.and_then(Value::into_object) {
+                    Some(proto) => proto,
+                    None => class.get::<_, Object<'js>>("prototype")?,
+                };
+                Ok(Class::instance_proto(HostBox::default(), proto)?.into_value())
+            }
+        })?;
+        let data = with_args(&params, |args| (self.f)(&unsafe { Call::new(&ctx, &this, &new_target, args) }))
+            .map_err(|Thrown| Error::Exception)?;
+        attach(&ctx, &this, Box::new(data))?;
+        Ok(this)
+    }
+}
+
+/// Attaches one native class's data to an instance: into the instance itself when
+/// it is a host object, else into a host object hung off the instance under the
+/// private [`HostKey`].
+///
+/// # Arguments
+/// * `ctx` - the context.
+/// * `this` - the instance.
+/// * `data` - the data.
+///
+/// # Errors
+/// A `TypeError` when the base returned a non-object or a proxy, or when the
+/// instance's data is being read at this moment.
+fn attach<'js>(ctx: &Ctx<'js>, this: &Value<'js>, data: Box<dyn Any>) -> rquickjs::Result<()> {
+    let holder = match Class::<HostBox>::from_value(this) {
+        Ok(holder) => holder,
+        Err(_) => {
+            // Decision: a proxy is refused, because reading the key through it would
+            // run its traps, and `host_data` must not run JS.
+            let object = this.as_object().filter(|_| !this.is_proxy());
+            let Some(object) = object else {
+                return Err(Exception::throw_type(ctx, "a native class instance must be a plain object, not a proxy"));
+            };
+            let key = host_key(ctx)?;
+            match Class::<HostBox>::from_value(&object.get::<_, Value<'js>>(key.clone())?) {
+                Ok(holder) => holder,
+                Err(_) => {
+                    let holder = Class::instance(ctx.clone(), HostBox::default())?;
+                    // Not writable, enumerable or configurable: scripts cannot see the key
+                    // (it is private) nor replace the holder.
+                    object.prop(key, Property::from(holder.clone().into_value()))?;
+                    holder
+                }
+            }
+        }
+    };
+    let cell = holder.borrow();
+    let Ok(mut slots) = cell.0.try_borrow_mut() else {
+        return Err(Exception::throw_type(ctx, "instance data is in use"));
+    };
+    slots.push(data);
+    Ok(())
+}
+
+/// The private symbol under which an instance that is not itself a host object
+/// (one built by a base such as `Uint8Array`) carries its [`HostBox`]; one per
+/// runtime, kept in its userdata.
+///
+/// Decision: a private symbol (`JS_NewPrivateSymbol`) rather than a JS symbol or
+/// a side table: scripts cannot reach or forge it, the engine collects the box
+/// with its instance, and lookup is one property read. Dropped alternative: an
+/// ordinary `Symbol`, which `Object.getOwnPropertySymbols` exposes to scripts.
+struct HostKey(Persistent<Value<'static>>);
+
+// SAFETY: a persistent handle is `'static`, so `HostKey` is the same type under any
+// lifetime.
+unsafe impl<'js> JsLifetime<'js> for HostKey {
+    type Changed<'to> = HostKey;
+}
+
+/// The runtime's [`HostKey`], created on first use.
+///
+/// # Arguments
+/// * `ctx` - the context.
+///
+/// # Returns
+/// The key as an atom.
+///
+/// # Errors
+/// An allocation failure.
+fn host_key<'js>(ctx: &Ctx<'js>) -> rquickjs::Result<Atom<'js>> {
+    if let Some(key) = existing_host_key(ctx) {
+        return key;
+    }
+    // SAFETY: the context is live; the description is NUL-terminated; the result is
+    // owned by us unless it is the sentinel.
+    let symbol = unsafe {
+        let raw = JS_NewPrivateSymbol(ctx.as_raw().as_ptr(), c"lunarstorm.host".as_ptr());
+        if qjs::JS_IsException(raw) {
+            return Err(Error::Exception);
+        }
+        Value::from_raw(ctx.clone(), raw)
+    };
+    ctx.store_userdata(HostKey(Persistent::save(ctx, symbol.clone()))).map_err(|_| Error::Unknown)?;
+    Atom::from_value(ctx.clone(), &symbol)
+}
+
+/// The runtime's [`HostKey`] if one was made; reading never creates it.
+///
+/// # Arguments
+/// * `ctx` - the context.
+///
+/// # Returns
+/// The key as an atom, or `None` when no native instance was ever built.
+fn existing_host_key<'js>(ctx: &Ctx<'js>) -> Option<rquickjs::Result<Atom<'js>>> {
+    let symbol = ctx.userdata::<HostKey>()?.0.clone();
+    Some(symbol.restore(ctx).and_then(|symbol| Atom::from_value(ctx.clone(), &symbol)))
+}
+
+/// Defines an accessor property: configurable, not enumerable, like a getter or
+/// setter of a JS `class`.
+///
+/// # Arguments
+/// * `ctx` - the context.
+/// * `object` - where to define it.
+/// * `name` - the property name.
+/// * `get` - the getter, if any.
+/// * `set` - the setter, if any.
+///
+/// # Errors
+/// The engine's exception when the definition fails.
+fn define_accessor<'js>(ctx: &Ctx<'js>, object: &Object<'js>, name: &str, get: Option<&Value<'js>>, set: Option<&Value<'js>>) -> rquickjs::Result<()> {
+    let flags = qjs::JS_PROP_HAS_GET | qjs::JS_PROP_HAS_SET | qjs::JS_PROP_HAS_CONFIGURABLE | qjs::JS_PROP_CONFIGURABLE | qjs::JS_PROP_HAS_ENUMERABLE | qjs::JS_PROP_THROW;
+    let raw = |half: Option<&Value<'js>>| half.map_or(qjs::JS_UNDEFINED, Value::as_raw);
+    // SAFETY: the context and values are live; `JS_DefineProperty` borrows the getter
+    // and setter, and the atom made here is freed after the call.
+    unsafe {
+        let ctx_ptr = ctx.as_raw().as_ptr();
+        let atom = qjs::JS_NewAtomLen(ctx_ptr, name.as_ptr().cast(), name.len() as _);
+        if atom == qjs::JS_ATOM_NULL {
+            return Err(Error::Exception);
+        }
+        let result = qjs::JS_DefineProperty(ctx_ptr, object.as_raw(), atom, qjs::JS_UNDEFINED, raw(get), raw(set), flags as _);
+        qjs::JS_FreeAtom(ctx_ptr, atom);
+        if result < 0 {
+            return Err(Error::Exception);
+        }
+    }
+    Ok(())
+}
+
+/// The one class behind every host object and native class instance: owned,
+/// type-erased Rust values. Dropping it is the finalizer.
+///
+/// Decision: a list, not one value, because each native class in an instance's
+/// chain attaches its own data (`class B extends A`, both native), told apart by
+/// type when read. The `RefCell` is borrowed mutably only while one native
+/// constructor attaches its data, when no JS runs.
+#[derive(Default)]
+struct HostBox(RefCell<Vec<Box<dyn Any>>>);
 
 // SAFETY: `HostBox` holds no JS values and no `'js` lifetime, so it is the same
 // type under any lifetime.
@@ -748,13 +996,98 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
     }
 
     fn host_object<T: 'static>(&self, data: T) -> Outcome<Value<'s>> {
-        Class::instance(self.clone(), HostBox(Box::new(data))).map(Class::into_value).map_err(|error| thrown(self, error))
+        let data: Box<dyn Any> = Box::new(data);
+        Class::instance(self.clone(), HostBox(RefCell::new(vec![data]))).map(Class::into_value).map_err(|error| thrown(self, error))
     }
 
+    /// Looks in the value itself when it is a host object, else in the holder under
+    /// the private [`HostKey`] (a native instance built by a non-native base).
     fn host_data<T: 'static, R>(&self, value: &Value<'s>, f: impl FnOnce(&T) -> R) -> Option<R> {
-        let class = Class::<HostBox>::from_value(value).ok()?;
-        let cell = class.borrow();
-        cell.0.downcast_ref::<T>().map(f)
+        let holder = match Class::<HostBox>::from_value(value) {
+            Ok(holder) => holder,
+            Err(_) => {
+                let object = value.as_object().filter(|_| !value.is_proxy())?;
+                let key = existing_host_key(self)?.ok()?;
+                // A private key has no getter and no proxy is involved, so this read
+                // runs no JS.
+                Class::<HostBox>::from_value(&object.get::<_, Value<'s>>(key).ok()?).ok()?
+            }
+        };
+        let cell = holder.borrow();
+        let slots = cell.0.borrow();
+        slots.iter().find_map(|data| data.downcast_ref::<T>()).map(f)
+    }
+
+    /// A promise capability; the resolver is the pair `[resolve, reject]` kept as
+    /// one persistent array.
+    fn promise(&self) -> Outcome<(Value<'s>, Persistent<Value<'static>>)> {
+        let make = || -> rquickjs::Result<(Value<'s>, Persistent<Value<'static>>)> {
+            let (promise, resolve, reject) = rquickjs::Promise::new(self)?;
+            let pair = Array::new(self.clone())?;
+            pair.set(0, resolve)?;
+            pair.set(1, reject)?;
+            Ok((promise.into_value(), Persistent::save(self, pair.into_value())))
+        };
+        make().map_err(|error| thrown(self, error))
+    }
+
+    /// Calls `resolve` or `reject` of the pair; the engine's resolving functions
+    /// ignore every call after the first.
+    fn settle(&self, resolver: &Persistent<Value<'static>>, result: Result<Value<'s>, Value<'s>>) -> Outcome<()> {
+        let pair = self.local(resolver);
+        let (index, value) = match result {
+            Ok(value) => (0, value),
+            Err(reason) => (1, reason),
+        };
+        let function = pair.as_array().and_then(|pair| pair.get::<Value<'s>>(index).ok()).filter(Value::is_function);
+        let Some(function) = function else {
+            return Err(self.throw_error(ErrorKind::Type, "not a promise resolver"));
+        };
+        self.call(&function, &[value]).map(|_| ())
+    }
+
+    fn class<T: 'static, F>(&self, spec: ClassSpec<'s, QuickJs>, constructor: F) -> Outcome<Value<'s>>
+    where
+        F: for<'a> Fn(&Call<'a, QuickJs>) -> Outcome<T> + 'static,
+    {
+        let build = || -> rquickjs::Result<Value<'s>> {
+            let base = match &spec.extends {
+                Some(base) => match base.as_function().filter(|base| base.is_constructor()) {
+                    Some(base) => Some(base.clone()),
+                    None => return Err(Exception::throw_type(self, "Class extends value is not a constructor")),
+                },
+                None => None,
+            };
+            let derived = base.is_some();
+            let shell = ClassConstructor { f: constructor, name: spec.name.clone(), derived, data: std::marker::PhantomData };
+            let class = Function::new(self.clone(), shell)?.with_name(&spec.name)?.with_constructor(true);
+            let proto = Object::new(self.clone())?;
+            if let Some(base) = &base {
+                // As `class C extends B`: C.prototype inherits B.prototype, and C itself
+                // inherits B (statics, and where the constructor finds its base).
+                let parent = base.get::<_, Value<'s>>("prototype")?;
+                match parent.as_object() {
+                    Some(parent) => proto.set_prototype(Some(parent))?,
+                    None if parent.is_null() => proto.set_prototype(None)?,
+                    None => return Err(Exception::throw_type(self, "Class extends value does not have a valid prototype")),
+                }
+                class.set_prototype(Some(base))?;
+            }
+            // SAFETY: both are live objects of this context; the call defines
+            // `class.prototype` and `proto.constructor` and takes no ownership.
+            unsafe { qjs::JS_SetConstructor(self.as_raw().as_ptr(), class.as_raw(), proto.as_raw()) };
+            for (name, method) in &spec.methods {
+                proto.prop(name.as_str(), Property::from(method.clone()).writable().configurable())?;
+            }
+            for (name, get, set) in &spec.accessors {
+                define_accessor(self, &proto, name, get.as_ref(), set.as_ref())?;
+            }
+            for (name, value) in &spec.statics {
+                class.prop(name.as_str(), Property::from(value.clone()).writable().configurable())?;
+            }
+            Ok(class.into_value())
+        };
+        build().map_err(|error| thrown(self, error))
     }
 
     fn kind(&self, value: &Value<'s>) -> Kind {

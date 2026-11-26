@@ -4,9 +4,12 @@
 use std::sync::{Arc, Mutex};
 
 use lunar_extension_hostapi::{Arg, Area, Function, HostApi};
-use lunarstorm_runtime::vm::{Call, Scope, Vm};
+use lunarstorm_runtime::vm::{Call, Scope, Sig, Ty, Vm};
 use lunarstorm_runtime::{Access, Bindings, Host, Log, Manifest, Runtime, Source, Stream, Use};
 use lunarstorm_vm_quickjs::QuickJs;
+
+/// The declaration of `ops.alpha_name`.
+const NAME: Sig = Sig { params: &[], rest: None, returns: Ty::String, about: "The area's name." };
 
 /// An area whose module `lunarstorm:hostapi/alpha` exports `name()`, `"alpha"`.
 struct Alpha;
@@ -22,7 +25,7 @@ impl<V: Vm> Area<V> for Alpha {
     /// A native and the module over it.
     fn bindings(&self, _using: &Use<'_>) -> Result<Bindings<V>, String> {
         Ok(Bindings::new()
-            .function("alpha_name", |call: &Call<'_, V>| call.scope().string("alpha"))
+            .function("alpha_name", NAME, |call: &Call<'_, V>| call.scope().string("alpha"))
             .module("lunarstorm:hostapi/alpha", "import { ops } from 'lunarstorm:internal'; export const name = () => ops.alpha_name();"))
     }
 }

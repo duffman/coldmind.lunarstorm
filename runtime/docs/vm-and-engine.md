@@ -31,9 +31,20 @@ call is monomorphized and there is no `dyn` on any call path.
 Load-bearing rules:
 - **`Thrown` is a marker.** A failing operation returns `Err(Thrown)`, and the exception stays
   in the engine until `Scope::exception()` takes it. Nothing is converted on the error path.
-- **`Call<'s, V>`** (lib.rs:275) is two raw pointers into the adapter's stack frame: the scope and
-  the args slice. It is a struct because a higher-ranked closure bound must name its lifetime in
-  a parameter type.
+- **`Call<'s, V>`** (lib.rs:275) is raw pointers into the adapter's stack frame: the scope,
+  `this()`, `new_target()` (`undefined` unless called with `new`) and the `args()` slice. It is a
+  struct because a higher-ranked closure bound must name its lifetime in a parameter type.
+- **Promises from Rust.** `Scope::promise()` returns `(promise, resolver)`; the resolver is a
+  `Persistent`, so it outlives the scope. `Scope::settle(&resolver, Ok(v) | Err(reason))` queues
+  the reactions as jobs; a second settle is ignored.
+- **Native classes.** `Scope::class(ClassSpec, constructor)` (lib.rs:828) returns a constructor.
+  `ClassSpec` (lib.rs:356) holds the name, an optional `extends` (any constructor value: a native
+  class or a builtin such as `Uint8Array`), and prototype methods, accessors and statics as JS
+  values (build them with `Scope::function`; they read the receiver with `Call::this`). The
+  constructor closure runs on `new` or a JS subclass's `super()`, and returns the instance's Rust
+  data, which `host_data(call.this(), ..)` reads in methods. Without `new` it throws a
+  `TypeError`. With `extends`, the base builds the instance from the same arguments, so a class
+  extending `Uint8Array` makes real byte arrays.
 - **`with_str` and `with_bytes` lend engine memory.** The closure must not call into the engine,
   which could move or detach the buffer.
 - **Callbacks take `&self`.** A rejection can be reported while a module load is in progress.
@@ -61,7 +72,7 @@ constructor.
 
 ### Conformance suite (`runtime/vm/src/conformance.rs`)
 
-`conformance::run::<V>()` returns how many check groups ran. The QuickJS test asserts **15**
+`conformance::run::<V>()` returns how many check groups ran. The QuickJS test asserts **19**
 (`runtime/engines/quickjs/tests/conformance.rs`). Adding a group means updating that number. The
 vm and quickjs READMEs still say 13.
 
@@ -76,6 +87,14 @@ vm and quickjs READMEs still say 13.
 - **Native functions** (`Native<F>`, lib.rs:567) copy up to 8 arguments into a stack
   `MaybeUninit` array (`INLINE_ARGS`) and build a `Call`. Each copy is a refcount bump. More
   arguments heap-allocate.
+- **Native classes** (`ClassConstructor`, lib.rs:648) are rquickjs functions with the constructor
+  bit set. A base class makes its instance as a `HostBox` object with `new.target.prototype`. A
+  derived class constructs its base (read from its own `[[Prototype]]`, as `super()` does) with
+  `JS_CallConstructor2`. Instance data goes into the `HostBox` (lib.rs:866), which holds a list so
+  every native class in a chain keeps its own data. An instance that is not a `HostBox` (a
+  `Uint8Array`) carries one under a private symbol (`HostKey`, lib.rs:779, made with
+  `JS_NewPrivateSymbol`), which scripts cannot see.
+- **Promise resolvers** (lib.rs:1023) are a persistent `[resolve, reject]` array.
 - **`Scope::call`** goes straight to `JS_Call` with the arguments in a stack array. The binding's
   own builder heap-allocates above four arguments.
 - **Native modules** (lib.rs:408-475). rquickjs's `ModuleDef` is a static trait (no `self`), so
