@@ -1,10 +1,10 @@
 # Hosts, bindings, extensions, IPC and workers
 
 How a program the user starts owns a Runtime and gives it capabilities. The concepts doc
-`runtime/event-loop-runtime/doc/hosts.md` and the extension design `runtime/event-loop-runtime/doc/extensions.md` stay the
+[embedding-a-host.md](embedding-a-host.md) and the extension design [extension-manifests.md](extension-manifests.md) stay the
 long-form explanation. This file is how the code does it.
 
-## The Host trait (`runtime/event-loop-runtime/src/host.rs`)
+## The Host trait (`runtime/event-loop-runtime/src/host_services_trait.rs`)
 
 `Runtime<V, H: Host>` calls up only through `H`, and it touches the process directly nowhere
 else. `H` is a type parameter, so a host's answers are inlined into the loop.
@@ -39,7 +39,7 @@ only decides what they may touch.
 | uncaught | framed report on stderr, `exit(1)` | `Shell::error(epoch, text)`, keeps going |
 | `PULSE` | false | true: a `lunarstorm-budget` watchdog thread interrupts an entry that runs past `Program::budget` |
 | extensions | `(HostApi<V, (Ui,)>,)` with the embedded `manifest.json` | `()` |
-| host modules | `lunarstorm:ui` (alias of `lunarstorm:hostapi/ui`) | `lunarstorm:desktop` (glue), `@desktop/bridge`, `@desktop/api` |
+| host modules | `lunarstorm:ui` (alias of `lunarstorm:hostapi/ui`) | `lunarstorm:desktop` (the desktop glue, `js/desktop.js`), `@desktop/bridge`, `@desktop/api` |
 | IPC / workers | off | off |
 | isolation | one Runtime per process | **one Runtime per epoch**: a reload is a new Runtime (new heap, jobs, timers) |
 
@@ -47,17 +47,17 @@ only decides what they may touch.
 (`runtime/event-loop-runtime/tests/{ipc,worker,extensions}.rs`) and `runtime/event-loop-runtime/examples/ipc-demo.rs` set
 `IPC`/`WORKERS`. The desktop backend talks to its process through its own natives
 (`ops.desktopSend`, `desktopNative`, `desktopError`, `desktopRestore`, `desktopHooks`), and
-`js/desktop.js` wraps them as `@desktop/*`. The glue keeps its `dispatch`/`settle` hooks in a
+`js/desktop.js` wraps them as `@desktop/*`. The desktop glue keeps its `dispatch`/`settle` hooks in a
 `thread_local!`.
 
-## Bindings and `ops` (`bindings.rs`, `ops.rs`)
+## Bindings and `ops` (`host_bindings_registry.rs`, `internal_natives.rs`)
 
 `ops` is one plain JS object holding:
-- the Runtime natives (`ops::install`, ops.rs:269): process, scheduling, text, tcp, http, fs;
+- the Runtime natives (`ops::install`, internal_natives.rs): process, scheduling, text, tcp, http, fs;
 - the constants `argv`, `pid`, `version`, `platform`, `arch`;
 - everything registered through `Bindings`.
 
-The glue receives it as its argument. Host modules reach it through `lunarstorm:internal`.
+The native builtins read it at start. Host modules reach it through `lunarstorm:internal`.
 Programs never reach it.
 
 | `Bindings` call | effect |
@@ -67,21 +67,21 @@ Programs never reach it.
 | `module(specifier, source)` | a host module, compiled on first import |
 | `merge(owner, other)` | adds an extension's set; modules must lie in `lunarstorm:<owner>[/...]`; refuses a module or function already bound |
 
-Installers run once, at `start`, *before* the glue: the glue reads `ops.color` while building
-`console`.
+Installers run once, at `start`, *before* the builtins: `console` reads `ops.color` while it is
+built.
 
 The call path from a program into host Rust is: program →
 `import { f } from 'lunarstorm:x'` (a JS module) → `ops.x_f(...)` (a property load on a hidden
 object) → `Native<F>` adapter (args copied to a stack array) → closure. Core native modules
-(`lunarstorm:ipc`, `-worker-native`, builtins) skip the JS wrapper module: their exports *are*
-the natives or glue objects. An extension cannot declare a native module today.
+(`lunarstorm:ipc`, `lunarstorm:worker`, builtins) skip the JS wrapper module: their exports
+*are* the natives. An extension cannot declare a native module today.
 
 **Hazard:** `merge` checks names only against other `Bindings` functions. It does not see the
 Runtime's own `ops` names (`print`, `now`, `fs`, ...) or names written through `values`.
 `ops::install` runs first and the installers run after it, so an extension function named `now`
 silently replaces `ops.now`. Prefix extension ops with the extension name.
 
-## Extensions (`extension.rs`, `extensions/core`, `extensions/hostapi`)
+## Extensions (`extension_manifest_check.rs`, `extensions/core`, `extensions/hostapi`)
 
 ```
 Runtime::start
@@ -90,7 +90,7 @@ Runtime::start
   ExtensionSet::install                        for each member the manifest uses, in tuple order:
       member.bindings(&Use) → merge(NAME, ..)  errors prefixed "extension <NAME>:"
   bindings.take() → ops installers + host module table
-  V::Instance::new(limits, Loader) → context → ops::install → installers → glue
+  V::Instance::new(limits, Loader) → context → ops::install → installers → node_builtins::install
 ```
 
 - `Extension<V>`: `const NAME` (`[a-z][a-z0-9]{0,31}`, not `ipc`/`worker`/`internal`),
@@ -99,11 +99,11 @@ Runtime::start
 - An unused extension installs nothing, so its specifiers do not resolve.
 - HostApi (`extensions/hostapi`) is the extension through which a host exposes its own API as
   plugins ("areas"), fenced to `lunarstorm:hostapi/<area>`. The CLI's terminal UI is area `ui`
-  (`runtime/host-command-line/src/ui.rs`).
+  (`runtime/host-command-line/src/terminal_ui_area.rs`).
 - `Runtime::register` bindings are **not** installed in workers. A worker gets only what its
   host's `extensions()` returns.
 
-## `lunarstorm:ipc` (`ipc.rs`, `channel.rs`)
+## `lunarstorm:ipc` (`ipc_module.rs`, `cross_thread_message_channel.rs`)
 
 ```js
 import { send, onMessage } from 'lunarstorm:ipc';
@@ -122,7 +122,7 @@ onMessage((bytes) => send(bytes));   // Uint8Array both ways
   `onMessage`.
 - Dropping the Runtime closes the channel, so `post` then returns `false`.
 
-## `lunarstorm:worker` (`worker.rs`, `js/worker.js`)
+## `lunarstorm:worker` (`worker_threads_module.rs`)
 
 ```js
 import { spawn } from 'lunarstorm:worker';

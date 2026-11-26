@@ -1,13 +1,13 @@
 # The event loop
 
-Source: `runtime/event-loop-runtime/src/runtime.rs` (the loop), `io.rs` (sockets, timers), `pool.rs` (blocking
-work), `js/bootstrap.js` (the JS side of every event).
+Source: `runtime/event-loop-runtime/src/runtime_instance.rs` (the loop), `reactor_io_state.rs` (sockets, timers), `blocking_work_pool.rs` (blocking
+work), `node_builtins/loop_event_dispatch.rs` (the native side of every event).
 
 One `Runtime<V, H>` is one thread, one VM instance and one mio reactor. JS runs on that thread
 only, one callback at a time. Blocking work goes to a small thread pool, whose results come back
 through the reactor's waker.
 
-## One step (`Turn::step`, runtime.rs:1022)
+## One step (`Turn::step`, event_loop/loop_turn.rs)
 
 ```
 step
@@ -20,7 +20,7 @@ step
  └─ 5. immediates   setImmediate callbacks queued before this phase
 ```
 
-A **JS entry** is every call into JS from the loop: `fire` (runtime.rs:1150), a posted task,
+A **JS entry** is every call into JS from the loop: `fire` (runtime_public_types.rs), a posted task,
 an IPC message or an immediate. Each entry runs the same bracket:
 
 ```
@@ -39,7 +39,7 @@ after every callback, not once per phase.
 
 ## When the loop is idle
 
-Phase 2 decides (runtime.rs:1042):
+Phase 2 decides (event_loop/loop_turn.rs):
 
 | condition | poll timeout |
 |---|---|
@@ -64,17 +64,16 @@ All of these are written next to the code; the numbers come from the comments.
 
 | decision | where | why |
 |---|---|---|
-| one JS entry point, `dispatch(kind, id, a..e)` with integer codes | `ev` runtime.rs:151, bootstrap.js:1344 | no per-event closures, allocations or handle lookups |
-| one 64 KiB scratch read buffer for every socket | `SCRATCH` runtime.rs:137 | an HTTP request that arrives whole is parsed in place |
+| one JS entry point, `dispatch(kind, id, a..e)` with integer codes | `ev` runtime_public_types.rs, node_builtins/loop_event_dispatch.rs | no per-event closures, allocations or handle lookups |
+| one 64 KiB scratch read buffer for every socket | `SCRATCH` runtime_public_types.rs | an HTTP request that arrives whole is parsed in place |
 | short read ⇒ socket drained, skip the `WouldBlock` read | `tcp_read`, `http_pump` | one syscall less per read; off after the peer's close |
-| `POLL_GAP` = 250 µs | runtime.rs:147, `poll_due` | a zero-timeout kernel poll costs about 13 µs on macOS; with work queued the loop polls at most every 250 µs |
+| `POLL_GAP` = 250 µs | runtime_public_types.rs, `poll_due` | a zero-timeout kernel poll costs about 13 µs on macOS; with work queued the loop polls at most every 250 µs |
 | coalesced wakes | `Poster::post`, `Nudge`, pool `notified` | a burst of posts or results costs one wake syscall |
 | sockets registered once for `READABLE \| WRITABLE` | `Io::adopt` | edge-triggered; no `reregister` per response |
 | write first, buffer only the tail | `Conn::send` | one `writev`; copies only what the kernel refused |
 | pipelined responses corked into one write | `flag::CORKED` | |
 | stdout buffered per loop turn | `Io::print`, flushed in phase 2 | one host write per turn, not per `console.log` |
 | `run()` enters the VM scope once | `Runtime::run` | a host with its own loop pays one scope entry per `poll` |
-| glue compiled once per process | `GLUE_IMAGES` runtime.rs:93 | it was 150 ms per Runtime in debug builds (64 workers: 15 s → 0.35 s) |
 
 ## HTTP inside the loop
 
@@ -89,19 +88,19 @@ or through `httpHead`, `httpChunk` and `httpEnd` when streamed.
 - An async handler finishes outside the pump. `http_done` then queues `Deferred::Resume` so the
   pipelined requests behind it are served.
 - No `request` listener means a 404 is sent at once, so the client is never left hanging
-  (bootstrap.js, `case 8`).
+  (`ev::HTTP` in `node_builtins/loop_event_dispatch.rs`).
 
 ## Handles and timers
 
 - **One slab** (`Io::entries`) holds listeners, connections and pending connects. The slab key
-  is the mio token and the handle id JS sees (`handles[key]` in bootstrap.js).
+  is the mio token and the handle id JS sees (`Node::handles[key]` in `node_builtins/kept_intrinsics.rs`).
 - **Tombstones**: a connection the reactor closed becomes `Entry::Closed` until JS has been told,
   so a stale event cannot hit a reused key.
-- **Timer ids**: `key * 2^32 + seq` (`TIMER_SHIFT`, mirrored in bootstrap.js). A stale id never
+- **Timer ids**: `key * 2^32 + seq` (`TIMER_SHIFT` in `reactor_io_state.rs`). A stale id never
   cancels a reused slot. At most 2^21 timers can be armed (`TIMER_KEYS`). An interval re-arms at
   `now + period`, so a slow callback delays the next run instead of making runs pile up.
 
-## Blocking work: the pool (`pool.rs`)
+## Blocking work: the pool (`blocking_work_pool.rs`)
 
 - Threads start lazily, up to the core count, named `lunarstorm-worker-N`.
 

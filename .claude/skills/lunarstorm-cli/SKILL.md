@@ -1,6 +1,6 @@
 ---
 name: lunarstorm-cli
-description: Add or change commands on the `lunarstorm` command line. Covers mounting a crate as a package, declaring commands, subcommands, flags, options and positionals, passing context between command levels, and testing the result. Use whenever someone wants a crate's functionality reachable as `lunarstorm <something>`, asks to add a subcommand, option or flag, or touches crates/cli-contract, crates/cli-host, apps/lunarstorm, runtime/host-command-line/src/command.rs, platform/extensions/project/src/command.rs, toolchain/crates/pipeline/src/command.rs or toolchain/crates/cli/src/command.rs — even if they only say "expose X on the CLI" or "add a flag to build".
+description: Add or change commands on the `lunarstorm` command line. Covers mounting a crate as a package, declaring commands, subcommands, flags, options and positionals, passing context between command levels, and testing the result. Use whenever someone wants a crate's functionality reachable as `lunarstorm <something>`, asks to add a subcommand, option or flag, or touches crates/cli-contract, crates/cli-host, apps/lunarstorm, runtime/host-command-line/src/lunar_runtime_commands.rs, platform/extensions/project/src/command.rs, toolchain/crates/pipeline/src/command.rs or toolchain/crates/cli/src/command.rs — even if they only say "expose X on the CLI" or "add a flag to build".
 ---
 
 # Lunarstorm CLI packages
@@ -14,16 +14,19 @@ Read these before editing:
 - `crates/cli-contract/src/invocation.rs`: `Invocation`, `Values`, `Context`
 - `toolchain/crates/pipeline/src/command.rs`: a worked package with a context level and subcommands
 - `toolchain/crates/cli/src/command.rs`: flat commands whose handlers add checks a value type cannot express
-- `runtime/host-command-line/src/command.rs`: a default command with Node-style option handling
+- `runtime/host-command-line/src/lunar_runtime_commands.rs`: a default command with Node-style option handling
 
 ## Add a package (a crate that has no commands yet)
 
 1. **Dependency.** In the crate's `Cargo.toml`:
    `lunarstorm-cli-contract = { path = "<rel>/crates/cli-contract" }`. Nothing else;
    the contract has no dependencies.
-2. **Module.** Add `src/command.rs` (always this name, in every package) with a unit struct, `impl Package`
-   (`id`, `commands`, and optionally `sections`) and `pub fn package() -> Box<dyn Package>`.
-   Declare it with `pub mod command;` in `lib.rs`.
+2. **Module.** Add a module named after the commands it holds, `src/<what>_commands.rs` (e.g.
+   `runtime/host-command-line/src/lunar_runtime_commands.rs`), never a bare `command.rs`, with a
+   unit struct, `impl Package` (`id`, `commands`, and optionally `sections`) and
+   `pub fn package() -> Box<dyn Package>`. Declare it `pub mod <what>_commands;` in `lib.rs`.
+   Older packages (`toolchain/crates/*/src/command.rs`, `platform/project/src/command.rs`) still
+   use `command.rs`; rename them when you touch them.
 3. **Handlers stay thin.** A handler reads `invocation.values` and the context, calls
    the crate's existing library function, prints the result, and returns `Ok(status)`.
    If the crate already has a standalone `main.rs`, move the shared reporting into the

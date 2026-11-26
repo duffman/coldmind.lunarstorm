@@ -1,6 +1,6 @@
 # lunar-extension-hostapi (extensions/hostapi)
 
-HostApi is the extension through which a host gives its programs the host's own API. It opens one plugin host, `area` (`Many`, `Optional`); every API area a host offers is a plugin there, and the host's manifest selects the active ones. Concepts: `runtime/event-loop-runtime/doc/extensions.md`; plan: `doc/plans/hostapi.md`.
+HostApi is the extension through which a host gives its programs the host's own API. It opens one plugin host, `area` (`Many`, `Optional`); every API area a host offers is a plugin there, and the host's manifest selects the active ones. Concepts: `runtime/docs/extension-manifests.md`; plan: `doc/plans/hostapi.md`.
 
 | module | exports |
 |---|---|
@@ -30,7 +30,7 @@ fn extensions<V: Vm>(&self) -> Self::Extensions<V> { (HostApi::new((Ui,)),) }
 ## How it fits
 
 - Depends on `lunarstorm-event-loop-runtime` only; dev-depends on `lunarstorm-engine-quickjs-adapter`.
-- Used by `lunarstorm-host-command-line`, whose terminal API is the area `ui` (`runtime/host-command-line/src/ui.rs`).
+- Used by `lunarstorm-host-command-line`, whose terminal API is the area `ui` (`runtime/host-command-line/src/terminal_ui_area.rs`).
 
 ## Build and test
 

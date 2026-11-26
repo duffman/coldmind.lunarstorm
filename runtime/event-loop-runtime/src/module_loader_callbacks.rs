@@ -5,12 +5,12 @@
 //!   [`crate::Bindings::module`], matched by exact specifier and compiled only when
 //!   a script imports them.
 //! - **builtins** (`node:fs`, or bare `fs`): native modules (`Scope::native_module`,
-//!   like `lunarstorm:ipc`) declared on first import from an object the bootstrap
-//!   script returned in its registry: `default` is the object, every own key a
-//!   named export. The export list stays in the JS glue with nothing to keep in
+//!   like `lunarstorm:ipc`) declared on first import from an object in the registry
+//!   `node_builtins::install` returned: `default` is the object, every own key a
+//!   named export. The export list stays with the builtins with nothing to keep in
 //!   sync here, and nothing is published on the global object.
 //! - **`lunarstorm:internal`**: a native module exporting the Runtime's natives
-//!   (`ops`) and the glue's `live` slot to host modules. Only a host module may
+//!   (`ops`) and the console's `live` slot to host modules. Only a host module may
 //!   import it; a program's own files cannot.
 //! - **files** (`./x`, `../x`, `/x`) and **packages** (`left-pad`, `@scope/x/sub`,
 //!   `#private`): resolved and turned into ES modules by `lunarstorm-module-sources`:
@@ -48,7 +48,7 @@ const BUILTINS: [&str; 9] =
 /// The specifier host modules import to reach the Runtime's natives.
 pub const INTERNAL_MODULE: &str = "lunarstorm:internal";
 
-/// What the JS glue returned for the loader: the builtin modules and the internals.
+/// What `node_builtins::install` returned for the loader: the builtin modules and the internals.
 struct Parts<V: Vm> {
     /// Object of the builtin modules by name.
     modules: V::Persistent,
@@ -73,7 +73,7 @@ impl<V: Vm> Default for Registry<V> {
 }
 
 impl<V: Vm> Registry<V> {
-    /// Keeps the registry the glue returned.
+    /// Keeps the registry `node_builtins::install` returned.
     ///
     /// # Arguments
     /// * `modules` - the object of builtins by name.
@@ -165,7 +165,7 @@ pub struct Loader<V: Vm, H: Host> {
     ipc: Rc<Ipc<V>>,
     /// The `lunarstorm:worker` state, for the module's natives.
     workers: Rc<Workers<V>>,
-    /// The builtin modules and internals the glue returned.
+    /// The builtin modules and internals `node_builtins::install` returned.
     registry: Rc<Registry<V>>,
     /// Files and packages.
     sources: Rc<Modules>,
@@ -180,7 +180,7 @@ impl<V: Vm, H: Host> Loader<V, H> {
     /// * `modules` - host modules from the registered bindings.
     /// * `ipc` - the Runtime's `lunarstorm:ipc` state.
     /// * `workers` - the Runtime's `lunarstorm:worker` state.
-    /// * `registry` - filled by `start` with what the glue returns.
+    /// * `registry` - filled by `start` with what `node_builtins::install` returns.
     /// * `sources` - the Runtime's source modules, see [`sources`].
     /// * `package` - the package the Runtime runs, set when one is loaded.
     ///
@@ -215,7 +215,7 @@ impl<V: Vm, H: Host> Loader<V, H> {
         native(self.modules.iter().map(|(name, _)| *name), specifier)
     }
 
-    /// Declares the native module of one builtin from the glue's registry.
+    /// Declares the native module of one builtin from the builtins' registry.
     ///
     /// Decision: `default` is the builtin's object and each own key a named export
     /// (a key called `default` is skipped), the same shape the generated ES module
@@ -226,7 +226,7 @@ impl<V: Vm, H: Host> Loader<V, H> {
     /// * `name` - canonical name, `node:<builtin>`.
     ///
     /// # Errors
-    /// A message when the glue is not installed or the builtin has no object.
+    /// A message when the builtins are not installed or the builtin has no object.
     fn declare_builtin<'s>(&self, scope: &V::Scope<'s>, name: &str) -> Result<(), String> {
         let unavailable = || String::from("builtin is unavailable");
         let parts = self.registry.0.borrow();
@@ -246,13 +246,13 @@ impl<V: Vm, H: Host> Loader<V, H> {
         })
     }
 
-    /// Declares `lunarstorm:internal`: `ops` and `live` from the glue's registry.
+    /// Declares `lunarstorm:internal`: `ops` and `live` from the builtins' registry.
     ///
     /// # Arguments
     /// * `scope` - the context handle.
     ///
     /// # Errors
-    /// A message when the glue is not installed.
+    /// A message when the builtins are not installed.
     fn declare_internal<'s>(&self, scope: &V::Scope<'s>) -> Result<(), String> {
         let unavailable = || String::from("internals are unavailable");
         let parts = self.registry.0.borrow();

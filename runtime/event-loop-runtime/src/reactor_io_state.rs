@@ -38,7 +38,7 @@ const HIGH_WATER: usize = 64 * 1024;
 /// Buffered stdout bytes above which the buffer is flushed without waiting for the loop.
 const STDOUT_HIGH: usize = 64 * 1024;
 /// Multiplier that packs a timer's slab key above its 32-bit sequence number in the
-/// id handed to JS. Mirrored by `TIMER_SHIFT` in `js/bootstrap.js`.
+/// id handed to JS; JS keeps the id as an opaque number.
 const TIMER_SHIFT: f64 = 4_294_967_296.0;
 /// Largest number of concurrently armed timers; keeps packed ids below 2^53.
 const TIMER_KEYS: usize = 1 << 21;

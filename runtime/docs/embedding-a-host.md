@@ -83,12 +83,12 @@ the ones it leaves off cost nothing at run time.
 
 ## How a host runs a program
 
-The CLI host's `run` command (`runtime/host-command-line/src/command.rs`) shows the full sequence:
+The CLI host's `run` command (`runtime/host-command-line/src/lunar_runtime_commands.rs`) shows the full sequence:
 
 ```rust
 let mut runtime = Runtime::<QuickJs, CliHost>::new(CliHost::new(argv))?;  // 1. host + Runtime
 runtime.register(host::bindings());                                       // 2. host's own modules and natives
-runtime.start()?;                                                         // 3. manifest, extensions, VM, glue
+runtime.start()?;                                                         // 3. manifest, extensions, VM, builtins
 runtime.load(source)?;                                                    // 4. the program
 runtime.run()                                                             // 5. the loop, until idle or exit
 ```
@@ -97,8 +97,8 @@ runtime.run()                                                             // 5. 
 2. **Register.** The host adds its own modules and native functions with `Bindings`. These are installed
    in this Runtime only.
 3. **Start.** The Runtime checks the host's manifest against `Host::extensions`, merges the bindings of
-   each used extension, creates the VM instance and installs its JS glue. The glue is compiled once per
-   process and loaded from that image by every later Runtime, worker Runtimes included.
+   each used extension, creates the VM instance and installs the native Node builtins. No script is
+   compiled at start, so a worker Runtime starts as fast as the first.
 4. **Load.** The program's entry module is loaded and evaluated.
 5. **Drive.** Two ways:
    - `run()`: the host gives its thread to the Runtime until the program is idle or exits (CLI host);
@@ -116,8 +116,8 @@ Target layout, with the hosts beside the Runtime:
 
 ```
 runtime/          VM contract, engines, compiler, debugger, lunarstorm-event-loop-runtime
-hosts/cli/        lunarstorm-host-command-line
-hosts/desktop/    lunarstorm-host-desktop-backend
+host-command-line/        lunarstorm-host-command-line
+host-desktop-backend/    lunarstorm-host-desktop-backend
 ```
 
 The host crates are at `runtime/host-command-line` and `runtime/host-desktop-backend` today. Moving them updates the root

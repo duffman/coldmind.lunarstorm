@@ -11,7 +11,7 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
-/// Operation codes. Mirrored by the `FS_*` table in `js/bootstrap.js`.
+/// Operation codes, used as they are by `node_builtins/fs_module.rs`.
 pub mod op {
     /// Read a file as bytes.
     pub const READ: i32 = 0;

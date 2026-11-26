@@ -4,7 +4,7 @@ jetbunny's debugger, taken over whole: the Debug Adapter Protocol adapter
 (`debug::DapAdapter`), the stdio transport (`debug::host::run`), the coordinator
 (`debug::DebugCoordinator`, breakpoints, stepping, pause, inspection, evaluation
 in frame), source registration and Source Map v3 (`debug::sources`,
-`debug/source_map.rs`), and the QuickJS-NG backend (`engines::quickjs_ng`). The code
+`debug_session/source_map_decoding.rs`), and the QuickJS-NG backend (`engines::quickjs_ng`). The code
 is jetbunny's, unchanged except where marked `lunarstorm patch`.
 
 ## How Lunarstorm uses it
@@ -34,7 +34,7 @@ jetbunny's own VM (`VirtualMachine`, program, scheduler, module provider) and it
 Rust compiler callback: Lunarstorm has its own loop and loader. The acceptance tests
 that drive that VM (`quickjs_ng_data`, `_vm`, `_module_vm`, `_modules`, `_jbn`) are
 in `.archive/2026-11-24/runtime/debugger/tests/`; the compiler is in
-`.archive/2026-11-24/runtime/debugger/src/engines/quickjs_ng/compiler.rs`.
+`.archive/2026-11-24/runtime/debugger/src/engine_adapters/quickjs_ng_debug_engine/rust_compiler_hookup.rs`.
 
 ## Tests
 

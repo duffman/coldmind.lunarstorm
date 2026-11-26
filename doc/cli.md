@@ -77,7 +77,7 @@ always that file, and `apps/lunarstorm` mounts it as `<crate>::command::package(
 
 | package    | file                                         |
 |------------|----------------------------------------------|
-| `runtime`  | `runtime/host-command-line/src/command.rs`           |
+| `runtime`  | `runtime/host-command-line/src/lunar_runtime_commands.rs`           |
 | `build`    | `toolchain/crates/pipeline/src/command.rs`   |
 | `frontend` | `toolchain/crates/cli/src/command.rs`        |
 | `project`  | `platform/extensions/project/src/command.rs` |

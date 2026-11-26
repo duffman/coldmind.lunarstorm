@@ -7,17 +7,17 @@ can open **plugin hosts** (named slots) that **plugins** implement.
 - Built: the runtime level.
 - Design only: the platform level (`platform/doc/lunar-extensions/*`, "design, not implemented"), meaning `native.<ns>.<cmd>` as extensions, an object-safe trait, and threads.
 
-Concepts: `runtime/event-loop-runtime/doc/extensions.md`. Plan: `doc/plans/hostapi.md`.
+Concepts: `runtime/docs/extension-manifests.md`. Plan: `doc/plans/hostapi.md`.
 
 ## Pieces
 
 | piece | where | what |
 |---|---|---|
 | `lunar-extension` | `extensions/core/src/lib.rs` | no VM: name rule `[a-z][a-z0-9]{0,31}`, `RESERVED = ipc, worker, internal`, `PluginHost{name, cardinality One/Many, requirement Required/Optional, plugins}`, `Offer`, `Manifest` (`parse`, `using(name) -> Option<Use>`), `Use` (`plugins`, `has`, `config`), `check(&Manifest, &[Offer])` reporting every error |
-| `Extension<V>` / `ExtensionSet<V>` | `runtime/event-loop-runtime/src/extension.rs` | `const NAME`, `plugin_hosts()`, `bindings(&Use) -> Result<Bindings<V>, String>`; sets are `()` and tuples up to 8; `install` runs only for extensions the manifest uses, errors prefixed `extension <name>:` |
-| `Bindings<V>` | `runtime/event-loop-runtime/src/bindings.rs` | `function(name, f)` → `ops.<name>`; `values(f)` → raw values on `ops`; `module(specifier, source)` → a JS host module; `merge(owner, other)` fences modules to `lunarstorm:<owner>[/...]` and refuses duplicate modules/functions |
+| `Extension<V>` / `ExtensionSet<V>` | `runtime/event-loop-runtime/src/extension_manifest_check.rs` | `const NAME`, `plugin_hosts()`, `bindings(&Use) -> Result<Bindings<V>, String>`; sets are `()` and tuples up to 8; `install` runs only for extensions the manifest uses, errors prefixed `extension <name>:` |
+| `Bindings<V>` | `runtime/event-loop-runtime/src/host_bindings_registry.rs` | `function(name, f)` → `ops.<name>`; `values(f)` → raw values on `ops`; `module(specifier, source)` → a JS host module; `merge(owner, other)` fences modules to `lunarstorm:<owner>[/...]` and refuses duplicate modules/functions |
 | `HostApi<V, A>` | `extensions/hostapi` (`lunar-extension-hostapi`) | the host's own API as plugins: plugin host `area` (Many, Optional); each `Area` is fenced to `lunarstorm:hostapi/<area>`; `lunarstorm:hostapi` exports `areas` (frozen, manifest order) |
-| `Ui` area | `runtime/host-command-line/src/ui.rs` + `crates/cliui/js/ui.js` | `lunarstorm:hostapi/ui` (alias `lunarstorm:ui`): `style`, `progress`, `spinner` |
+| `Ui` area | `runtime/host-command-line/src/terminal_ui_area.rs` + `crates/cliui/js/ui.js` | `lunarstorm:hostapi/ui` (alias `lunarstorm:ui`): `style`, `progress`, `spinner` |
 
 **Manifest format** (`deny_unknown_fields`; `extensions` is the only key):
 
@@ -71,13 +71,13 @@ the Rust natives with no JS wrapper. Extensions cannot declare native modules to
    - Keep state in `Rc`/`Cell` captured by the closures; it is per Runtime.
    - Read configuration with `using.config()`.
    - For plugins, override `plugin_hosts()` and fence each plugin with `merge("foo/<plugin>")` as HostApi does.
-   - For a host-specific API, write a HostApi `Area` instead, like `runtime/host-command-line/src/ui.rs`.
+   - For a host-specific API, write a HostApi `Area` instead, like `runtime/host-command-line/src/terminal_ui_area.rs`.
 4. **Wire it into a host.**
-   - In `runtime/host-command-line/src/host.rs`, set `type Extensions<V: Vm> = (HostApi<V, (Ui,)>, Foo);` and build it in `extensions()`. Tuple order is install order.
+   - In `runtime/host-command-line/src/command_line_host_services.rs`, set `type Extensions<V: Vm> = (HostApi<V, (Ui,)>, Foo);` and build it in `extensions()`. Tuple order is install order.
    - Add `"foo": {}` to `runtime/host-command-line/manifest.json`.
    - Add the dependency to `runtime/host-command-line/Cargo.toml`.
-   - Optionally list it in the help's MODULES rows (`cli.rs`).
-5. **Test**, modelled on `runtime/event-loop-runtime/tests/extensions.rs` and `extensions/hostapi/tests/hostapi.rs`, with a `TestHost`, `Manifest::parse`, `Runtime::<QuickJs, _>::new`, `start`, `load(Source::Text)` and `run`. Cover:
+   - Optionally list it in the help's MODULES rows (`lunar_runtime_commands.rs`).
+5. **Test**, modelled on `runtime/event-loop-runtime/tests/extension_loading.rs` and `extensions/hostapi/tests/hostapi.rs`, with a `TestHost`, `Manifest::parse`, `Runtime::<QuickJs, _>::new`, `start`, `load(Source::Text)` and `run`. Cover:
    - the module works;
    - unused means inert;
    - a bad manifest makes `start()` fail;

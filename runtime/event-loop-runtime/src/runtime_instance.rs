@@ -121,7 +121,7 @@ pub struct Runtime<V: Vm, H: Host> {
     pub(crate) shared: Rc<Shared<H>>,
     /// Unhandled promise rejections, filled by the VM callbacks.
     pub(crate) rejections: Rejections<V>,
-    /// The builtin modules and internals the glue returned; handles into the heap,
+    /// The builtin modules and internals `node_builtins::install` returned; handles into the heap,
     /// cleared before the instance is destroyed.
     pub(crate) registry: Rc<Registry<V>>,
     /// Files and packages, shared with the loader; the entry module goes through it too.
@@ -401,14 +401,14 @@ impl<V: Vm, H: Host> Runtime<V, H> {
     }
 
     /// Creates the VM instance and its context, installs the Runtime's natives and
-    /// the registered host bindings, and evaluates the JS glue.
+    /// the registered host bindings, and the native Node builtins.
     ///
     /// Decision: a Runtime starts once. Isolation and reload are a new Runtime,
     /// which is a new instance; nothing is reset in place.
     ///
     /// # Errors
     /// A message when the Runtime is already started, the engine cannot be created
-    /// or the glue fails to evaluate.
+    /// or the builtins fail to install.
     pub fn start(&mut self) -> Result<(), String> {
         if self.engine.is_some() {
             return Err(String::from("the runtime is already started"));
@@ -439,8 +439,8 @@ impl<V: Vm, H: Host> Runtime<V, H> {
         let hooks = context.enter(|scope| {
             let boot = || -> Outcome<Hooks<V>> {
                 let ops = internal_natives::install::<V, H>(&scope, shared)?;
-                // Host bindings go on `ops` before the glue runs: it reads some of
-                // them while it builds `console`.
+                // Host bindings go on `ops` before the builtins install: they read
+                // some of them (`ops.color`) while they build `console`.
                 for install in installers {
                     install(&scope, &ops)?;
                 }
@@ -765,7 +765,7 @@ impl<V: Vm, H: Host> Runtime<V, H> {
         }))
     }
 }
-/// Describes the pending exception without the glue, for errors raised before or
+/// Describes the pending exception without the builtins' inspector, for errors raised before or
 /// outside it.
 ///
 /// # Arguments

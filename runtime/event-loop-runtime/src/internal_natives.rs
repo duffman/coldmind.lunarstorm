@@ -1,7 +1,10 @@
-//! The Runtime's own native functions, exposed to the JS glue as one `ops` object.
+//! The Runtime's own native functions, as one `ops` object.
+//!
+//! `node_builtins` builds the Node surface on them in Rust; host modules reach
+//! `ops` through `lunarstorm:internal`.
 //!
 //! The surface is deliberately small and low-level: the Node API (EventEmitter,
-//! Socket, Server, request/response, fs) is built on top of it in `js/bootstrap.js`.
+//! Socket, Server, request/response, fs) is built on top of it in `node_builtins`.
 //! Each op borrows the loop state for the duration of one call and never calls
 //! back into JS, so ops cannot re-enter each other.
 //!
@@ -270,7 +273,7 @@ pub fn fs_value<'s, V: Vm>(scope: &V::Scope<'s>, value: FsValue) -> Outcome<V::V
 ///
 /// # Arguments
 /// * `scope` - the context handle.
-/// * `value` - the value the glue passed; objects were serialized to JSON there.
+/// * `value` - the value the caller passed; objects were serialized to JSON there.
 ///
 /// # Returns
 /// The neutral value; anything unrepresentable becomes [`Arg::Null`].

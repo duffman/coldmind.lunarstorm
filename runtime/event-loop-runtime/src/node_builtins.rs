@@ -3,13 +3,13 @@
 //! One file per module (D4): each has `declare()`, the declaration its exports
 //! are installed from, and `install(...)`, which builds the module's object.
 //! [`install`] runs them at `start`, after the `ops` object and the host's
-//! bindings, and hands the JS glue the result: `{ modules, ...internals }`.
+//! bindings, and returns the result: `{ modules, ...internals }`.
 //!
 //! Decisions:
 //! - [`install`] returns the object the loop and the loader read (D3): the
 //!   hooks `dispatch`, `ticks`, `describe`, `exitCode` and `invoke`, and the
-//!   registry parts `modules`, `internal` and `exportsOf`. It is what the JS glue
-//!   used to return; no script runs at `start`. Scripts never see that object.
+//!   registry parts `modules`, `internal` and `exportsOf`. It replaces what the
+//!   removed JS glue returned; no script runs at `start`. Scripts never see that object.
 //! - Values the natives keep between calls (builtins such as `Map.prototype.get`,
 //!   the `EventEmitter` class, `Buffer.prototype`, `process`) are persistent
 //!   handles in [`Node`], which the Runtime owns and clears before the VM
@@ -97,8 +97,8 @@ pub fn declarations() -> Vec<ModuleDecl> {
 /// * `ops` - the `ops` object with the host's bindings (the console reads `ops.color`).
 ///
 /// # Returns
-/// The object the glue receives: `modules` (the builtin registry so far) and the
-/// helpers the remaining glue uses.
+/// The object the builtins share: `modules` (the builtin registry so far) and the
+/// helpers the other builtins use.
 ///
 /// # Errors
 /// [`lunarstorm_engine_contract::Thrown`] when a value cannot be created or a builtin is missing.
@@ -146,7 +146,7 @@ pub(crate) fn arg<'s, V: Vm>(scope: &V::Scope<'s>, args: &[V::Value<'s>], index:
     args.get(index).cloned().unwrap_or_else(|| scope.undefined())
 }
 
-/// Builds an `Error` carrying a Node-style `code`, as the glue's `codedError` did.
+/// Builds an `Error` carrying a Node-style `code`, as Node does.
 ///
 /// # Arguments
 /// * `scope` - the context handle.

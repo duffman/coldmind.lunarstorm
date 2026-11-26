@@ -10,10 +10,10 @@ source text (UTF-16)                                     TypeScript never gets h
   │ qjs-js-parser-frontend     SourceInput → OXC 0.157 parse + semantic → budget check → Lower
   ▼
 qjs_scalar_ssa_ir::js::Program  owned, AST-shaped IR (Statement/Expression/Pattern/Function/Scope/Module); not SSA
-  │ qjs-bytecode-emitter js_emit::emit_program_with_options (+ class_emit, call_emit, class_references)
+  │ qjs-bytecode-emitter js_emit::emit_program_with_options (src/script_emitter.rs and script_emitter/*.rs)
   ▼
 FunctionImage / ModuleImage
-  │ qjs-bytecode-image-verifier     image::verify_and_encode*: verify graph → encode → decode again → verify again
+  │ qjs-bytecode-image-verifier     image::verify_and_encode* (native_function_graph_image.rs): verify graph → encode → decode again → verify again
   ▼
 VerifiedImage        native quickjs-ng bytecode (JS_WriteObject format, BC_VERSION 94 = 30|0x40)
   │ rquickjs_core::compiler → jbq_install_verified → JS_JetbunnyInstall → JS_ReadObject
@@ -51,7 +51,7 @@ optional chaining and `using`.
 Refused as unsupported: class decorators, import phase modifiers, and any TS or JSX node.
 
 Regexp literals compile through the multiplexed `strict_op` opcode (selector 4). libregexp then
-compiles them at run time, so `qjs-bytecode-image-verifier/src/regexp.rs` has no caller.
+compiles them at run time, so `bytecode-image-verifier/src/regexp_bytecode_compiler.rs` has no caller.
 
 ## Budgets (admission limits a caller may only tighten)
 
@@ -77,7 +77,7 @@ None of these has a caller outside tests:
   accepted.
 - **Hand-mirrored engine facts:**
   - `NATIVE_BC_VERSION = 94` (`image_format.rs:35`);
-  - the fingerprint salt in `qjs-bytecode-image-verifier/build.rs:92`;
+  - the fingerprint salt in `bytecode-image-verifier/build.rs`;
   - `NATIVE_PROFILE`;
   - the hand-written stack-effect table and the `strict_op` selectors 0–6
     (`image_verify.rs:6-164`), which must match `quickjs.c` and `quickjs-opcode.h:383-391`;
@@ -93,7 +93,7 @@ None of these has a caller outside tests:
   re-parse with an injected `'use strict'` to validate inherited strictness.
 - **Mixed editions**: `qjs-scalar-ssa-ir`/`qjs-bytecode-image-verifier` are 2021/1.85, `qjs-js-parser-frontend` 2024/1.97 and
   `qjs-bytecode-emitter` 2024/1.99.
-- **A build needs a host C compiler** (`HOST_CC` or `cc`) for `qjs-bytecode-image-verifier/build.rs`.
+- **A build needs a host C compiler** (`HOST_CC` or `cc`) for `bytecode-image-verifier/build.rs`.
 - **Stale references:**
   - `qjs-reference-engine-bridge` and `qjs-bytecode-image-verifier::UPSTREAM_REVISION` name `e22ce4de`, while the vendor
     tree and the script use `7b5f588e`;

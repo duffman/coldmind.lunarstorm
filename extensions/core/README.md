@@ -1,6 +1,6 @@
 # lunar-extension (extensions/core)
 
-The rules every lunar-extension follows, at every level of Lunarstorm: valid names, the manifest an application declares its extensions in, the plugin hosts an extension opens, and the load-time check that compares the manifest with what a host offers. It has no VM and no platform dependency, so the runtime level (`lunarstorm-event-loop-runtime`) and the platform level apply the same rules and report the same messages. Concepts: `runtime/event-loop-runtime/doc/extensions.md`.
+The rules every lunar-extension follows, at every level of Lunarstorm: valid names, the manifest an application declares its extensions in, the plugin hosts an extension opens, and the load-time check that compares the manifest with what a host offers. It has no VM and no platform dependency, so the runtime level (`lunarstorm-event-loop-runtime`) and the platform level apply the same rules and report the same messages. Concepts: `runtime/docs/extension-manifests.md`.
 
 ## Public surface
 

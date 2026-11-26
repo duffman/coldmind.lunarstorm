@@ -24,7 +24,7 @@ const MAX_HEADERS: usize = 100;
 const MAX_CHUNK_LINE: usize = 4096;
 
 /// Request methods passed to JS as an index instead of a string, so the common
-/// methods allocate nothing. Mirrored by `METHODS` in `js/bootstrap.js`.
+/// methods allocate nothing. Mirrored by `METHODS` in the runtime's `node_builtins/http_server.rs`.
 pub const METHODS: [&str; 7] = ["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"];
 
 /// How the request body is delimited.

@@ -12,7 +12,7 @@ runtime/vendor/rquickjs-binding  rquickjs (vendored, first-party)   Rust binding
    │ compiles
 runtime/vendor/rquickjs-binding/sys/quickjs   patched quickjs-ng 0.17.0 (C)
    │ every JS compile is delegated to
-runtime/compiler/crates/qjs-*          the Rust compiler (see compiler.md)
+runtime/compiler/*                     the Rust compiler (see compiler.md)
 ```
 
 ## The contract (`runtime/engine-contract/src/lib.rs`)
@@ -70,7 +70,7 @@ constructors:
 Before, `ModuleSource` carried a `bytecode: bool` that any caller could set. Do not add a third
 constructor.
 
-### Conformance suite (`runtime/engine-contract/src/conformance.rs`)
+### Conformance suite (`runtime/engine-contract/src/engine_conformance_suite.rs`)
 
 `conformance::run::<V>()` returns how many check groups ran. The QuickJS test asserts **19**
 (`runtime/engine-quickjs-adapter/tests/conformance.rs`). Adding a group means updating that number. The
@@ -79,7 +79,7 @@ vm and quickjs READMEs still say 13.
 ## The QuickJS adapter (`runtime/engine-quickjs-adapter/src/lib.rs`)
 
 - **Identity** (lib.rs:94): `quickjs` / `quickjs-ng` / `0.17.0+lunarstorm.1` / contract 1.
-  `engine::<V>()` in runtime.rs formats it, and a `.jbn` records it. **Bump `lunarstorm.N` on any
+  `engine::<V>()` in runtime_public_types.rs formats it, and a `.jbn` records it. **Bump `lunarstorm.N` on any
   engine edit that changes bytecode or opcodes**, or old packages will be misread instead of
   refused.
 - **Capabilities**: memory limits, termination, bytecode cache, debug hooks. No JIT, no
@@ -107,7 +107,7 @@ vm and quickjs READMEs still say 13.
 - **Every context is wrapped by the debugger bridge at creation** (`Debugger::wrap`, lib.rs:254),
   even with no debugger attached. A session attaches to the wrapper later. The Rust compiler
   itself is installed earlier, by rquickjs on every context it creates
-  (`rquickjs_core::compiler::install_base`, `core/src/context/base.rs:81`). The wrapper only
+  (`rquickjs_core::compiler::install_base`, `vendor/rquickjs-binding/core/src/context/base.rs:81`). The wrapper only
   layers its compile observer on top. The adapter's comment at lib.rs:120 ("the wrapper is what
   makes jetbunny's Rust compiler the context's compiler") predates that move.
 
@@ -138,13 +138,13 @@ and checked by `../tests/provenance.rs`.
 | lunarstorm-import-attributes | import attributes are written into module bytecode |
 | lunarstorm-int32-constants | integer literals are written as `INT32`, not `FLOAT64` |
 | lunarstorm-writer-out-of-memory | the bytecode writer refuses a truncated image after an allocation failure |
-| lunarstorm-compiler-temporaries | (in `qjs-bytecode-emitter/js_emit.rs`) temporary slots are reused, so verifier state no longer grows with the square of a function's length |
+| lunarstorm-compiler-temporaries | (in `bytecode-emitter/src/script_emitter/`) temporary slots are reused, so verifier state no longer grows with the square of a function's length |
 
 Consequences:
 - **There is no C fallback compiler.** Every `Module::declare`, `eval` and `compile` goes through
   `rquickjs_core::compiler`, which is the Rust compiler installed as each context's *base
-  compiler*. A debugger wrapper layers its observer on top. This is why compiling the 50 KB glue
-  took about 150 ms in a debug build, and why it is cached as an image per process.
+  compiler*. A debugger wrapper layers its observer on top. This is why compiling a large script takes noticeably long in a debug build (the former
+  50 KB JS glue took about 150 ms; the Node surface is native now).
 - **The opcode set is shared with Rust.** An opcode edit in C must be matched in
   `qjs-bytecode-image-verifier`'s verifier, then followed by a descriptor bump.
 - **Every engine edit needs a provenance update**: the patch section, the `Sites` list (one

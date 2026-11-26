@@ -3,7 +3,7 @@
 One folder, two packages (plan D6):
 
 - the Cargo crate **`lunarstorm-typescript-declarations`** (`src/lib.rs`): turns the Runtime's
-  declarations (`ModuleDecl`, `Item`, `Ty` in `runtime/engine-contract/src/types.rs`) into `.d.ts`;
+  declarations (`ModuleDecl`, `Item`, `Ty` in `runtime/engine-contract/src/native_declarations.rs`) into `.d.ts`;
 - the npm package **`lunartypes`** (`package.json`): those files, generated into
   `dist/` and committed.
 
@@ -21,7 +21,7 @@ here, so the two cannot drift.
 | `common(a, b)`, `only(all, base)` | split hosts' merged declarations into layers |
 | `INTERNAL` | `lunarstorm:internal`, rendered as `Ops` + `ops` |
 
-Collecting the declarations is `type_files()` in `runtime/host-command-line/src/command.rs`,
+Collecting the declarations is `type_files()` in `runtime/host-command-line/src/lunar_runtime_commands.rs`,
 behind the command `lunarstorm types [--out <dir>]` (`doc/cli.md`).
 
 | file | holds | import as |

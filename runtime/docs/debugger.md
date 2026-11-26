@@ -77,7 +77,7 @@ Rust compiler CompileObserver → register_source: takes the staged entry only i
 
 ## What is debuggable
 
-Only code compiled after `Runtime::debug()`. The glue image, `.jbn` bytecode and anything
+Only code compiled after `Runtime::debug()`. `.jbn` bytecode and anything
 compiled before attach have no statement markers.
 
 ## Hazards
@@ -85,7 +85,7 @@ compiled before attach have no statement markers.
 - **ABI lockstep.** `JBQ_ABI` must agree in `bridge.h:30`, `ffi.rs:13` and `build.rs`. Bump it
   on any signature or struct-layout change; adding functions does not need a bump.
 - **`build.rs` identity is hand-written**: the patch list, `ABI=14`, `BYTECODE=94`, the revision.
-  It hashes `../engines/rquickjs/sys/quickjs` and `../compiler/crates/qjs-*` by relative path,
+  It hashes `../vendor/rquickjs-binding/sys/quickjs` and every `.rs` under `../compiler/*/src` by relative path,
   so moving the crate breaks the build. `tests/compiler_build_identity.rs` asserts
   `;bytecode=94;`.
 - **Stage then compile, one slot.** The staged text must be byte-identical to the compiled text.
@@ -103,12 +103,12 @@ compiled before attach have no statement markers.
 - **There is no end-to-end test of the Lunarstorm path.** Nothing in core, quickjs, the CLI host
   or vm tests calls `Runtime::debug`, `Debugger::wrap` or `DapAdapter` together. The about 40
   jetbunny test files mounted in `lib.rs` drive jetbunny's own VM, which is compiled only under
-  `#[cfg(test)]` (`engine/bridge.rs`, `runner.rs`, `vm/mod.rs`, `transport/`, `host.rs`,
+  `#[cfg(test)]` (`engine/bridge.rs`, `runner.rs`, `owner_thread_vm_facade.rs`, `transport/`, `host.rs`,
   `driver.rs`, ...). Test-only `src/host.rs` is not production `src/debug/host.rs`.
 
 ## Code that is compiled but unused by Lunarstorm
 
-- `debug/targets.rs` and `target_dap.rs`: a multi-target broker for worker sessions; the CLI
+- `debugger/targets.rs` and `target_dap.rs`: a multi-target broker for worker sessions; the CLI
   passes `targets: None`.
 - `QuickJsNgEngine` and `EngineRegistry`.
 

@@ -31,7 +31,7 @@ cargo build -p lunarstorm-engine-quickjs-adapter
 cargo test -p lunarstorm-engine-quickjs-adapter     # tests/conformance.rs
 ```
 
-`quickjs_conforms_to_the_vm_contract` runs `conformance::run::<QuickJs>()` and asserts exactly 13 checks. The suite lives in `runtime/engine-contract/src/conformance.rs`; extend it there and update the expected count here.
+`quickjs_conforms_to_the_vm_contract` runs `conformance::run::<QuickJs>()` and asserts exactly 13 checks. The suite lives in `runtime/engine-contract/src/engine_conformance_suite.rs`; extend it there and update the expected count here.
 
 ## Decisions and hazards
 

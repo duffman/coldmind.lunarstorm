@@ -14,16 +14,16 @@ argv, stdio, file access, which extensions exist and whether workers/IPC exist.
 | `runtime/event-loop-runtime` | `lunarstorm-event-loop-runtime` | the Runtime: loop, timers, ops, loader, fs/net/http, ipc, worker, extensions, `js/bootstrap.js` glue |
 | `runtime/module-sources` | `lunarstorm-module-sources` | TS/JSON/CJS → ESM (oxc), `node_modules` + `package.json` `exports`/`imports` |
 | `runtime/jbn-package-format` | `lunarstorm-jbn-package-format` | signed `.jbn` packages (Ed25519, CBOR, zstd), trust store |
-| `runtime/debugger` | `lunarstorm-debug` | DAP debugger (from jetbunny) |
-| `runtime/compiler/crates/qjs-*` | `qjs-scalar-ssa-ir`, `qjs-js-parser-frontend`, `qjs-bytecode-image-verifier`, `qjs-bytecode-emitter`, `qjs-reference-engine-bridge` | jetbunny's Rust JS compiler, pulled in by `lunarstorm-debug` |
+| `runtime/debugger` | `lunarstorm-debugger` | DAP debugger (from jetbunny) |
+| `runtime/compiler/{js-parser-frontend,scalar-ssa-ir,bytecode-emitter,bytecode-image-verifier,reference-engine-bridge}` | `qjs-js-parser-frontend`, `qjs-scalar-ssa-ir`, `qjs-bytecode-emitter`, `qjs-bytecode-image-verifier`, `qjs-reference-engine-bridge` | the Rust JS compiler: OXC frontend, scalar SSA IR, bytecode emitter, image verifier, reference-engine bridge for tests |
 | `runtime/host-command-line` | `lunarstorm-host-command-line` | library: the `run`, `debug`, `jbn` commands and `CliHost`; mounted by `lunar` |
 | `runtime/host-desktop-backend` | `lunarstorm-host-desktop-backend` (+ bin `lunarstorm-desktop`) | a desktop app's backend on a thread, new Runtime per epoch |
 
 ## How `lunar run file.js` runs
 
-1. `runtime/host-command-line/src/cli.rs` `run`: argv is `["lunar", script, ...]` (`ARGV0`); a `.jbn` needs `--trust` or `LUNARSTORM_TRUST`.
-2. `Runtime::<QuickJs, CliHost>::new` (mio poll, waker), `register(host::bindings())` (`ops.color`, `ops.tty`, `lunarstorm:ui`).
-3. `Runtime::start` (`runtime/event-loop-runtime/src/runtime.rs` ~583): check the host's manifest, install extensions, create Loader + engine instance, `ops::install`, run binding installers, run the glue (`bootstrap.js`, compiled once per process into shared bytecode).
+1. `runtime/host-command-line/src/lunar_runtime_commands.rs` `run`: argv is `["lunar", script, ...]` (`ARGV0`); a `.jbn` needs `--trust` or `LUNARSTORM_TRUST`.
+2. `Runtime::<QuickJs, CliHost>::new` (mio poll, waker), `register(command_line_host_services::bindings())` (`ops.color`, `ops.tty`, `lunarstorm:ui`).
+3. `Runtime::start` (`runtime/event-loop-runtime/src/runtime_instance.rs` ~583): check the host's manifest, install extensions, create Loader + engine instance, `ops::install`, run binding installers, `node_builtins::install` (the Node surface, native; no script is compiled at start).
 4. `load(Source::File)`: read through `Host::allow(Access::Read)`, transform TS/CJS/JSON, evaluate, `settle`.
 5. `run()`: `Turn::step` until idle, then exit with `process.exitCode`.
 
@@ -33,7 +33,7 @@ immediates. After every JS entry `settle` drains nextTicks, then promise jobs, u
 empty, then checks out-of-memory and reports unhandled rejections. Idle = no immediates, tasks,
 timers, live I/O, holds or refs.
 
-## Module resolution (`runtime/event-loop-runtime/src/modules.rs`, in order)
+## Module resolution (`runtime/event-loop-runtime/src/module_loader_callbacks.rs`, in order)
 
 1. `.jbn` package import table (closed world: a package never reads the filesystem).
 2. `lunarstorm:worker-native`: only from `lunarstorm:worker`.
@@ -51,7 +51,7 @@ timers, live I/O, holds or refs.
 - Missing: `fetch`, `URL`, `structuredClone`, `http.request`, `https`, `node:os`, `node:crypto`, `node:child_process`; `Buffer` is UTF-8 only (`toString("base64")` throws `Unsupported encoding: base64`); `process` never emits `'exit'`.
 - In the CLI host: `lunarstorm:ui` (= `lunarstorm:hostapi/ui`) and `lunarstorm:hostapi` work; `lunarstorm:worker`/`ipc`/`internal` are "module not found".
 
-## The Host trait (`runtime/event-loop-runtime/src/host.rs`)
+## The Host trait (`runtime/event-loop-runtime/src/host_services_trait.rs`)
 
 Required: `type Extensions<V>` + `extensions()` (write `()` for none), `args`, `environment`,
 `working_directory`, `write(Stream, &[u8])` (stdout batched per turn), `exit(code) -> !`,
@@ -61,7 +61,7 @@ Defaulted: `PULSE`, `IPC`, `WORKERS` (all `false`), `manifest()` (empty), `monot
 
 | host | IPC/WORKERS | extensions | file access |
 |---|---|---|---|
-| `CliHost` (`runtime/host-command-line/src/host.rs`) | off | `(HostApi<V, (Ui,)>,)` + `manifest.json` | everything |
+| `CliHost` (`runtime/host-command-line/src/command_line_host_services.rs`) | off | `(HostApi<V, (Ui,)>,)` + `manifest.json` | everything |
 | desktop backend (`runtime/host-desktop-backend/src/lib.rs`) | off, `PULSE` on | `()` | read/write under `roots` only; listen/connect refused |
 | `ipc-demo` (`runtime/event-loop-runtime/examples/ipc-demo.rs`) | on | `()` | example |
 

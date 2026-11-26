@@ -77,7 +77,7 @@ How a crate adds commands: `crates/cli-contract` (`trait Package`, `Command`, `A
 **Split with `runtime/host-desktop-backend`.**
 - `runtime/host-desktop-backend` (`lunarstorm-host-desktop-backend`) owns the JS side: `Backend<S: Shell>`, one Runtime per epoch, a watchdog on `PULSE`, the `@desktop/bridge` and `@desktop/api` modules (`js/desktop.js`), and a JSON-only `Shell`.
 - `platform/desktop` implements `Shell` (`src/runtime/lunarstorm.rs`) and owns windows, natives, the envelope and permissions.
-- `_build/lunarstorm-desktop` (from `runtime/host-desktop-backend/src/main.rs`) is a minimal tao shell with no WebView that runs one script.
+- `_build/lunarstorm-desktop` (from `runtime/host-desktop-backend/src/bin/lunarstorm-desktop.rs`) is a minimal tao shell with no WebView that runs one script.
 
 ## Browser host (`platform/web`, `lunarstorm-web <dir> [--port n]`)
 

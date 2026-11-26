@@ -1,6 +1,6 @@
 # Build plan: HostApi, the first host extension
 
-Status: **built** on branch `runtime-extensions`. Concepts: `runtime/event-loop-runtime/doc/hosts.md`, `runtime/event-loop-runtime/doc/extensions.md`.
+Status: **built** on branch `runtime-extensions`. Concepts: `runtime/docs/embedding-a-host.md`, `runtime/docs/extension-manifests.md`.
 
 ## Goal
 
@@ -36,7 +36,7 @@ lunarstorm-host-command-line ──> lunar-extension-hostapi ──> lunarstorm-
 
 ### What the Runtime already provides
 
-An extension is built on `Bindings<V>` (`runtime/event-loop-runtime/src/bindings.rs`), the mechanism hosts use today:
+An extension is built on `Bindings<V>` (`runtime/event-loop-runtime/src/host_bindings_registry.rs`), the mechanism hosts use today:
 
 - `function(name, f)` and `values(install)` put natives on `ops`;
 - `module(specifier, source)` adds a source module, compiled on first import;
@@ -124,7 +124,7 @@ application writes (the desktop host). The CLI host's manifest is written by the
 
 ### The area `ui`
 
-`runtime/host-command-line/src/ui.rs` holds the CLI host's terminal API, since that API is specific to the host.
+`runtime/host-command-line/src/terminal_ui_area.rs` holds the CLI host's terminal API, since that API is specific to the host.
 
 | binding | owner after the change | reason |
 |---|---|---|
@@ -150,7 +150,7 @@ same tests pass, and the documentation follows. Sizes are added lines, tests inc
 | 2 | Runtime: `Extension<V>`, `ExtensionSet<V>` for tuples up to 8, the `Host` members, the checked merge in `Bindings`, extension setup in `start`, two lines in each of the 7 `impl Host` | `runtime/event-loop-runtime/src/{extension.rs,host.rs,bindings.rs,runtime.rs,lib.rs}`, the 4 test hosts, `examples/ipc-demo.rs`, `runtime/hosts/{cli,desktop}/src/*` | `runtime/event-loop-runtime/tests/extension_loading.rs` (see below) | 280 |
 | 3 | HostApi: `HostApi<V, A>`, `Area<V>`, `AreaSet<V>` for tuples, `lunarstorm:hostapi` | `extensions/hostapi/{Cargo.toml,src/lib.rs,js/hostapi.js,README.md}` | `extensions/hostapi/tests/hostapi.rs` (see below) | 220 |
 | 4 | The CLI host adopts HostApi: `src/ui.rs`, `manifest.json`, `type Extensions<V: Vm> = (HostApi<V, (Ui,)>,)`, the alias, `lunarstorm:hostapi` in the help's module list (`cli.rs:104`) | `runtime/host-command-line/{Cargo.toml,manifest.json,src/ui.rs,src/host.rs,src/cli.rs}` | `apps/lunarstorm/tests/ui.rs` unchanged and green, plus two new cases (see below); manifest parse test in `host.rs` | 110 |
-| 5 | Documentation | READMEs of the four packages; `runtime/event-loop-runtime/doc/extensions.md` (built parts marked built, the open module-name and CLI-manifest questions answered); `runtime/event-loop-runtime/doc/hosts.md` (register step and worker note); root README table | | 120 |
+| 5 | Documentation | READMEs of the four packages; `runtime/docs/extension-manifests.md` (built parts marked built, the open module-name and CLI-manifest questions answered); `runtime/docs/embedding-a-host.md` (register step and worker note); root README table | | 120 |
 
 Total about 980 lines.
 

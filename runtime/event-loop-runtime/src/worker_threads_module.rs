@@ -150,7 +150,7 @@ pub enum WorkerEvent<'s, V: Vm> {
     Message {
         /// The listener.
         listener: V::Value<'s>,
-        /// The message bytes (tag byte first, see `js/worker.js`).
+        /// The message bytes (tag byte first, see `encode`).
         bytes: Vec<u8>,
     },
     /// A worker ended.

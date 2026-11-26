@@ -30,7 +30,7 @@ const QUEUE_DEPTH: usize = 256;
 pub enum Work {
     /// One filesystem operation.
     Fs {
-        /// Request id chosen by the JS glue; echoed back in the result.
+        /// Request id chosen by `node:fs`'s natives; echoed back in the result.
         req: i32,
         /// Operation code, one of [`fs::op`].
         op: i32,

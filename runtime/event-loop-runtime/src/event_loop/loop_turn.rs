@@ -259,7 +259,7 @@ impl<'s, V: Vm, H: Host> Turn<'_, 's, V, H> {
         }
     }
 
-    /// Formats a JS value with the glue's inspector.
+    /// Formats a JS value with the console's inspector.
     ///
     /// # Arguments
     /// * `value` - a thrown value or rejection reason.
