@@ -14,9 +14,16 @@
 //! worker. At most [`MAX_ACTIVE_WORKERS`] workers run at once in one Runtime.
 //!
 //! Decisions:
-//! - The JS half is `js/worker.js` (the handle, its `exited` promise, message
-//!   encoding); this file is its natives, in the module `lunarstorm:worker-native`,
-//!   which only `lunarstorm:worker` may import.
+//! - The module is native ([`Workers::module`]): the handle class, its `exited`
+//!   promise ([`Scope::promise`]) and the message encoding were `js/worker.js`.
+//!   The low-level natives ([`Workers::exports`]) sit on an object every export
+//!   receives as its bound first argument, so no Rust closure holds a JS handle.
+//! - Message format: a message crosses threads as bytes. The first byte is a tag:
+//!   0 = the rest is UTF-8 JSON text, 1 = the rest is a `Uint8Array`'s bytes. So
+//!   structured data means JSON values and a top-level `Uint8Array`; functions,
+//!   symbols and `undefined` are refused with a TypeError, and a nested
+//!   `Uint8Array` arrives as a JSON object. Dropped alternative: a full structured
+//!   clone, which the VM contract does not offer.
 //! - Bounds are per direction per worker, where jetbunny shared one inbound credit
 //!   among all children of a parent. The shared credit needs a sender id on every
 //!   queued message and buys only a tighter total; the per-worker bound already
@@ -42,7 +49,7 @@ use crate::host::{Access, Host};
 use crate::io::Shared;
 use crate::ipc::Ipc;
 use crate::runtime::{Runtime, Source};
-use lunarstorm_vm::{ErrorKind, Interrupt, Kind, Limits, Outcome, Scope, Vm};
+use lunarstorm_vm::{Call, ErrorKind, Interrupt, Kind, Limits, Outcome, Scope, Vm};
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -54,10 +61,6 @@ use std::thread::{self, JoinHandle};
 
 /// The specifier scripts import.
 pub const MODULE: &str = "lunarstorm:worker";
-/// The natives behind [`MODULE`]; importable from it only.
-pub const NATIVE_MODULE: &str = "lunarstorm:worker-native";
-/// The JS half of the module.
-pub const SOURCE: &str = include_str!("js/worker.js");
 /// Most workers running at once in one Runtime.
 pub const MAX_ACTIVE_WORKERS: usize = 64;
 
@@ -305,7 +308,141 @@ impl<V: Vm> Workers<V> {
         Ok(id)
     }
 
-    /// Builds the natives of `lunarstorm:worker-native`.
+    /// Builds the exports of [`MODULE`]: `spawn`, `postMessage`, `onMessage` and
+    /// `close`, over the natives of [`Workers::exports`].
+    ///
+    /// # Arguments
+    /// * `scope` - the context handle the module is being loaded in.
+    /// * `shared` - loop state and host.
+    /// * `ipc` - the Runtime's `lunarstorm:ipc` state.
+    ///
+    /// # Returns
+    /// `(name, function)` per export.
+    ///
+    /// # Errors
+    /// [`lunarstorm_vm::Thrown`] when a value cannot be created.
+    pub fn module<'s, H: Host>(
+        self: &Rc<Self>,
+        scope: &V::Scope<'s>,
+        shared: &Rc<Shared<H>>,
+        ipc: &Rc<Ipc<V>>,
+    ) -> Outcome<Vec<(&'static str, V::Value<'s>)>> {
+        let natives = scope.object()?;
+        for (name, function) in self.exports(scope, shared, ipc)? {
+            scope.set(&natives, name, function)?;
+        }
+        // `(listener, bytes)`: the listener with the decoded message.
+        let deliver = scope.function("deliver", |call: &Call<'_, V>| {
+            let scope = call.scope();
+            let data = decode::<V>(scope, &arg::<V>(scope, call.args(), 1))?;
+            scope.call(&arg::<V>(scope, call.args(), 0), &[data])
+        })?;
+        scope.set(&natives, "_deliver", deliver)?;
+        // `(resolve, reject, state, message)`: settles a handle's `exited`.
+        let exit = scope.function("exit", |call: &Call<'_, V>| {
+            let (scope, args) = (call.scope(), call.args());
+            let state = arg::<V>(scope, args, 2);
+            if scope.kind(&state) == Kind::String && scope.with_str(&state, |state| state == "failed")? {
+                let message = arg::<V>(scope, args, 3);
+                let message = if scope.kind(&message) == Kind::String { scope.with_str(&message, str::to_owned)? } else { String::new() };
+                let error = scope.error(ErrorKind::Error, &message)?;
+                scope.set(&error, "code", scope.string("WorkerError")?)?;
+                scope.call(&arg::<V>(scope, args, 1), &[error])?;
+            } else {
+                let result = scope.object()?;
+                scope.set(&result, "state", state)?;
+                scope.call(&arg::<V>(scope, args, 0), &[result])?;
+            }
+            Ok(scope.undefined())
+        })?;
+        scope.set(&natives, "_exit", exit)?;
+
+        let post_message = scope.function("postMessage", |call: &Call<'_, V>| {
+            let (scope, this) = (call.scope(), call.this());
+            let natives = scope.get(this, "_native")?;
+            let bytes = encode::<V>(scope, &arg::<V>(scope, call.args(), 0))?;
+            scope.call(&scope.get(&natives, "post")?, &[scope.get(this, "id")?, bytes])
+        })?;
+        let on_message = scope.function("onMessage", |call: &Call<'_, V>| {
+            let (scope, this) = (call.scope(), call.this());
+            let natives = scope.get(this, "_native")?;
+            let wrapped = wrap::<V>(scope, &natives, &arg::<V>(scope, call.args(), 0))?;
+            scope.call(&scope.get(&natives, "listen")?, &[scope.get(this, "id")?, wrapped])?;
+            Ok(scope.undefined())
+        })?;
+        let terminate = scope.function("terminate", |call: &Call<'_, V>| {
+            let (scope, this) = (call.scope(), call.this());
+            let natives = scope.get(this, "_native")?;
+            scope.call(&scope.get(&natives, "terminate")?, &[scope.get(this, "id")?])?;
+            Ok(scope.undefined())
+        })?;
+        let spec = lunarstorm_vm::ClassSpec::new("Worker").method("postMessage", post_message).method("onMessage", on_message).method("terminate", terminate);
+        // `new Worker(id, natives)`: `id`, the hidden natives and `exited`.
+        let worker = scope.class::<(), _>(spec, |call: &Call<'_, V>| {
+            let (scope, this, args) = (call.scope(), call.this(), call.args());
+            let (id, natives) = (arg::<V>(scope, args, 0), arg::<V>(scope, args, 1));
+            scope.set(this, "id", id.clone())?;
+            hide::<V>(scope, this, "_native", natives.clone())?;
+            let (promise, resolver) = scope.promise()?;
+            let pair = scope.local(&resolver);
+            drop(resolver);
+            let handler = bind::<V>(scope, &scope.get(&natives, "_exit")?, &[scope.get(&pair, "0")?, scope.get(&pair, "1")?])?;
+            scope.call(&scope.get(&natives, "onExit")?, &[id, handler])?;
+            scope.set(this, "exited", promise)?;
+            Ok(())
+        })?;
+        scope.set(&natives, "_Worker", worker)?;
+
+        let spawn = scope.function("spawn", |call: &Call<'_, V>| {
+            let (scope, args) = (call.scope(), call.args());
+            let (natives, path, options) = (arg::<V>(scope, args, 0), arg::<V>(scope, args, 1), arg::<V>(scope, args, 2));
+            if scope.kind(&path) != Kind::String {
+                return Err(scope.throw_error(ErrorKind::Type, "spawn expects a path"));
+            }
+            let memory = if matches!(scope.kind(&options), Kind::Object | Kind::Function) { scope.get(&options, "maxMemory")? } else { scope.undefined() };
+            let memory = if scope.kind(&memory) == Kind::Undefined { 268_435_456.0 } else { scope.as_number(&memory).unwrap_or(f64::NAN) };
+            if !(memory.is_finite() && memory.fract() == 0.0 && memory > 0.0) {
+                return Err(scope.throw_error(ErrorKind::Range, "maxMemory must be a positive byte count"));
+            }
+            let id = scope.call(&scope.get(&natives, "spawn")?, &[path, scope.number(memory)])?;
+            construct::<V>(scope, &scope.get(&natives, "_Worker")?, &[id, natives])
+        })?;
+        let post = scope.function("postMessage", |call: &Call<'_, V>| {
+            let (scope, args) = (call.scope(), call.args());
+            let natives = arg::<V>(scope, args, 0);
+            let bytes = encode::<V>(scope, &arg::<V>(scope, args, 1))?;
+            if !is_worker::<V>(scope, &natives)? {
+                return Ok(scope.boolean(false));
+            }
+            scope.call(&scope.get(&natives, "post")?, &[scope.int(0), bytes])
+        })?;
+        let listen = scope.function("onMessage", |call: &Call<'_, V>| {
+            let (scope, args) = (call.scope(), call.args());
+            let natives = arg::<V>(scope, args, 0);
+            let wrapped = wrap::<V>(scope, &natives, &arg::<V>(scope, args, 1))?;
+            if !is_worker::<V>(scope, &natives)? {
+                return Ok(scope.boolean(false));
+            }
+            scope.call(&scope.get(&natives, "listenParent")?, &[wrapped])?;
+            Ok(scope.boolean(true))
+        })?;
+        let close = scope.function("close", |call: &Call<'_, V>| {
+            let scope = call.scope();
+            let natives = arg::<V>(scope, call.args(), 0);
+            if is_worker::<V>(scope, &natives)? {
+                scope.call(&scope.get(&natives, "close")?, &[])?;
+            }
+            Ok(scope.undefined())
+        })?;
+        Ok(vec![
+            ("spawn", bind::<V>(scope, &spawn, std::slice::from_ref(&natives))?),
+            ("postMessage", bind::<V>(scope, &post, std::slice::from_ref(&natives))?),
+            ("onMessage", bind::<V>(scope, &listen, std::slice::from_ref(&natives))?),
+            ("close", bind::<V>(scope, &close, std::slice::from_ref(&natives))?),
+        ])
+    }
+
+    /// Builds the low-level natives the module's exports call.
     ///
     /// # Arguments
     /// * `scope` - the context handle the module is being loaded in.
@@ -432,6 +569,168 @@ impl<V: Vm> Workers<V> {
             ("terminate", terminate),
             ("close", close),
         ])
+    }
+}
+
+/// Reads an optional argument.
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `args` - the call's arguments.
+/// * `index` - position.
+///
+/// # Returns
+/// The argument; `undefined` when it was left out.
+fn arg<'s, V: Vm>(scope: &V::Scope<'s>, args: &[V::Value<'s>], index: usize) -> V::Value<'s> {
+    args.get(index).cloned().unwrap_or_else(|| scope.undefined())
+}
+
+/// A builtin reached from the global object by path (`JSON.stringify`).
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `path` - the property names from the global object.
+///
+/// # Returns
+/// The value.
+///
+/// # Errors
+/// What a getter throws.
+fn builtin<'s, V: Vm>(scope: &V::Scope<'s>, path: &[&str]) -> Outcome<V::Value<'s>> {
+    let mut value = scope.global();
+    for key in path {
+        value = scope.get(&value, key)?;
+    }
+    Ok(value)
+}
+
+/// `function.bind(undefined, ...args)`.
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `function` - the target.
+/// * `args` - the bound leading arguments.
+///
+/// # Returns
+/// The bound function.
+///
+/// # Errors
+/// What `bind` throws.
+fn bind<'s, V: Vm>(scope: &V::Scope<'s>, function: &V::Value<'s>, args: &[V::Value<'s>]) -> Outcome<V::Value<'s>> {
+    let mut all = vec![scope.undefined()];
+    all.extend_from_slice(args);
+    scope.call_with(&builtin::<V>(scope, &["Function", "prototype", "bind"])?, function, &all)
+}
+
+/// `new constructor(...args)`.
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `constructor` - the class.
+/// * `args` - its arguments.
+///
+/// # Returns
+/// The instance.
+///
+/// # Errors
+/// What the constructor throws.
+fn construct<'s, V: Vm>(scope: &V::Scope<'s>, constructor: &V::Value<'s>, args: &[V::Value<'s>]) -> Outcome<V::Value<'s>> {
+    let list = scope.array(args)?;
+    scope.call(&builtin::<V>(scope, &["Reflect", "construct"])?, &[constructor.clone(), list])
+}
+
+/// Defines a property `Object.keys` does not list.
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `object` - where.
+/// * `key` - the name.
+/// * `value` - the value.
+///
+/// # Errors
+/// What `Object.defineProperty` throws.
+fn hide<'s, V: Vm>(scope: &V::Scope<'s>, object: &V::Value<'s>, key: &str, value: V::Value<'s>) -> Outcome<()> {
+    let descriptor = scope.object()?;
+    scope.set(&descriptor, "value", value)?;
+    scope.call(&builtin::<V>(scope, &["Object", "defineProperty"])?, &[object.clone(), scope.string(key)?, descriptor])?;
+    Ok(())
+}
+
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `natives` - the module's natives.
+///
+/// # Returns
+/// Whether this Runtime is a worker.
+///
+/// # Errors
+/// What the native throws.
+fn is_worker<'s, V: Vm>(scope: &V::Scope<'s>, natives: &V::Value<'s>) -> Outcome<bool> {
+    let answer = scope.call(&scope.get(natives, "isWorker")?, &[])?;
+    Ok(scope.as_bool(&answer).unwrap_or(false))
+}
+
+/// Turns a message into the bytes that cross threads (format in the module docs).
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `data` - JSON-compatible data or a `Uint8Array`.
+///
+/// # Returns
+/// The tag byte followed by the payload, as a `Uint8Array`.
+///
+/// # Errors
+/// A `TypeError` for data JSON cannot represent; what `JSON.stringify` throws.
+fn encode<'s, V: Vm>(scope: &V::Scope<'s>, data: &V::Value<'s>) -> Outcome<V::Value<'s>> {
+    if scope.kind(data) == Kind::Bytes {
+        let bytes = scope.with_bytes(data, |bytes| [&[1u8][..], bytes].concat())?;
+        return scope.bytes(bytes);
+    }
+    let json = scope.call(&builtin::<V>(scope, &["JSON", "stringify"])?, std::slice::from_ref(data))?;
+    if scope.kind(&json) != Kind::String {
+        return Err(scope.throw_error(ErrorKind::Type, "postMessage expects structured data"));
+    }
+    let bytes = scope.with_str(&json, |text| [&[0u8][..], text.as_bytes()].concat())?;
+    scope.bytes(bytes)
+}
+
+/// Turns the bytes of a message back into data.
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `bytes` - the tag byte followed by the payload.
+///
+/// # Returns
+/// The data: a `Uint8Array` for tag 1, else the parsed JSON.
+///
+/// # Errors
+/// What `JSON.parse` throws.
+fn decode<'s, V: Vm>(scope: &V::Scope<'s>, bytes: &V::Value<'s>) -> Outcome<V::Value<'s>> {
+    let (tag, rest) = scope.with_bytes(bytes, |bytes| (bytes.first().copied().unwrap_or(0), bytes.get(1..).unwrap_or(&[]).to_vec()))?;
+    if tag == 1 {
+        return scope.bytes(rest);
+    }
+    let text = scope.string(&String::from_utf8_lossy(&rest))?;
+    scope.call(&builtin::<V>(scope, &["JSON", "parse"])?, &[text])
+}
+
+/// Wraps a listener so it receives decoded data.
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `natives` - the module's natives (`_deliver`).
+/// * `listener` - the script's listener, or null.
+///
+/// # Returns
+/// What to hand to the native side: null, or the bound deliverer.
+///
+/// # Errors
+/// A `TypeError` when the listener is neither a function nor null.
+fn wrap<'s, V: Vm>(scope: &V::Scope<'s>, natives: &V::Value<'s>, listener: &V::Value<'s>) -> Outcome<V::Value<'s>> {
+    match scope.kind(listener) {
+        Kind::Null | Kind::Undefined => Ok(scope.null()),
+        Kind::Function => bind::<V>(scope, &scope.get(natives, "_deliver")?, std::slice::from_ref(listener)),
+        _ => Err(scope.throw_error(ErrorKind::Type, "onMessage expects a function or null")),
     }
 }
 

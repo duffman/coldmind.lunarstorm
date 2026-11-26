@@ -119,7 +119,7 @@ pub(crate) fn globals() -> Vec<Item> {
 ///
 /// # Errors
 /// A `TypeError` when the value is not a string.
-fn utf8<'s, V: Vm>(scope: &V::Scope<'s>, value: &V::Value<'s>) -> Outcome<Vec<u8>> {
+pub(crate) fn utf8<'s, V: Vm>(scope: &V::Scope<'s>, value: &V::Value<'s>) -> Outcome<Vec<u8>> {
     scope.with_bytes(value, |bytes| {
         if !bytes.contains(&0xED) {
             return bytes.to_vec();
@@ -166,7 +166,7 @@ fn decode_utf8<'s, V: Vm>(scope: &V::Scope<'s>, bytes: &V::Value<'s>) -> Outcome
 ///
 /// # Errors
 /// `Unsupported encoding: <encoding>`.
-fn utf8_only<'s, V: Vm>(node: &Node<V>, scope: &V::Scope<'s>, encoding: &V::Value<'s>, kind: ErrorKind) -> Outcome<()> {
+pub(crate) fn utf8_only<'s, V: Vm>(node: &Node<V>, scope: &V::Scope<'s>, encoding: &V::Value<'s>, kind: ErrorKind) -> Outcome<()> {
     if scope.kind(encoding) == Kind::Undefined {
         return Ok(());
     }
@@ -189,7 +189,7 @@ fn utf8_only<'s, V: Vm>(node: &Node<V>, scope: &V::Scope<'s>, encoding: &V::Valu
 ///
 /// # Errors
 /// What `Object.setPrototypeOf` throws.
-fn as_buffer<'s, V: Vm>(node: &Node<V>, scope: &V::Scope<'s>, bytes: V::Value<'s>) -> Outcome<V::Value<'s>> {
+pub(crate) fn as_buffer<'s, V: Vm>(node: &Node<V>, scope: &V::Scope<'s>, bytes: V::Value<'s>) -> Outcome<V::Value<'s>> {
     node.call(scope, Slot::SetPrototypeOf, &[bytes, node.get(scope, Slot::BufferProto)])
 }
 

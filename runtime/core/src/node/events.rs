@@ -203,7 +203,7 @@ fn remove<'s, V: Vm>(
 ///
 /// # Errors
 /// What a listener throws.
-fn fire<'s, V: Vm>(node: &Node<V>, scope: &V::Scope<'s>, this: &V::Value<'s>, event: &V::Value<'s>, args: &[V::Value<'s>]) -> Outcome<bool> {
+pub(crate) fn fire<'s, V: Vm>(node: &Node<V>, scope: &V::Scope<'s>, this: &V::Value<'s>, event: &V::Value<'s>, args: &[V::Value<'s>]) -> Outcome<bool> {
     let list = entries(node, scope, this, event)?;
     for entry in &list {
         if scope.kind(entry) == Kind::Function {

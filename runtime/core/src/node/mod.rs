@@ -6,11 +6,10 @@
 //! bindings, and hands the JS glue the result: `{ modules, ...internals }`.
 //!
 //! Decisions:
-//! - During the port the remaining glue (net, http, fs, dispatch, registry)
-//!   reaches these modules through the object [`install`] returns: `modules` is
-//!   the glue's module registry, already holding the ported builtins, and the
-//!   other keys are the helpers the glue used to define itself (`emit2`,
-//!   `nextTick`, `asBuffer`, ...). Scripts never see that object.
+//! - [`install`] returns the object the loop and the loader read (D3): the
+//!   hooks `dispatch`, `ticks`, `describe`, `exitCode` and `invoke`, and the
+//!   registry parts `modules`, `internal` and `exportsOf`. It is what the JS glue
+//!   used to return; no script runs at `start`. Scripts never see that object.
 //! - Values the natives keep between calls (builtins such as `Map.prototype.get`,
 //!   the `EventEmitter` class, `Buffer.prototype`, `process`) are persistent
 //!   handles in [`Node`], which the Runtime owns and clears before the VM
@@ -24,6 +23,9 @@
 pub(crate) mod buffer;
 pub(crate) mod console;
 pub(crate) mod events;
+pub(crate) mod fs;
+pub(crate) mod http;
+pub(crate) mod net;
 pub(crate) mod path;
 pub(crate) mod process;
 pub(crate) mod timers;
@@ -103,13 +105,53 @@ pub(crate) enum Slot {
     Process,
     /// The console's live-region slot (`{ wrap }`), shared with `lunarstorm:ui`.
     Live,
+    /// `JSON.parse`
+    Parse,
+    /// `Reflect.deleteProperty`
+    DeleteProperty,
+    /// `Function.prototype.bind`
+    Bind,
+    /// `Date`
+    Date,
+    /// `Symbol.asyncIterator`
+    AsyncIterator,
+    /// The native `fs.Stats` class.
+    Stats,
+    /// The native `net.Socket` class.
+    Socket,
+    /// `net.Socket.prototype`
+    SocketProto,
+    /// The native `http.IncomingMessage` class.
+    IncomingMessage,
+    /// The native `http.ServerResponse` class.
+    ServerResponse,
+    /// `http.Server.prototype`
+    HttpServerProto,
+    /// `(target, name, ...args)`: `target.emit(name, ...args)`, queued with `nextTick`.
+    EmitLater,
+    /// The `next` of a request body's async iterator.
+    BodyNext,
+    /// The native `net.Server` class.
+    NetServer,
+    /// The native `http.Server` class.
+    HttpServer,
+    /// `(socket, error)`: emits `error` (if any) then `close`; queued by `destroy`.
+    AfterDestroy,
+    /// `(server, cb)`: emits `close` then calls `cb`; queued by `server.close`.
+    CloseLater,
+    /// `(request)`: emits a request's buffered body as `data` and `end`.
+    BodyDeliver,
+    /// `queueMicrotask`, as installed on the global object.
+    QueueMicrotask,
+    /// The builtin module registry (`modules`).
+    Modules,
 }
 
 /// How many [`Slot`]s exist.
-const SLOTS: usize = Slot::Live as usize + 1;
+const SLOTS: usize = Slot::Modules as usize + 1;
 
 /// The builtins [`install`] captures: `(slot, owner path on the global object, property)`.
-const INTRINSICS: [(Slot, &[&str], &str); 26] = [
+const INTRINSICS: [(Slot, &[&str], &str); 31] = [
     (Slot::String, &[], "String"),
     (Slot::Number, &[], "Number"),
     (Slot::ParseInt, &[], "parseInt"),
@@ -136,6 +178,11 @@ const INTRINSICS: [(Slot, &[&str], &str); 26] = [
     (Slot::MapClear, &["Map", "prototype"], "clear"),
     (Slot::SetProto, &["Set"], "prototype"),
     (Slot::Uint8Array, &[], "Uint8Array"),
+    (Slot::Parse, &["JSON"], "parse"),
+    (Slot::DeleteProperty, &["Reflect"], "deleteProperty"),
+    (Slot::Bind, &["Function", "prototype"], "bind"),
+    (Slot::Date, &[], "Date"),
+    (Slot::AsyncIterator, &["Symbol"], "asyncIterator"),
 ];
 
 /// The builtins' state that outlives one call: kept values and the scheduling
@@ -145,13 +192,23 @@ pub(crate) struct Node<V: Vm> {
     slots: RefCell<Vec<Option<V::Persistent>>>,
     /// Timers, immediates and the `nextTick` queue.
     pub(crate) timers: timers::Queues<V>,
+    /// Live sockets and servers by reactor slab key: what an I/O event is
+    /// delivered to.
+    pub(crate) handles: RefCell<Vec<Option<V::Persistent>>>,
+    /// Asynchronous fs requests waiting for the worker pool.
+    pub(crate) fs: fs::Pending<V>,
 }
 
 impl<V: Vm> Node<V> {
     /// # Returns
     /// Empty state, as before `start`.
     pub(crate) fn new() -> Rc<Self> {
-        Rc::new(Self { slots: RefCell::new((0..SLOTS).map(|_| None).collect()), timers: timers::Queues::default() })
+        Rc::new(Self {
+            slots: RefCell::new((0..SLOTS).map(|_| None).collect()),
+            timers: timers::Queues::default(),
+            handles: RefCell::default(),
+            fs: fs::Pending::default(),
+        })
     }
 
     /// Keeps a value in a slot.
@@ -183,6 +240,37 @@ impl<V: Vm> Node<V> {
         let slots = std::mem::take(&mut *self.slots.borrow_mut());
         drop(slots);
         self.timers.clear();
+        let handles = std::mem::take(&mut *self.handles.borrow_mut());
+        drop(handles);
+        self.fs.clear();
+    }
+
+    /// Keeps a socket or server as the receiver of the events of a slab key.
+    ///
+    /// # Arguments
+    /// * `scope` - the context handle.
+    /// * `key` - the reactor slab key.
+    /// * `handle` - the socket or server; `None` forgets the key.
+    pub(crate) fn set_handle<'s>(&self, scope: &V::Scope<'s>, key: usize, handle: Option<&V::Value<'s>>) {
+        let kept = handle.map(|value| scope.persist(value));
+        let old = {
+            let mut handles = self.handles.borrow_mut();
+            if handles.len() <= key {
+                handles.resize_with(key + 1, || None);
+            }
+            std::mem::replace(&mut handles[key], kept)
+        };
+        drop(old);
+    }
+
+    /// # Arguments
+    /// * `scope` - the context handle.
+    /// * `key` - the reactor slab key.
+    ///
+    /// # Returns
+    /// The socket or server kept for the key, if any.
+    pub(crate) fn handle<'s>(&self, scope: &V::Scope<'s>, key: usize) -> Option<V::Value<'s>> {
+        self.handles.borrow().get(key).and_then(Option::as_ref).map(|handle| scope.local(handle))
     }
 }
 
@@ -223,7 +311,12 @@ pub fn declarations() -> Vec<ModuleDecl> {
     global.items.extend(buffer::globals());
     global.items.extend(console::globals());
     global.items.extend(process::globals());
-    vec![path::declare(), events::declare(), timers::declare(), buffer::declare(), process::declare(), global]
+    let mut modules = vec![path::declare(), events::declare(), timers::declare(), buffer::declare(), process::declare()];
+    modules.extend(fs::declare());
+    modules.push(net::declare());
+    modules.push(http::declare());
+    modules.push(global);
+    modules
 }
 
 /// Installs the ported builtins and their globals.
@@ -258,7 +351,277 @@ pub(crate) fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shar
     scope.set(&modules, "buffer", buffer::install(scope, node, &native)?)?;
     console::install(scope, shared, node, ops, &native)?;
     scope.set(&modules, "process", process::install(scope, shared, node, &native)?)?;
+    let (fs, promises) = fs::install(scope, shared, node)?;
+    scope.set(&modules, "fs", fs)?;
+    scope.set(&modules, "fs/promises", promises)?;
+    node.keep(scope, Slot::QueueMicrotask, &scope.get(&global, "queueMicrotask")?);
+    let (net, net_server) = net::install(scope, shared, node)?;
+    scope.set(&modules, "net", net)?;
+    scope.set(&modules, "http", http::install(scope, shared, node, &net_server)?)?;
+    hooks(scope, shared, node, ops, &native, &modules)?;
     Ok(native)
+}
+
+/// Sets the hooks the loop calls on `native`: `dispatch`, `describe`,
+/// `exitCode`, `invoke`, and the registry parts `modules`, `internal` and
+/// `exportsOf` (`ticks` is set by [`timers`]).
+///
+/// Decision (D3): these were the JS glue's return value; they are natives now,
+/// so the loop's calls into them stay the same and no script is compiled at
+/// `start`.
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `shared` - loop state.
+/// * `node` - the kept builtins.
+/// * `ops` - the `ops` object, exported by `lunarstorm:internal`.
+/// * `native` - where the hooks are set.
+/// * `modules` - the builtin registry.
+///
+/// # Errors
+/// [`lunarstorm_vm::Thrown`] when a value cannot be created.
+fn hooks<'s, V: Vm, H: Host>(
+    scope: &V::Scope<'s>,
+    shared: &Rc<Shared<H>>,
+    node: &Rc<Node<V>>,
+    ops: &V::Value<'s>,
+    native: &V::Value<'s>,
+    modules: &V::Value<'s>,
+) -> Outcome<()> {
+    // What `lunarstorm:internal` exports, for host modules only: the natives plus
+    // the host's (`ops`) and the console's live-region slot (`live`).
+    let internal = scope.object()?;
+    scope.set(&internal, "ops", ops.clone())?;
+    scope.set(&internal, "live", scope.get(native, "live")?)?;
+    scope.set(native, "internal", internal)?;
+    node.keep(scope, Slot::Modules, modules);
+    let n = node.clone();
+    let exports_of = scope.function("exportsOf", move |call: &lunarstorm_vm::Call<'_, V>| {
+        let scope = call.scope();
+        let modules = n.get(scope, Slot::Modules);
+        let name = n.text(scope, &arg::<V>(scope, call.args(), 0))?;
+        let keys = n.call(scope, Slot::Keys, &[scope.get(&modules, &name)?])?;
+        let names = n.items(scope, &keys)?.iter().map(|key| n.text(scope, key)).collect::<Outcome<Vec<_>>>()?;
+        scope.string(&names.join(","))
+    })?;
+    scope.set(native, "exportsOf", exports_of)?;
+    let n = node.clone();
+    let dispatch_fn = scope.function("dispatch", move |call: &lunarstorm_vm::Call<'_, V>| dispatch(&n, call.scope(), call.args()))?;
+    scope.set(native, "dispatch", dispatch_fn)?;
+    let n = node.clone();
+    let describe = scope.function("describe", move |call: &lunarstorm_vm::Call<'_, V>| {
+        let scope = call.scope();
+        scope.string(&console::inspect(&n, scope, &arg::<V>(scope, call.args(), 0))?)
+    })?;
+    scope.set(native, "describe", describe)?;
+    let n = node.clone();
+    let exit_code = scope.function("exitCode", move |call: &lunarstorm_vm::Call<'_, V>| {
+        let scope = call.scope();
+        let code = scope.get(&n.get(scope, Slot::Process), "exitCode")?;
+        let code = scope.as_number(&n.call(scope, Slot::Number, &[code])?).unwrap_or(0.0);
+        Ok(scope.int(process::to_int32(code)))
+    })?;
+    scope.set(native, "exitCode", exit_code)?;
+    let (s, n) = (shared.clone(), node.clone());
+    let invoke = scope.function("invoke", move |call: &lunarstorm_vm::Call<'_, V>| invoke(&n, &s, call.scope(), call.args()))?;
+    scope.set(native, "invoke", invoke)?;
+    Ok(())
+}
+
+/// Reduces a value to what crosses the host boundary: null, boolean, number,
+/// string or bytes. Decision: anything else travels as JSON text, so the host
+/// interface stays engine-neutral and holds no JS handles.
+///
+/// # Arguments
+/// * `node` - the kept builtins.
+/// * `scope` - the context handle.
+/// * `value` - what an export returned or resolved to.
+///
+/// # Returns
+/// The neutral value.
+fn plain<'s, V: Vm>(node: &Node<V>, scope: &V::Scope<'s>, value: &V::Value<'s>) -> crate::runtime::Arg {
+    use crate::runtime::Arg;
+    match scope.kind(value) {
+        Kind::Undefined | Kind::Null => Arg::Null,
+        Kind::Bool | Kind::Number | Kind::String | Kind::Bytes => crate::ops::neutral::<V>(scope, value),
+        _ => {
+            let json = node.call(scope, Slot::Stringify, std::slice::from_ref(value));
+            match json {
+                Ok(json) if scope.kind(&json) == Kind::String => crate::ops::neutral::<V>(scope, &json),
+                Ok(_) => Arg::Null,
+                // A cycle or a throwing `toJSON`: the inspector's text instead.
+                Err(_) => console::inspect(node, scope, value).map(Arg::Text).unwrap_or(Arg::Null),
+            }
+        }
+    }
+}
+
+/// `invoke(fn, id, ...args)`: calls an export for the host (`Runtime::call`) and
+/// reports how its promise settles in `Shared::calls`. A synchronous throw
+/// rejects the same promise, as `new Promise((r) => r(fn(...args)))` did.
+///
+/// # Arguments
+/// * `node` - the kept builtins.
+/// * `shared` - loop state; the settled calls go there.
+/// * `scope` - the context handle.
+/// * `args` - `(fn, id, ...args)`.
+///
+/// # Returns
+/// `undefined`.
+///
+/// # Errors
+/// [`lunarstorm_vm::Thrown`] when the promise cannot be made.
+fn invoke<'s, V: Vm, H: Host>(node: &Rc<Node<V>>, shared: &Rc<Shared<H>>, scope: &V::Scope<'s>, args: &[V::Value<'s>]) -> Outcome<V::Value<'s>> {
+    let function = arg::<V>(scope, args, 0);
+    let id = scope.as_number(&arg::<V>(scope, args, 1)).unwrap_or(0.0) as u32;
+    let outcome = scope.call(&function, args.get(2..).unwrap_or(&[])).map_err(|_| scope.exception());
+    let (promise, resolver) = scope.promise()?;
+    scope.settle(&resolver, outcome)?;
+    let (s, n) = (shared.clone(), node.clone());
+    let fulfilled = scope.function("fulfilled", move |call: &lunarstorm_vm::Call<'_, V>| {
+        let scope = call.scope();
+        let value = plain(&n, scope, &arg::<V>(scope, call.args(), 0));
+        s.calls.borrow_mut().push((id, Ok(value)));
+        Ok(scope.undefined())
+    })?;
+    let (s, n) = (shared.clone(), node.clone());
+    let rejected = scope.function("rejected", move |call: &lunarstorm_vm::Call<'_, V>| {
+        let scope = call.scope();
+        let text = console::inspect(&n, scope, &arg::<V>(scope, call.args(), 0)).unwrap_or_default();
+        s.calls.borrow_mut().push((id, Err(text)));
+        Ok(scope.undefined())
+    })?;
+    method::<V>(scope, &promise, "then", &[fulfilled, rejected])?;
+    Ok(scope.undefined())
+}
+
+/// The single entry point for loop events (D3). Codes are
+/// [`crate::runtime::ev`].
+///
+/// # Arguments
+/// * `node` - the kept builtins and handles.
+/// * `scope` - the context handle.
+/// * `args` - `(kind, id, a, b, c, d, e)`.
+///
+/// # Returns
+/// For an immediate, whether more remain; otherwise `undefined`.
+///
+/// # Errors
+/// What a listener or callback throws.
+fn dispatch<'s, V: Vm>(node: &Rc<Node<V>>, scope: &V::Scope<'s>, args: &[V::Value<'s>]) -> Outcome<V::Value<'s>> {
+    use crate::runtime::ev;
+    let number = |index: usize| scope.as_number(&arg::<V>(scope, args, index)).unwrap_or(-1.0);
+    let (kind, id) = (number(0) as i32, number(1));
+    let a = || arg::<V>(scope, args, 2);
+    let handle = || if id >= 0.0 { node.handle(scope, id as usize) } else { None };
+    let event = |name: &str| scope.string(name);
+    match kind {
+        ev::TIMER => {
+            if id >= 0.0 {
+                node.timers.fire_timer(scope, id as usize, scope.as_bool(&a()).unwrap_or(true))?;
+            }
+        }
+        ev::IMMEDIATE => return Ok(scope.boolean(node.timers.run_immediate(scope)?)),
+        ev::HTTP => {
+            let raw_method = arg::<V>(scope, args, 3);
+            let method_name = match scope.as_number(&raw_method) {
+                Some(index) => scope.string(http::METHODS.get(index as usize).copied().unwrap_or(""))?,
+                None => raw_method,
+            };
+            let request = node.construct(
+                scope,
+                &node.get(scope, Slot::IncomingMessage),
+                &[method_name, arg::<V>(scope, args, 4), arg::<V>(scope, args, 5), arg::<V>(scope, args, 6)],
+            )?;
+            let response = node.construct(scope, &node.get(scope, Slot::ServerResponse), &[a()])?;
+            scope.set(&response, "req", request.clone())?;
+            let heard = match handle() {
+                Some(server) => events::fire(node, scope, &server, &event("request")?, &[request, response.clone()])?,
+                None => false,
+            };
+            // No listener: answer rather than leave the client hanging.
+            if !heard {
+                let head = method::<V>(scope, &response, "writeHead", &[scope.int(404)])?;
+                method::<V>(scope, &head, "end", &[])?;
+            }
+        }
+        ev::DATA => {
+            if let Some(socket) = handle() {
+                let chunk = buffer::as_buffer(node, scope, a())?;
+                events::fire(node, scope, &socket, &event("data")?, &[chunk])?;
+            }
+        }
+        ev::CONNECTION => {
+            let Some(server) = handle() else { return Ok(scope.undefined()) };
+            let socket = node.construct(scope, &node.get(scope, Slot::Socket), std::slice::from_ref(&server))?;
+            let conn = a();
+            scope.set(&socket, "_k", conn.clone())?;
+            scope.set(&socket, "remoteAddress", arg::<V>(scope, args, 3))?;
+            scope.set(&socket, "remotePort", arg::<V>(scope, args, 4))?;
+            scope.set(&socket, "server", server.clone())?;
+            if let Some(key) = scope.as_number(&conn).filter(|key| *key >= 0.0) {
+                node.set_handle(scope, key as usize, Some(&socket));
+            }
+            events::fire(node, scope, &server, &event("connection")?, &[socket])?;
+        }
+        ev::END => {
+            let Some(socket) = handle() else { return Ok(scope.undefined()) };
+            events::fire(node, scope, &socket, &event("end")?, &[])?;
+            if !net::flag(node, scope, &socket, "allowHalfOpen")? {
+                method::<V>(scope, &socket, "end", &[])?;
+            }
+        }
+        ev::CLOSE => {
+            let Some(socket) = handle() else { return Ok(scope.undefined()) };
+            node.set_handle(scope, id as usize, None);
+            scope.set(&socket, "_k", scope.int(-1))?;
+            scope.set(&socket, "destroyed", scope.boolean(true))?;
+            scope.set(&socket, "connecting", scope.boolean(false))?;
+            let message = a();
+            let had = scope.kind(&message) != Kind::Undefined;
+            if had {
+                let code = arg::<V>(scope, args, 3);
+                let code = if scope.kind(&code) == Kind::Undefined { None } else { Some(node.text(scope, &code)?) };
+                let error = coded_error::<V>(scope, &node.text(scope, &message)?, code.as_deref())?;
+                method::<V>(scope, &socket, "emit", &[event("error")?, error])?;
+            }
+            events::fire(node, scope, &socket, &event("close")?, &[scope.boolean(had)])?;
+        }
+        ev::DRAIN => {
+            if let Some(socket) = handle() {
+                events::fire(node, scope, &socket, &event("drain")?, &[])?;
+            }
+        }
+        ev::CONNECT => {
+            let Some(socket) = handle() else { return Ok(scope.undefined()) };
+            scope.set(&socket, "connecting", scope.boolean(false))?;
+            let queue = scope.get(&socket, "_queue")?;
+            scope.set(&socket, "_queue", scope.undefined())?;
+            // Replay what was written while connecting, then the deferred end().
+            let ended = net::flag(node, scope, &socket, "_ended")?;
+            scope.set(&socket, "_ended", scope.boolean(false))?;
+            if scope.kind(&queue) == Kind::Object {
+                for entry in node.items(scope, &queue)? {
+                    method::<V>(scope, &socket, "write", &[node.at(scope, &entry, 0)?, node.at(scope, &entry, 1)?])?;
+                }
+            }
+            if ended {
+                method::<V>(scope, &socket, "end", &[])?;
+            }
+            events::fire(node, scope, &socket, &event("connect")?, &[])?;
+        }
+        ev::FS => {
+            let message = arg::<V>(scope, args, 3);
+            let result = if scope.kind(&message) == Kind::Undefined {
+                Ok(a())
+            } else {
+                Err((node.text(scope, &message)?, node.text(scope, &arg::<V>(scope, args, 4))?))
+            };
+            fs::done(node, scope, id as i32, result)?;
+        }
+        _ => {}
+    }
+    Ok(scope.undefined())
 }
 
 // ---------------------------------------------------------------- helpers
@@ -422,4 +785,59 @@ impl<V: Vm> Node<V> {
 /// The argument; `undefined` when it was left out.
 pub(crate) fn arg<'s, V: Vm>(scope: &V::Scope<'s>, args: &[V::Value<'s>], index: usize) -> V::Value<'s> {
     args.get(index).cloned().unwrap_or_else(|| scope.undefined())
+}
+
+/// Builds an `Error` carrying a Node-style `code`, as the glue's `codedError` did.
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `message` - the message.
+/// * `code` - the symbolic code (`ECONNRESET`), if any.
+///
+/// # Returns
+/// The error object.
+///
+/// # Errors
+/// [`lunarstorm_vm::Thrown`] when allocation fails.
+pub(crate) fn coded_error<'s, V: Vm>(scope: &V::Scope<'s>, message: &str, code: Option<&str>) -> Outcome<V::Value<'s>> {
+    let error = scope.error(lunarstorm_vm::ErrorKind::Error, message)?;
+    if let Some(code) = code {
+        scope.set(&error, "code", scope.string(code)?)?;
+    }
+    Ok(error)
+}
+
+/// Calls a method by name, looked up on the receiver at call time, so a
+/// subclass's override is honoured (`this.emit(...)` in the glue).
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `this` - the receiver.
+/// * `name` - the method name.
+/// * `args` - the arguments.
+///
+/// # Returns
+/// The method's result.
+///
+/// # Errors
+/// What the lookup or the method throws; a `TypeError` when it is not a function.
+pub(crate) fn method<'s, V: Vm>(scope: &V::Scope<'s>, this: &V::Value<'s>, name: &str, args: &[V::Value<'s>]) -> Outcome<V::Value<'s>> {
+    let function = scope.get(this, name)?;
+    if scope.kind(&function) != Kind::Function {
+        return Err(scope.throw_error(lunarstorm_vm::ErrorKind::Type, &format!("{name} is not a function")));
+    }
+    scope.call_with(&function, this, args)
+}
+
+/// Whether a property read on a value cannot throw for want of an object:
+/// objects, functions and typed arrays.
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `value` - any value.
+///
+/// # Returns
+/// `true` for an object-like value.
+pub(crate) fn is_object<'s, V: Vm>(scope: &V::Scope<'s>, value: &V::Value<'s>) -> bool {
+    matches!(scope.kind(value), Kind::Object | Kind::Function | Kind::Bytes)
 }

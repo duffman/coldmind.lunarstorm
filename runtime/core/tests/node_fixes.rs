@@ -171,3 +171,34 @@ fn emitter_listeners_unwrap_once() {
     "#);
     assert_eq!(text, "true true 2\n1 true\n");
 }
+
+/// f. Node: `res.statusCode = '404'` (a numeric string) sends status 404; the
+/// glue sent 0, and the typed `ops.httpRespond` threw a `TypeError`.
+///
+/// The first probe answers on a key with no connection, so a throw is printed
+/// instead of leaving a real exchange hanging; only when it does not throw does
+/// the script make the real request and print the status line it got.
+#[test]
+fn http_numeric_string_status_code_is_sent() {
+    let text = out(r#"
+        import http from "node:http";
+        import net from "node:net";
+        let threw = false;
+        try {
+          const probe = new http.ServerResponse(1000000);
+          probe.statusCode = "404";
+          probe.end();
+        } catch (e) {
+          threw = true;
+          console.log("threw", e.name, e.message);
+        }
+        const server = http.createServer((req, res) => { res.statusCode = "404"; res.end("x"); });
+        if (!threw) server.listen(0, "127.0.0.1", () => {
+          const client = net.connect(server.address().port, "127.0.0.1", () => client.write("GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"));
+          let raw = "";
+          client.on("data", (d) => { raw += d.toString(); });
+          client.on("close", () => { console.log(raw.split("\r\n")[0]); server.close(); });
+        });
+    "#);
+    assert_eq!(text, "HTTP/1.1 404 Not Found\n");
+}

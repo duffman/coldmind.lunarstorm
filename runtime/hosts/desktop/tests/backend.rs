@@ -223,6 +223,44 @@ fn a_backend_that_does_not_load_reports_why() {
     assert_eq!(next(&lines), "loaded 3 ok");
 }
 
+/// Pins the batching of property writes: everything one handler writes before it
+/// awaits goes out as one envelope per form, forms in first-write order; a write
+/// after the `await` is a turn of its own and so an envelope of its own.
+#[test]
+fn property_writes_are_one_envelope_per_form_per_turn() {
+    let code = "\
+import { serve, setProperty } from '@desktop/bridge';\n\
+serve(async () => {\n\
+  setProperty('Main', 'Label', 'caption', 'a');\n\
+  setProperty('Other', 'Edit', 'text', 'b');\n\
+  setProperty('Main', 'Label', 'caption', 'c');\n\
+  setProperty('Main', 'Button', 'enabled', false);\n\
+  setProperty('Other', 'Edit', 'color', [1, 2]);\n\
+  await null;\n\
+  setProperty('Main', 'Label', 'caption', 'later');\n\
+});\n";
+    let (backend, lines) = backend();
+    backend.load(program(1, code));
+    assert_eq!(next(&lines), "loaded 1 ok");
+
+    backend.dispatch(1, envelope("Button.onClick", "event", "{}"));
+    assert_eq!(
+        next(&lines),
+        "send 1 {\"kind\":\"update\",\"windowId\":\"Main\",\"method\":\"update\",\"payload\":{\"controls\":{\"Label\":{\"caption\":\"c\"},\"Button\":{\"enabled\":false}}}}"
+    );
+    assert_eq!(
+        next(&lines),
+        "send 1 {\"kind\":\"update\",\"windowId\":\"Other\",\"method\":\"update\",\"payload\":{\"controls\":{\"Edit\":{\"text\":\"b\",\"color\":[1,2]}}}}"
+    );
+    assert_eq!(
+        next(&lines),
+        "send 1 {\"kind\":\"update\",\"windowId\":\"Main\",\"method\":\"update\",\"payload\":{\"controls\":{\"Label\":{\"caption\":\"later\"}}}}"
+    );
+    // Nothing else was sent: the next line is the reload's.
+    backend.load(program(2, code));
+    assert_eq!(next(&lines), "retired 1");
+}
+
 #[test]
 fn a_reload_retires_the_old_epoch_and_drops_its_messages() {
     let (backend, lines) = backend();

@@ -139,6 +139,94 @@ impl<V: Vm> Default for Queues<V> {
 }
 
 impl<V: Vm> Queues<V> {
+    /// Queues a `process.nextTick` callback from Rust.
+    ///
+    /// # Arguments
+    /// * `scope` - the context handle.
+    /// * `tick` - the loop's wake-up flag (`Shared::tick`).
+    /// * `function` - the callback.
+    /// * `args` - its arguments.
+    pub(crate) fn next_tick<'s>(&self, scope: &V::Scope<'s>, tick: &Cell<bool>, function: &V::Value<'s>, args: &[V::Value<'s>]) {
+        let mut ticks = self.ticks.borrow_mut();
+        if !self.ticking.get() && ticks.is_empty() {
+            tick.set(true);
+        }
+        ticks.push_back(Callback::keep(scope, function, args));
+    }
+
+    /// Runs the tick queue until it is empty. Called by the loop after every JS
+    /// entry.
+    ///
+    /// # Arguments
+    /// * `scope` - the context handle.
+    ///
+    /// # Errors
+    /// What a callback throws; the rest stay queued.
+    pub(crate) fn run_ticks<'s>(&self, scope: &V::Scope<'s>) -> Outcome<()> {
+        self.ticking.set(true);
+        loop {
+            let next = self.ticks.borrow_mut().pop_front();
+            let Some(next) = next else { break };
+            let (function, args) = next.local(scope);
+            drop(next);
+            scope.call(&function, &args)?;
+        }
+        self.ticking.set(false);
+        Ok(())
+    }
+
+    /// Runs one immediate of the current batch; the loop calls this once per
+    /// callback so promise jobs run between immediates, as in Node.
+    ///
+    /// # Arguments
+    /// * `scope` - the context handle.
+    ///
+    /// # Returns
+    /// Whether the batch has more.
+    ///
+    /// # Errors
+    /// What the callback throws; it is already off the queue.
+    pub(crate) fn run_immediate<'s>(&self, scope: &V::Scope<'s>) -> Outcome<bool> {
+        let (next, more) = {
+            let mut batch = self.batch.borrow_mut();
+            if batch.is_empty() {
+                batch.extend(self.queue.borrow_mut().drain(..));
+            }
+            let next = batch.pop_front();
+            (next, !batch.is_empty())
+        };
+        if let Some(next) = next.filter(|next| next.live.get()) {
+            let (function, args) = next.callback.local(scope);
+            drop(next);
+            scope.call(&function, &args)?;
+        }
+        Ok(more)
+    }
+
+    /// Calls a fired timer's callback; a one-shot timer's callback is dropped first.
+    ///
+    /// # Arguments
+    /// * `scope` - the context handle.
+    /// * `key` - the timer's slab key.
+    /// * `one_shot` - whether the timer is done.
+    ///
+    /// # Errors
+    /// What the callback throws.
+    pub(crate) fn fire_timer<'s>(&self, scope: &V::Scope<'s>, key: usize, one_shot: bool) -> Outcome<()> {
+        let local = {
+            let mut armed = self.armed.borrow_mut();
+            match armed.get_mut(key) {
+                Some(slot) if one_shot => slot.take().map(|kept| kept.local(scope)),
+                Some(slot) => slot.as_ref().map(|kept| kept.local(scope)),
+                None => None,
+            }
+        };
+        if let Some((function, args)) = local {
+            scope.call(&function, &args)?;
+        }
+        Ok(())
+    }
+
     /// Drops every kept callback. Runs before the VM instance is destroyed.
     pub(crate) fn clear(&self) {
         let armed = std::mem::take(&mut *self.armed.borrow_mut());
@@ -293,73 +381,27 @@ pub(crate) fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shar
     let (s, n) = (shared.clone(), node.clone());
     let next_tick = declared(scope, NEXT_TICK.name, NEXT_TICK.sig, move |call: &Call<'_, V>| {
         let (scope, args) = (call.scope(), call.args());
-        let mut ticks = n.timers.ticks.borrow_mut();
-        if !n.timers.ticking.get() && ticks.is_empty() {
-            s.tick.set(true);
-        }
-        ticks.push_back(Callback::keep(scope, &args[0], &args[1..]));
+        n.timers.next_tick(scope, &s.tick, &args[0], &args[1..]);
         Ok(scope.undefined())
     })?;
     scope.set(native, "nextTick", next_tick)?;
 
-    // Runs the tick queue until it is empty. Called by the loop.
     let n = node.clone();
     let ticks = scope.function("ticks", move |call: &Call<'_, V>| {
-        let scope = call.scope();
-        n.timers.ticking.set(true);
-        loop {
-            let next = n.timers.ticks.borrow_mut().pop_front();
-            let Some(next) = next else { break };
-            let (function, args) = next.local(scope);
-            drop(next);
-            scope.call(&function, &args)?;
-        }
-        n.timers.ticking.set(false);
-        Ok(scope.undefined())
+        n.timers.run_ticks(call.scope())?;
+        Ok(call.scope().undefined())
     })?;
     scope.set(native, "ticks", ticks)?;
-
-    // Runs one immediate of the current batch; the reactor calls this once per
-    // callback so promise jobs run between immediates, as in Node. Returns
-    // whether the batch has more.
     let n = node.clone();
-    let run_immediate = scope.function("runImmediate", move |call: &Call<'_, V>| {
-        let scope = call.scope();
-        let (next, more) = {
-            let mut batch = n.timers.batch.borrow_mut();
-            if batch.is_empty() {
-                batch.extend(n.timers.queue.borrow_mut().drain(..));
-            }
-            let next = batch.pop_front();
-            (next, !batch.is_empty())
-        };
-        if let Some(next) = next.filter(|next| next.live.get()) {
-            let (function, args) = next.callback.local(scope);
-            drop(next);
-            scope.call(&function, &args)?;
-        }
-        Ok(scope.boolean(more))
-    })?;
+    let run_immediate = scope.function("runImmediate", move |call: &Call<'_, V>| Ok(call.scope().boolean(n.timers.run_immediate(call.scope())?)))?;
     scope.set(native, "runImmediate", run_immediate)?;
-
-    // Calls a fired timer's callback: `(key, oneShot)`; a one-shot timer's
-    // callback is dropped first.
     let n = node.clone();
     let fire_timer = scope.function("fireTimer", move |call: &Call<'_, V>| {
         let (scope, args) = (call.scope(), call.args());
         let key = scope.as_number(&arg::<V>(scope, args, 0)).unwrap_or(-1.0);
         let one_shot = scope.as_bool(&arg::<V>(scope, args, 1)).unwrap_or(true);
-        let local = {
-            let mut armed = n.timers.armed.borrow_mut();
-            let slot = if key >= 0.0 { armed.get_mut(key as usize) } else { None };
-            match slot {
-                Some(slot) if one_shot => slot.take().map(|kept| kept.local(scope)),
-                Some(slot) => slot.as_ref().map(|kept| kept.local(scope)),
-                None => None,
-            }
-        };
-        if let Some((function, args)) = local {
-            scope.call(&function, &args)?;
+        if key >= 0.0 {
+            n.timers.fire_timer(scope, key as usize, one_shot)?;
         }
         Ok(scope.undefined())
     })?;

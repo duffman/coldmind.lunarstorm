@@ -214,6 +214,30 @@ fn fs_allowed<H: Host>(host: &H, op: i32, path: &str, extra: &[u8]) -> Result<()
     Ok(())
 }
 
+/// Runs a filesystem operation inline or queues it on the worker pool, after the
+/// host's policy allows it. `ops.fs` and `node:fs` share it.
+///
+/// # Arguments
+/// * `shared` - loop state: the host and the pool.
+/// * `op` - operation code from [`crate::fs::op`].
+/// * `path` - the path operated on.
+/// * `extra` - the operation's data; the destination path of a rename.
+/// * `req` - 0 to run inline, else the request id the result event carries.
+///
+/// # Returns
+/// The value of an inline run; `None` when the operation was queued.
+///
+/// # Errors
+/// The policy's `EACCES` fault, or the operation's own.
+pub(crate) fn fs_run<H: Host>(shared: &Shared<H>, op: i32, path: &str, extra: &[u8], req: i32) -> Result<Option<FsValue>, Fault> {
+    fs_allowed(&shared.host, op, path, extra)?;
+    if req == 0 {
+        return hfs::exec(op, path, extra).map(Some);
+    }
+    shared.io.borrow_mut().pool.submit(Work::Fs { req, op, path: path.to_owned(), data: extra.to_vec() });
+    Ok(None)
+}
+
 /// Converts a filesystem result into a JS value.
 ///
 /// # Arguments
@@ -250,7 +274,7 @@ pub fn fs_value<'s, V: Vm>(scope: &V::Scope<'s>, value: FsValue) -> Outcome<V::V
 ///
 /// # Returns
 /// The neutral value; anything unrepresentable becomes [`Arg::Null`].
-fn neutral<'s, V: Vm>(scope: &V::Scope<'s>, value: &V::Value<'s>) -> Arg {
+pub(crate) fn neutral<'s, V: Vm>(scope: &V::Scope<'s>, value: &V::Value<'s>) -> Arg {
     match scope.kind(value) {
         Kind::Bool => Arg::Bool(scope.as_bool(value).unwrap_or(false)),
         Kind::Number => Arg::Number(scope.as_number(value).unwrap_or(0.0)),
@@ -302,7 +326,7 @@ fn literal(host: &str) -> Option<IpAddr> {
 /// `httpRespond` with `undefined`, `fs.writeFileSync(p)` reaches `fs` with it,
 /// and `socket.write(null)` reaches `write`. Narrowing it would change what
 /// those scripts see.
-const DATA: Ty = Ty::Union(&[Ty::String, Ty::Bytes, Ty::Null, Ty::Undefined]);
+pub(crate) const DATA: Ty = Ty::Union(&[Ty::String, Ty::Bytes, Ty::Null, Ty::Undefined]);
 
 /// Shorthand for a [`Param`] in the declarations below.
 ///
@@ -439,6 +463,56 @@ pub fn declare() -> ModuleDecl {
     ModuleDecl { specifier: INTERNAL_MODULE, items, about: "The Runtime's natives, for host modules only." }
 }
 
+/// Binds a listener after the host's policy allows it. `ops.listen` and
+/// `net.Server#listen` share it.
+///
+/// # Arguments
+/// * `shared` - loop state: the host and the reactor.
+/// * `host` - the address to bind.
+/// * `port` - the port; 0 picks a free one.
+/// * `http` - whether accepted connections are parsed as HTTP by the reactor.
+///
+/// # Returns
+/// `(listener key, bound port)`.
+///
+/// # Errors
+/// The policy's `EACCES` fault, or the bind's own.
+pub(crate) fn listen<H: Host>(shared: &Shared<H>, host: &str, port: u16, http: bool) -> Result<(usize, u16), Fault> {
+    let fault = |e: std::io::Error| Fault::new(&e, "listen", &format!("{host}:{port}"));
+    let addr = bind_addr(host, port).map_err(fault)?;
+    if !shared.host.allow(Access::Listen(addr)) {
+        return Err(denied("listen", &addr.to_string()));
+    }
+    shared.io.borrow_mut().listen(addr, http).map_err(fault)
+}
+
+/// Starts an outbound connection after the host's policy allows it. `ops.connect`
+/// and `net.Socket#connect` share it.
+///
+/// # Arguments
+/// * `shared` - loop state: the host, the reactor and the pool.
+/// * `host` - a host name or address literal.
+/// * `port` - the port.
+///
+/// # Returns
+/// The connection's slab key; the outcome arrives as a CONNECT or CLOSE event.
+///
+/// # Errors
+/// The policy's `EACCES` fault.
+pub(crate) fn connect<H: Host>(shared: &Shared<H>, host: &str, port: u16) -> Result<usize, Fault> {
+    if !shared.host.allow(Access::Connect(host, port)) {
+        return Err(denied("connect", &format!("{host}:{port}")));
+    }
+    let mut io = shared.io.borrow_mut();
+    let key = io.reserve();
+    match literal(host) {
+        // Address literals connect at once; only real names cost a pool round trip.
+        Some(ip) => io.connect(key, Ok(SocketAddr::new(ip, port))),
+        None => io.pool.submit(Work::Resolve { conn: key, host: host.to_owned(), port }),
+    }
+    Ok(key)
+}
+
 /// Builds the `ops` object.
 ///
 /// # Arguments
@@ -550,14 +624,7 @@ pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>)
     op!(LISTEN, |s, call| {
         let scope = call.scope();
         let (port, http) = (int(call, 1), flag(call, 2));
-        let bound = text(call, 0, |host| {
-            let fault = |e: std::io::Error| Fault::new(&e, "listen", &format!("{host}:{port}"));
-            let addr = bind_addr(host, port as u16).map_err(fault)?;
-            if !s.host.allow(Access::Listen(addr)) {
-                return Err(denied("listen", &addr.to_string()));
-            }
-            s.io.borrow_mut().listen(addr, http).map_err(fault)
-        })?;
+        let bound = text(call, 0, |host| listen(&s, host, port as u16, http))?;
         match bound {
             Ok((key, port)) => scope.array(&[scope.number(key as f64), scope.number(f64::from(port))]),
             Err(fault) => Err(throw_fault::<V>(scope, fault)),
@@ -570,19 +637,7 @@ pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>)
     op!(CONNECT, |s, call| {
         let scope = call.scope();
         let port = int(call, 1) as u16;
-        let key = text(call, 0, |host| {
-            if !s.host.allow(Access::Connect(host, port)) {
-                return Err(denied("connect", &format!("{host}:{port}")));
-            }
-            let mut io = s.io.borrow_mut();
-            let key = io.reserve();
-            match literal(host) {
-                // Address literals connect at once; only real names cost a pool round trip.
-                Some(ip) => io.connect(key, Ok(SocketAddr::new(ip, port))),
-                None => io.pool.submit(Work::Resolve { conn: key, host: host.to_owned(), port }),
-            }
-            Ok(key)
-        })?;
+        let key = text(call, 0, |host| connect(&s, host, port))?;
         match key {
             Ok(key) => Ok(scope.int(key as i32)),
             Err(fault) => Err(throw_fault::<V>(scope, fault)),
@@ -634,12 +689,7 @@ pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>)
         let (op, req) = (int(call, 0), int(call, 3));
         let outcome = text(call, 1, |path| {
             data(call, 2, |extra| {
-                fs_allowed(&s.host, op, path, extra)?;
-                if req == 0 {
-                    return hfs::exec(op, path, extra).map(Some);
-                }
-                s.io.borrow_mut().pool.submit(Work::Fs { req, op, path: path.to_owned(), data: extra.to_vec() });
-                Ok(None)
+                fs_run(&s, op, path, extra, req)
             })
         })??;
         match outcome {

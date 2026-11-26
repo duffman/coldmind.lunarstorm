@@ -89,7 +89,7 @@ pub(crate) fn globals() -> Vec<Item> {
 ///
 /// # Returns
 /// It truncated and wrapped to 32 bits; NaN and infinities give 0.
-fn to_int32(number: f64) -> i32 {
+pub(crate) fn to_int32(number: f64) -> i32 {
     if !number.is_finite() {
         return 0;
     }

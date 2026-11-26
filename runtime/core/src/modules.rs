@@ -34,7 +34,7 @@ use crate::bindings::{HostModule, ModuleTable};
 use crate::host::{Access, Host};
 use crate::io::Shared;
 use crate::ipc::{Ipc, MODULE as IPC_MODULE};
-use crate::worker::{Workers, MODULE as WORKER_MODULE, NATIVE_MODULE as WORKER_NATIVE, SOURCE as WORKER_SOURCE};
+use crate::worker::{Workers, MODULE as WORKER_MODULE};
 use lunarstorm_modules::{FACADE, Modules, REQUIRE};
 use lunarstorm_vm::{Callbacks, Image, Load, ModuleMeta, ModuleSource, Scope, Vm};
 use lunarstorm_jbn::Package;
@@ -294,10 +294,6 @@ impl<V: Vm, H: Host> Callbacks<V> for Loader<V, H> {
                 return self.native(wanted).ok_or_else(|| format!("{name} is not in the package"));
             }
         }
-        // `lunarstorm:worker` is JS over natives that only it may import.
-        if H::WORKERS && name == WORKER_NATIVE && base == WORKER_MODULE {
-            return Ok(name.to_owned());
-        }
         // Only host modules (their canonical name is their specifier, never a path)
         // reach the natives; a program's own files are refused.
         if name == INTERNAL_MODULE && self.modules.iter().any(|(specifier, _)| *specifier == base) {
@@ -352,10 +348,7 @@ impl<V: Vm, H: Host> Callbacks<V> for Loader<V, H> {
             return Ok(Load::Native);
         }
         if H::WORKERS && name == WORKER_MODULE {
-            return Ok(Load::Ready(ModuleSource { source: WORKER_SOURCE.as_bytes().to_vec(), meta: None, image: None, source_map: None }));
-        }
-        if H::WORKERS && name == WORKER_NATIVE {
-            let exports = self.workers.exports(scope, &self.shared, &self.ipc).map_err(|_| {
+            let exports = self.workers.module(scope, &self.shared, &self.ipc).map_err(|_| {
                 let _ = scope.exception();
                 String::from("cannot create the exports of lunarstorm:worker")
             })?;
