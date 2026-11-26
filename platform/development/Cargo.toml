@@ -1,0 +1,13 @@
+# The `development` binary: a new Lunarstorm platform application (empty starting point).
+[package]
+name = "development"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Lunarstorm platform development application"
+
+[[bin]]
+name = "development"
+path = "src/main.rs"
+
+[dependencies]

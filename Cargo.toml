@@ -42,6 +42,7 @@
 #     web             `lunarstorm-web`: the app in a browser tab, backend in a Worker
 #     lunarstation    the `lunarstation` command line: lunar's packages on the CLI host
 #                     under its own name and external prefix
+#     development     the `development` application
 #     examples/app    a complete generated project (not a crate)
 #   toolchain/   the build toolchain (devtools crates and the vendored oj_* compiler)
 #
@@ -91,6 +92,7 @@ members = [
     "platform/web",
     "platform/extensions/project",
     "platform/lunarstation",
+    "platform/development",
     "crates/cliui",
     "crates/cli-contract",
     "crates/cli-host",
