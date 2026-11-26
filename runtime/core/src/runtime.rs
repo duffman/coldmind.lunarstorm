@@ -467,6 +467,36 @@ impl<V: Vm, H: Host> Runtime<V, H> {
         self.bindings.extend(bindings);
     }
 
+    /// Lists every declared module a script or host module can reach: the
+    /// Runtime's `ops`, then the registered host bindings, then the extensions
+    /// the host's manifest uses. Creates no VM; works before and after `start`.
+    ///
+    /// Decision: declarations with the same specifier are merged into one, in
+    /// that order, so `lunarstorm:internal` lists the Runtime's and the host's
+    /// natives together, as the `ops` object holds them.
+    ///
+    /// # Returns
+    /// The modules, each specifier once, in first-seen order.
+    ///
+    /// # Errors
+    /// The manifest check's or an extension's message, as [`Runtime::start`]
+    /// reports it.
+    pub fn declarations(&self) -> Result<Vec<lunarstorm_vm::ModuleDecl>, String> {
+        let host = &self.shared.host;
+        let extensions = host.extensions::<V>();
+        crate::extension::check(host.manifest(), &ExtensionSet::<V>::offers(&extensions)).map_err(|errors| errors.join("\n"))?;
+        let mut used = Bindings::<V>::new();
+        ExtensionSet::<V>::install(&extensions, host.manifest(), &mut used)?;
+        let mut merged: Vec<lunarstorm_vm::ModuleDecl> = Vec::new();
+        for decl in std::iter::once(ops::declare()).chain(self.bindings.declarations()).chain(used.declarations()) {
+            match merged.iter_mut().find(|known| known.specifier == decl.specifier) {
+                Some(known) => known.items.extend(decl.items),
+                None => merged.push(decl),
+            }
+        }
+        Ok(merged)
+    }
+
     /// # Returns
     /// A handle that posts tasks to this loop from any thread.
     pub fn poster(&self) -> Poster<V> {

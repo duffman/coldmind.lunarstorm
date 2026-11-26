@@ -9,11 +9,22 @@
 
 use lunar_extension_hostapi::{Arg, Area, Function};
 use lunarstorm_cliui::term;
-use lunarstorm_runtime::vm::{Call, Scope, Vm};
+use lunarstorm_runtime::vm::{Call, Param, Scope, Sig, Ty, Vm};
 use lunarstorm_runtime::{Bindings, Use};
 
 /// The area's module.
 pub const MODULE: &str = "lunarstorm:hostapi/ui";
+
+/// `ops.columns()`.
+const COLUMNS: Sig = Sig { params: &[], rest: None, returns: Ty::Number, about: "The terminal width now." };
+
+/// `ops.live(on)`.
+const LIVE: Sig = Sig {
+    params: &[Param { name: "on", ty: Ty::Bool, about: "true to enter, false to leave" }],
+    rest: None,
+    returns: Ty::Undefined,
+    about: "Enters or leaves the live region: hides or restores the cursor.",
+};
 
 /// The terminal API area.
 pub struct Ui;
@@ -42,9 +53,9 @@ impl<V: Vm> Area<V> for Ui {
     fn bindings(&self, _using: &Use<'_>) -> Result<Bindings<V>, String> {
         Ok(Bindings::<V>::new()
             // The terminal width now; a resize is seen on the next redraw.
-            .function("columns", |call: &Call<'_, V>| Ok(call.scope().int(i32::from(term::columns()))))
+            .function("columns", COLUMNS, |call: &Call<'_, V>| Ok(call.scope().int(i32::from(term::columns()))))
             // Enters or leaves the live region: hides or restores the cursor.
-            .function("live", |call: &Call<'_, V>| {
+            .function("live", LIVE, |call: &Call<'_, V>| {
                 let scope = call.scope();
                 term::live(call.args().first().and_then(|on| scope.as_bool(on)).unwrap_or(false));
                 Ok(scope.undefined())

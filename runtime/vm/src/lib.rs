@@ -38,6 +38,9 @@
 //!   queue belong to the [`Instance`]; isolation and reload use a new Instance.
 
 pub mod conformance;
+pub mod types;
+
+pub use types::{ClassDecl, Field, FnDecl, Item, ModuleDecl, Param, Sig, Ty};
 
 /// The debugger crate, whose protocol types [`Instance::debug`] hands out.
 pub use lunarstorm_debug;

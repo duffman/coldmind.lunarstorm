@@ -10,9 +10,12 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use lunarstorm_runtime::vm::{Call, Scope, Vm};
+use lunarstorm_runtime::vm::{Call, Scope, Sig, Ty, Vm};
 use lunarstorm_runtime::{Access, Bindings, Extension, Host, Log, Manifest, Runtime, Source, Stream, Use};
 use lunarstorm_vm_quickjs::QuickJs;
+
+/// The declaration of a test native that takes nothing and returns a number.
+const COUNTER: Sig = Sig { params: &[], rest: None, returns: Ty::Number, about: "A number for the test." };
 
 /// The module `probe` serves: its natives, reached through `lunarstorm:internal`.
 const PROBE_SOURCE: &str = "import { ops } from 'lunarstorm:internal';
@@ -52,8 +55,8 @@ impl<V: Vm> Extension<V> for Probe {
         self.calls.fetch_add(1, Ordering::SeqCst);
         let counter = Rc::new(Cell::new(0));
         let mut bindings = Bindings::new()
-            .function("probe_value", |call: &Call<'_, V>| Ok(call.scope().int(42)))
-            .function("probe_next", move |call: &Call<'_, V>| {
+            .function("probe_value", COUNTER, |call: &Call<'_, V>| Ok(call.scope().int(42)))
+            .function("probe_next", COUNTER, move |call: &Call<'_, V>| {
                 counter.set(counter.get() + 1);
                 Ok(call.scope().int(counter.get()))
             })
@@ -62,7 +65,7 @@ impl<V: Vm> Extension<V> for Probe {
             bindings = bindings.module("lunarstorm:other", "export {};");
         }
         if self.mode == Mode::Duplicate {
-            bindings = bindings.function("host_fn", |call: &Call<'_, V>| Ok(call.scope().int(0)));
+            bindings = bindings.function("host_fn", COUNTER, |call: &Call<'_, V>| Ok(call.scope().int(0)));
         }
         Ok(bindings)
     }
@@ -290,7 +293,7 @@ fn module_outside_namespace_is_refused() {
 #[test]
 fn duplicate_binding_is_refused() {
     let (_shared, mut runtime) = setup("duplicate", USES_PROBE, Mode::Duplicate, &[]);
-    runtime.register(Bindings::new().function("host_fn", |call: &Call<'_, QuickJs>| Ok(call.scope().int(1))));
+    runtime.register(Bindings::new().function("host_fn", COUNTER, |call: &Call<'_, QuickJs>| Ok(call.scope().int(1))));
     assert_eq!(runtime.start(), Err(String::from("extension probe: ops.host_fn is already bound")));
 }
 

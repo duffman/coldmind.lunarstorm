@@ -4,11 +4,19 @@
 //! exercises the whole Runtime interface: `register`, `start`, `load`, `call`,
 //! `post`, `poll` and `stop`.
 
-use lunarstorm_runtime::vm::{Call, Kind, Limits, Scope, Vm};
+use lunarstorm_runtime::vm::{Call, Kind, Limits, Param, Scope, Sig, Ty, Vm};
 use lunarstorm_runtime::{Access, Arg, Bindings, CallId, Host, Log, Runtime, Source, State, Stream, Wait};
 use lunarstorm_vm_quickjs::QuickJs;
 use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
+
+/// The declaration of the test native `double`.
+const DOUBLE: Sig = Sig {
+    params: &[Param { name: "n", ty: Ty::Number, about: "the number to double" }],
+    rest: None,
+    returns: Ty::Number,
+    about: "Doubles a number.",
+};
 
 /// A host with no process behind it: output is captured, policy is a deny list.
 #[derive(Default)]
@@ -303,7 +311,7 @@ fn post_runs_tasks_from_another_thread_on_the_loop() {
 #[test]
 fn host_bindings_and_modules_are_registered_by_the_host() {
     let bindings = Bindings::<QuickJs>::new()
-        .function("double", |call: &Call<'_, QuickJs>| {
+        .function("double", DOUBLE, |call: &Call<'_, QuickJs>| {
             let scope = call.scope();
             let number = call.args().first().and_then(|value| Scope::as_number(scope, value)).unwrap_or(f64::NAN);
             Ok(Scope::number(scope, number * 2.0))
@@ -360,7 +368,7 @@ fn builtins_are_native_modules_and_no_hidden_global_exists() {
 #[test]
 fn internal_module_is_for_host_modules_only() {
     let bindings = Bindings::<QuickJs>::new()
-        .function("double", |call: &Call<'_, QuickJs>| {
+        .function("double", DOUBLE, |call: &Call<'_, QuickJs>| {
             let scope = call.scope();
             let number = call.args().first().and_then(|value| Scope::as_number(scope, value)).unwrap_or(f64::NAN);
             Ok(Scope::number(scope, number * 2.0))

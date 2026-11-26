@@ -30,6 +30,7 @@
 //!   which every engine supports. [`Load::Later`] is left to a future loader for
 //!   engines that report `async_module_load`.
 
+use crate::bindings::{HostModule, ModuleTable};
 use crate::host::{Access, Host};
 use crate::io::Shared;
 use crate::ipc::{Ipc, MODULE as IPC_MODULE};
@@ -156,8 +157,8 @@ pub type Rejections<V> = Rc<RefCell<Vec<(usize, <V as Vm>::Persistent)>>>;
 pub struct Loader<V: Vm, H: Host> {
     /// Where unhandled rejections are recorded for the loop to report.
     rejections: Rejections<V>,
-    /// `(specifier, source)` of the modules the host registered.
-    modules: Vec<(&'static str, &'static str)>,
+    /// The modules the host registered, by specifier.
+    modules: ModuleTable<V>,
     /// Loop state; the exports of the channel modules are closures over it.
     shared: Rc<Shared<H>>,
     /// The `lunarstorm:ipc` channel, for the module's exports.
@@ -189,7 +190,7 @@ impl<V: Vm, H: Host> Loader<V, H> {
     pub fn new(
         shared: Rc<Shared<H>>,
         rejections: Rejections<V>,
-        modules: Vec<(&'static str, &'static str)>,
+        modules: ModuleTable<V>,
         ipc: Rc<Ipc<V>>,
         workers: Rc<Workers<V>>,
         registry: Rc<Registry<V>>,
@@ -318,8 +319,25 @@ impl<V: Vm, H: Host> Callbacks<V> for Loader<V, H> {
     /// # Errors
     /// A message when the host's policy refuses the file or it cannot be read.
     fn load<'s>(&self, scope: &V::Scope<'s>, name: &str) -> Result<Load, String> {
-        if let Some((_, source)) = self.modules.iter().find(|(specifier, _)| *specifier == name) {
-            return Ok(Load::Ready(ModuleSource { source: source.as_bytes().to_vec(), meta: None, image: None, source_map: None }));
+        match self.modules.iter().find(|(specifier, _)| *specifier == name) {
+            Some((_, HostModule::Source(source))) => {
+                return Ok(Load::Ready(ModuleSource { source: source.as_bytes().to_vec(), meta: None, image: None, source_map: None }));
+            }
+            Some((_, HostModule::Native(decl, exports))) => {
+                let failed = |what: &str| {
+                    let _ = scope.exception();
+                    format!("cannot {what} {name}")
+                };
+                let mut values = Vec::with_capacity(decl.items.len());
+                exports(scope, &mut values).map_err(|_| failed("create the exports of"))?;
+                if values.len() != decl.items.len() {
+                    return Err(format!("{name}: {} exports declared, {} built", decl.items.len(), values.len()));
+                }
+                let pairs: Vec<_> = decl.items.iter().map(|item| item.name()).zip(values).collect();
+                scope.native_module(name, &pairs).map_err(|_| failed("declare"))?;
+                return Ok(Load::Native);
+            }
+            None => {}
         }
         if H::IPC && name == IPC_MODULE {
             // A native module: its exports are closures over this Runtime's state.

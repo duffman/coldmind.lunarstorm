@@ -12,9 +12,10 @@
 //! - Strings and `Uint8Array`s passed from JS are borrowed in place
 //!   (`Scope::with_str`, `Scope::with_bytes`) rather than copied; with a vectored
 //!   write the bytes go from the JS heap to the socket with no intermediate copy.
-//! - Arguments are read leniently (a missing or mistyped number is 0): the only
-//!   caller is the glue, which always passes the right shapes, so strict checks
-//!   would be paid on every call for nothing.
+//! - Every op is declared ([`declare`]): its arguments are checked against the
+//!   declaration before the body runs, and a mismatch throws
+//!   `TypeError: <op>: <param> must be <type>`. The readers below then only
+//!   extract; their fallbacks cover optional parameters that were left out.
 //! - Everything that reaches outside the process boundary of the Runtime goes
 //!   through the host: stdio, exit, environment, clock, entropy, and the fs/net
 //!   policy check that precedes every filesystem and socket operation.
@@ -23,54 +24,56 @@ use crate::fs::{self as hfs, op as fsop, FsValue};
 use crate::host::{Access, Host, Stream};
 use crate::io::{Fault, Shared};
 use crate::pool::Work;
+use crate::bindings::declared;
+use crate::modules::INTERNAL_MODULE;
 use crate::runtime::Arg;
-use lunarstorm_vm::{Call, ErrorKind, Kind, Outcome, Scope, Thrown, Vm};
+use lunarstorm_vm::{Call, ErrorKind, Field, FnDecl, Item, Kind, ModuleDecl, Outcome, Param, Scope, Sig, Thrown, Ty, Vm};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::rc::Rc;
 
 /// Largest `crypto.getRandomValues` request, as in the Web Crypto specification.
 const ENTROPY_MAX: usize = 65_536;
 
-/// Reads a numeric argument.
+/// Reads a numeric argument the declaration has checked.
 ///
 /// # Arguments
 /// * `call` - the native call.
 /// * `index` - argument position.
 ///
 /// # Returns
-/// The number; 0 when the argument is missing or not a number.
+/// The number; 0 for an optional argument left out.
 #[inline]
 fn num<V: Vm>(call: &Call<'_, V>, index: usize) -> f64 {
     call.args().get(index).and_then(|value| call.scope().as_number(value)).unwrap_or(0.0)
 }
 
-/// Reads an integer argument.
+/// Reads an integer argument the declaration has checked.
 ///
 /// # Arguments
 /// * `call` - the native call.
 /// * `index` - argument position.
 ///
 /// # Returns
-/// The number truncated to `i32`; 0 when missing or not a number.
+/// The number truncated to `i32`.
 #[inline]
 fn int<V: Vm>(call: &Call<'_, V>, index: usize) -> i32 {
     num(call, index) as i32
 }
 
-/// Reads a boolean argument.
+/// Reads a boolean argument the declaration has checked.
 ///
 /// # Arguments
 /// * `call` - the native call.
 /// * `index` - argument position.
 ///
 /// # Returns
-/// The boolean; `false` when missing or not a boolean.
+/// The boolean.
 #[inline]
 fn flag<V: Vm>(call: &Call<'_, V>, index: usize) -> bool {
     call.args().get(index).and_then(|value| call.scope().as_bool(value)).unwrap_or(false)
 }
 
-/// Lends a string argument's UTF-8 text.
+/// Lends the UTF-8 text of a string argument the declaration has checked.
 ///
 /// # Arguments
 /// * `call` - the native call.
@@ -81,7 +84,7 @@ fn flag<V: Vm>(call: &Call<'_, V>, index: usize) -> bool {
 /// The closure's result.
 ///
 /// # Errors
-/// A `TypeError` when the argument is missing or not a string.
+/// A `TypeError` for a string with an unpaired surrogate (no UTF-8 form).
 #[inline]
 fn text<V: Vm, R>(call: &Call<'_, V>, index: usize, f: impl FnOnce(&str) -> R) -> Outcome<R> {
     match call.args().get(index) {
@@ -90,7 +93,7 @@ fn text<V: Vm, R>(call: &Call<'_, V>, index: usize, f: impl FnOnce(&str) -> R) -
     }
 }
 
-/// Lends the bytes of a string, `Uint8Array` or nullish argument.
+/// Lends the bytes of a [`DATA`] argument the declaration has checked.
 ///
 /// # Arguments
 /// * `call` - the native call.
@@ -101,7 +104,7 @@ fn text<V: Vm, R>(call: &Call<'_, V>, index: usize, f: impl FnOnce(&str) -> R) -
 /// The closure's result.
 ///
 /// # Errors
-/// A `TypeError` when the argument is anything else.
+/// What the engine throws when it cannot lend the bytes.
 #[inline]
 fn data<V: Vm, R>(call: &Call<'_, V>, index: usize, f: impl FnOnce(&[u8]) -> R) -> Outcome<R> {
     match call.args().get(index) {
@@ -255,6 +258,150 @@ fn literal(host: &str) -> Option<IpAddr> {
     host.parse().ok()
 }
 
+/// A payload: text (sent as UTF-8) or bytes.
+///
+/// Decision: `null` and `undefined` are admitted and mean no bytes, because the
+/// glue passes the script's value through unchanged: `res.end()` reaches
+/// `httpRespond` with `undefined`, `fs.writeFileSync(p)` reaches `fs` with it,
+/// and `socket.write(null)` reaches `write`. Narrowing it would change what
+/// those scripts see.
+const DATA: Ty = Ty::Union(&[Ty::String, Ty::Bytes, Ty::Null, Ty::Undefined]);
+
+/// Shorthand for a [`Param`] in the declarations below.
+///
+/// # Arguments
+/// * `name` - the parameter name.
+/// * `ty` - its type.
+/// * `about` - one line.
+///
+/// # Returns
+/// The parameter.
+const fn p(name: &'static str, ty: Ty, about: &'static str) -> Param {
+    Param { name, ty, about }
+}
+
+/// Shorthand for an op's [`FnDecl`] with no rest parameter.
+///
+/// # Arguments
+/// * `name` - the op's name on `ops`.
+/// * `params` - its parameters.
+/// * `returns` - its result.
+/// * `about` - one line.
+///
+/// # Returns
+/// The declaration.
+const fn op(name: &'static str, params: &'static [Param], returns: Ty, about: &'static str) -> FnDecl {
+    FnDecl { name, sig: Sig { params, rest: None, returns, about } }
+}
+
+/// The handle key of a socket, listener or HTTP exchange.
+const KEY: Param = p("key", Ty::Number, "handle key from listen, connect or a connection event");
+
+const ENV: FnDecl = op("env", &[], Ty::Object(&[]), "The host's environment variables as an object.");
+const CWD: FnDecl = op("cwd", &[], Ty::String, "The host's working directory.");
+const EXIT: FnDecl = op("exit", &[p("code", Ty::Number, "exit status")], Ty::Undefined, "Flushes stdout and asks the host to exit.");
+const NOW: FnDecl = op("now", &[], Ty::Number, "Milliseconds since the Runtime started, from the host's monotonic clock.");
+const PRINT: FnDecl = op(
+    "print",
+    &[p("fd", Ty::Number, "2 for stderr, anything else for stdout"), p("text", Ty::String, "what to write")],
+    Ty::Undefined,
+    "Writes text to stdout (buffered) or stderr.",
+);
+const FLUSH: FnDecl = op("flush", &[], Ty::Undefined, "Writes buffered stdout to the host.");
+const RANDOM: FnDecl = op("random", &[p("length", Ty::Number, "byte count, at most 65536")], Ty::Bytes, "Bytes from the host's entropy source.");
+const SETTLED: FnDecl = op(
+    "settled",
+    &[
+        p("id", Ty::Number, "the host's call id"),
+        p("ok", Ty::Bool, "whether the call's promise fulfilled"),
+        p("value", Ty::Any, "the result, or the rejection's description"),
+    ],
+    Ty::Undefined,
+    "Reports how a Runtime::call settled.",
+);
+const TICK: FnDecl = op("tick", &[], Ty::Undefined, "Asks the loop to drain the nextTick queue.");
+const IMMEDIATE: FnDecl = op("immediate", &[], Ty::Undefined, "Asks the loop to run the setImmediate queue.");
+const TIMER_START: FnDecl = op(
+    "timerStart",
+    &[p("ms", Ty::Number, "delay in milliseconds"), p("repeat", Ty::Bool, "whether the timer repeats")],
+    Ty::Number,
+    "Starts a timer and returns its id.",
+);
+const TIMER_CANCEL: FnDecl = op("timerCancel", &[p("id", Ty::Number, "timer id")], Ty::Bool, "Cancels a timer; whether it was active.");
+const UTF8_DECODE: FnDecl = op("utf8Decode", &[p("bytes", Ty::Bytes, "UTF-8 bytes")], Ty::String, "Decodes UTF-8, replacing invalid sequences.");
+const UTF8_ENCODE: FnDecl = op("utf8Encode", &[p("text", Ty::String, "text")], Ty::Bytes, "Encodes text as UTF-8.");
+const LISTEN: FnDecl = op(
+    "listen",
+    &[p("host", Ty::String, "address or name to bind"), p("port", Ty::Number, "port, 0 for any"), p("http", Ty::Bool, "whether connections speak HTTP/1.1")],
+    Ty::Array(&Ty::Number),
+    "Binds a TCP listener; returns [key, port].",
+);
+const LISTENER_CLOSE: FnDecl = op("listenerClose", &[KEY], Ty::Undefined, "Closes a listener.");
+const CONNECT: FnDecl = op(
+    "connect",
+    &[p("host", Ty::String, "address or name"), p("port", Ty::Number, "port")],
+    Ty::Number,
+    "Starts a TCP connection; returns its key.",
+);
+const WRITE: FnDecl = op("write", &[KEY, p("data", DATA, "bytes to send")], Ty::Bool, "Queues bytes on a socket; false when the caller should wait for drain.");
+const END: FnDecl = op("end", &[KEY], Ty::Undefined, "Half-closes a socket after its queued bytes.");
+const DESTROY: FnDecl = op("destroy", &[KEY], Ty::Undefined, "Closes a socket at once.");
+const HTTP_RESPOND: FnDecl = op(
+    "httpRespond",
+    &[
+        KEY,
+        p("status", Ty::Number, "status code"),
+        p("fields", Ty::String, "header lines"),
+        p("body", DATA, "the whole body"),
+        p("close", Ty::Bool, "whether to close the connection after"),
+    ],
+    Ty::Undefined,
+    "Sends a complete response.",
+);
+const HTTP_HEAD: FnDecl = op(
+    "httpHead",
+    &[KEY, p("status", Ty::Number, "status code"), p("fields", Ty::String, "header lines"), p("close", Ty::Bool, "whether to close the connection after")],
+    Ty::Undefined,
+    "Sends the head of a chunked response.",
+);
+const HTTP_CHUNK: FnDecl = op("httpChunk", &[KEY, p("body", DATA, "a piece of the body")], Ty::Undefined, "Sends one chunk of a chunked response.");
+const HTTP_END: FnDecl = op("httpEnd", &[KEY], Ty::Undefined, "Ends a chunked response.");
+const FS: FnDecl = op(
+    "fs",
+    &[
+        p("op", Ty::Number, "operation code"),
+        p("path", Ty::String, "the path operated on"),
+        p("data", DATA, "payload: file contents, or a rename's target"),
+        p("req", Ty::Number, "0 to run inline, else the request id of the async result"),
+    ],
+    Ty::Any,
+    "Runs a filesystem operation inline or on the worker pool.",
+);
+
+/// Every op, in the order [`install`] sets them on `ops`.
+const OPS: [FnDecl; 25] = [
+    ENV, CWD, EXIT, NOW, PRINT, FLUSH, RANDOM, SETTLED, TICK, IMMEDIATE, TIMER_START, TIMER_CANCEL, UTF8_DECODE, UTF8_ENCODE,
+    LISTEN, LISTENER_CLOSE, CONNECT, WRITE, END, DESTROY, HTTP_RESPOND, HTTP_HEAD, HTTP_CHUNK, HTTP_END, FS,
+];
+
+/// The constant values on `ops`.
+const VALUES: [Field; 5] = [
+    Field { name: "argv", ty: Ty::Array(&Ty::String), about: "process.argv, from the host." },
+    Field { name: "pid", ty: Ty::Number, about: "The process id." },
+    Field { name: "version", ty: Ty::String, about: "The Runtime's version." },
+    Field { name: "platform", ty: Ty::String, about: "The OS, spelled as Node spells it (darwin, win32, linux)." },
+    Field { name: "arch", ty: Ty::String, about: "The CPU, spelled as Node spells it (arm64, x64)." },
+];
+
+/// Declares the Runtime's `ops` object as the module host modules import it from.
+///
+/// # Returns
+/// `lunarstorm:internal` with the constant values, then every op.
+pub fn declare() -> ModuleDecl {
+    let items = VALUES.iter().copied().map(Item::Value).chain(OPS.iter().copied().map(Item::Function)).collect();
+    ModuleDecl { specifier: INTERNAL_MODULE, items, about: "The Runtime's natives, for host modules only." }
+}
+
 /// Builds the `ops` object.
 ///
 /// # Arguments
@@ -269,13 +416,14 @@ fn literal(host: &str) -> Option<IpAddr> {
 pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>) -> Outcome<V::Value<'s>> {
     let ops = scope.object()?;
 
-    /// Registers one op: clones the shared state into the closure and sets it on
-    /// `ops`. The body sees `$s` (the shared state) and `$call` (the native call).
+    /// Registers one declared op: clones the shared state into the closure and
+    /// sets it on `ops`. The body sees `$s` (the shared state) and `$call` (the
+    /// native call), and runs only when the arguments fit the declaration.
     macro_rules! op {
-        ($name:literal, |$s:ident, $call:ident| $body:expr) => {{
+        ($decl:ident, |$s:ident, $call:ident| $body:expr) => {{
             let $s = shared.clone();
-            let function = scope.function($name, move |$call: &Call<'_, V>| $body)?;
-            scope.set(&ops, $name, function)?;
+            let function = declared(scope, $decl.name, $decl.sig, move |$call: &Call<'_, V>| $body)?;
+            scope.set(&ops, $decl.name, function)?;
         }};
     }
 
@@ -297,7 +445,7 @@ pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>)
     };
     scope.set(&ops, "arch", scope.string(arch)?)?;
 
-    op!("env", |s, call| {
+    op!(ENV, |s, call| {
         let scope = call.scope();
         let env = scope.object()?;
         for (name, value) in s.host.environment() {
@@ -305,15 +453,15 @@ pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>)
         }
         Ok(env)
     });
-    op!("cwd", |s, call| call.scope().string(&s.host.working_directory()));
-    op!("exit", |s, call| {
+    op!(CWD, |s, call| call.scope().string(&s.host.working_directory()));
+    op!(EXIT, |s, call| {
         s.io.borrow_mut().flush_stdout(&s.host);
         s.host.exit(int(call, 0))
     });
-    op!("now", |s, call| {
+    op!(NOW, |s, call| {
         Ok(call.scope().number(s.host.monotonic().duration_since(s.start).as_secs_f64() * 1000.0))
     });
-    op!("print", |s, call| {
+    op!(PRINT, |s, call| {
         text(call, 1, |line| {
             let mut io = s.io.borrow_mut();
             if int(call, 0) == 2 {
@@ -326,11 +474,11 @@ pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>)
         })?;
         Ok(call.scope().undefined())
     });
-    op!("flush", |s, call| {
+    op!(FLUSH, |s, call| {
         s.io.borrow_mut().flush_stdout(&s.host);
         Ok(call.scope().undefined())
     });
-    op!("random", |s, call| {
+    op!(RANDOM, |s, call| {
         let scope = call.scope();
         let len = num(call, 0);
         if !(0.0..=ENTROPY_MAX as f64).contains(&len) {
@@ -340,7 +488,7 @@ pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>)
         s.host.entropy(&mut bytes);
         scope.bytes(bytes)
     });
-    op!("settled", |s, call| {
+    op!(SETTLED, |s, call| {
         let scope = call.scope();
         let result = match call.args().get(2) {
             Some(value) if flag(call, 1) => Ok(neutral::<V>(scope, value)),
@@ -352,36 +500,36 @@ pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>)
     });
 
     // ---- scheduling -------------------------------------------------------------
-    op!("tick", |s, call| {
+    op!(TICK, |s, call| {
         s.tick.set(true);
         Ok(call.scope().undefined())
     });
-    op!("immediate", |s, call| {
+    op!(IMMEDIATE, |s, call| {
         s.immediate.set(true);
         Ok(call.scope().undefined())
     });
-    op!("timerStart", |s, call| {
+    op!(TIMER_START, |s, call| {
         let scope = call.scope();
         match s.io.borrow_mut().timer_start(num(call, 0), flag(call, 1), s.host.monotonic()) {
             Some(id) => Ok(scope.number(id)),
             None => Err(scope.throw_error(ErrorKind::Range, "too many active timers")),
         }
     });
-    op!("timerCancel", |s, call| Ok(call.scope().boolean(s.io.borrow_mut().timer_cancel(num(call, 0)))));
+    op!(TIMER_CANCEL, |s, call| Ok(call.scope().boolean(s.io.borrow_mut().timer_cancel(num(call, 0)))));
 
     // ---- text -------------------------------------------------------------------
-    op!("utf8Decode", |_s, call| {
+    op!(UTF8_DECODE, |_s, call| {
         let scope = call.scope();
         let decoded = data(call, 0, |bytes| String::from_utf8_lossy(bytes).into_owned())?;
         scope.string(&decoded)
     });
-    op!("utf8Encode", |_s, call| {
+    op!(UTF8_ENCODE, |_s, call| {
         let scope = call.scope();
         text(call, 0, |text| scope.bytes_copy(text.as_bytes()))?
     });
 
     // ---- tcp --------------------------------------------------------------------
-    op!("listen", |s, call| {
+    op!(LISTEN, |s, call| {
         let scope = call.scope();
         let (port, http) = (int(call, 1), flag(call, 2));
         let bound = text(call, 0, |host| {
@@ -397,11 +545,11 @@ pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>)
             Err(fault) => Err(throw_fault::<V>(scope, fault)),
         }
     });
-    op!("listenerClose", |s, call| {
+    op!(LISTENER_CLOSE, |s, call| {
         s.io.borrow_mut().listener_close(int(call, 0) as usize);
         Ok(call.scope().undefined())
     });
-    op!("connect", |s, call| {
+    op!(CONNECT, |s, call| {
         let scope = call.scope();
         let port = int(call, 1) as u16;
         let key = text(call, 0, |host| {
@@ -422,39 +570,39 @@ pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>)
             Err(fault) => Err(throw_fault::<V>(scope, fault)),
         }
     });
-    op!("write", |s, call| {
+    op!(WRITE, |s, call| {
         let key = int(call, 0) as usize;
         let accepted = data(call, 1, |bytes| s.io.borrow_mut().tcp_write(key, bytes))?;
         Ok(call.scope().boolean(accepted))
     });
-    op!("end", |s, call| {
+    op!(END, |s, call| {
         s.io.borrow_mut().tcp_end(int(call, 0) as usize);
         Ok(call.scope().undefined())
     });
-    op!("destroy", |s, call| {
+    op!(DESTROY, |s, call| {
         s.io.borrow_mut().destroy(int(call, 0) as usize);
         Ok(call.scope().undefined())
     });
 
     // ---- http -------------------------------------------------------------------
-    op!("httpRespond", |s, call| {
+    op!(HTTP_RESPOND, |s, call| {
         let (key, status, close) = (int(call, 0) as usize, int(call, 1) as u16, flag(call, 4));
         text(call, 2, |fields| {
             data(call, 3, |body| s.io.borrow_mut().http_respond(key, status, fields, body, close, &s.host))
         })??;
         Ok(call.scope().undefined())
     });
-    op!("httpHead", |s, call| {
+    op!(HTTP_HEAD, |s, call| {
         let (key, status, close) = (int(call, 0) as usize, int(call, 1) as u16, flag(call, 3));
         text(call, 2, |fields| s.io.borrow_mut().http_head(key, status, fields, close, &s.host))?;
         Ok(call.scope().undefined())
     });
-    op!("httpChunk", |s, call| {
+    op!(HTTP_CHUNK, |s, call| {
         let key = int(call, 0) as usize;
         data(call, 1, |bytes| s.io.borrow_mut().http_chunk(key, bytes))?;
         Ok(call.scope().undefined())
     });
-    op!("httpEnd", |s, call| {
+    op!(HTTP_END, |s, call| {
         s.io.borrow_mut().http_end(int(call, 0) as usize);
         Ok(call.scope().undefined())
     });
@@ -463,7 +611,7 @@ pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>)
     // `req == 0` runs the operation inline (the `*Sync` API) and returns its value;
     // any other `req` queues it on the worker pool and the result arrives as an
     // event. The host's policy is asked here, on the loop thread, in both cases.
-    op!("fs", |s, call| {
+    op!(FS, |s, call| {
         let scope = call.scope();
         let (op, req) = (int(call, 0), int(call, 3));
         let outcome = text(call, 1, |path| {

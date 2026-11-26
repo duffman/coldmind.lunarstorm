@@ -48,7 +48,7 @@ mod pool;
 mod runtime;
 mod worker;
 
-pub use bindings::Bindings;
+pub use bindings::{declared, AccessorImpl, Bindings, ClassImpl, Constructor, Exports, Native};
 pub use channel::{Inbox, MAX_BYTES, MAX_MESSAGES, MAX_MESSAGE_BYTES};
 pub use extension::{check, valid_name, Cardinality, Entry, Extension, ExtensionSet, Manifest, Offer, PluginHost, Requirement, Use, RESERVED};
 pub use host::{Access, Host, Log, Stream};

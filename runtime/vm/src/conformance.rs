@@ -16,8 +16,8 @@
 //! - Checks for optional abilities run only when [`Vm::capabilities`] reports them.
 
 use crate::{
-    Callbacks, ClassSpec, Context, ErrorKind, Image, Instance, Kind, Limits, Load, ModuleMeta, ModuleSource, Scope, Vm,
-    CONTRACT_VERSION,
+    Callbacks, ClassSpec, Context, ErrorKind, Image, Instance, Kind, Limits, Load, ModuleMeta, ModuleSource, Param, Scope,
+    Sig, Ty, Vm, CONTRACT_VERSION,
 };
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -189,6 +189,7 @@ pub fn run<V: Vm>() -> usize {
         promises::<V>,
         limits::<V>,
         interrupts::<V>,
+        declared_types::<V>,
     ];
     for run in checks {
         run();
@@ -746,3 +747,37 @@ fn interrupts<V: Vm>() {
         seen.interrupt.set(false);
     });
 }
+
+/// Declared types check the adapter's values: kinds, optionals, unions, and a
+/// signature naming the first parameter that does not fit.
+fn declared_types<V: Vm>() {
+    let (instance, _) = boot::<V>(&Limits::default());
+    let context = instance.context().expect("conformance: context creation");
+    context.enter(|scope| {
+        let text = scope.string("x").expect("conformance: string");
+        let bytes = scope.bytes_copy(&[1]).expect("conformance: bytes");
+        let function = eval::<V>(&scope, "(() => 1)");
+        check("a string is a string", Ty::String.check::<V>(&scope, &text).is_ok());
+        check("a number is not a string", Ty::String.check::<V>(&scope, &scope.int(1)) == Err(String::from("string")));
+        check("a Uint8Array is bytes", Ty::Bytes.check::<V>(&scope, &bytes).is_ok());
+        check("a function is a function", Ty::Function(&SIG).check::<V>(&scope, &function).is_ok());
+        check("undefined fits an optional", Ty::Optional(&Ty::Number).check::<V>(&scope, &scope.undefined()).is_ok());
+        check("a union names its members", Ty::Union(&[Ty::String, Ty::Bytes]).check::<V>(&scope, &scope.null()) == Err(String::from("string | Uint8Array")));
+        check("a full call fits", SIG.check::<V>(&scope, &[scope.int(1), text.clone()]).is_ok());
+        check("a missing argument is undefined", SIG.check::<V>(&scope, &[scope.int(1)]) == Err(String::from("name must be string | Uint8Array")));
+        check("a mistyped argument is named", SIG.check::<V>(&scope, &[text, scope.int(1)]) == Err(String::from("count must be number")));
+        check("extra arguments meet the rest type", SIG.check::<V>(&scope, &[scope.int(1), bytes.clone(), scope.int(2)]) == Err(String::from("flags must be boolean | undefined")));
+        check("extra arguments that fit pass", SIG.check::<V>(&scope, &[scope.int(1), bytes, scope.boolean(true), scope.undefined()]).is_ok());
+    });
+}
+
+/// The signature [`declared_types`] checks calls against.
+const SIG: Sig = Sig {
+    params: &[
+        Param { name: "count", ty: Ty::Number, about: "" },
+        Param { name: "name", ty: Ty::Union(&[Ty::String, Ty::Bytes]), about: "" },
+    ],
+    rest: Some(Param { name: "flags", ty: Ty::Optional(&Ty::Bool), about: "" }),
+    returns: Ty::Undefined,
+    about: "",
+};

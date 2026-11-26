@@ -1018,7 +1018,7 @@ fn http_chunked_response() {
         }});
     "#));
     assert!(text.starts_with("request GET /path?q=1 example.test 1.1 true\ntext/plain true false false\ntrue true\ntrue\ntrue 200\nHTTP/1.1 200 OK\n"), "{text:?}");
-    let tail = text.splitn(2, "HTTP/1.1 200 OK\n").nth(1).expect("status line");
+    let (_, tail) = text.split_once("HTTP/1.1 200 OK\n").expect("status line");
     assert_eq!(
         tail,
         "content-type,date,transfer-encoding,x-multi,x-multi\n\"6\\r\\nhello \\r\\n8\\r\\nchunked \\r\\n5\\r\\nworld\\r\\n0\\r\\n\\r\\n\"\n"
