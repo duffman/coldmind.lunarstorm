@@ -24,8 +24,8 @@
 //!   `template.json` (`description`, `type`, `main`) plus the files to write;
 //!   `{{name}}` in a UTF-8 file becomes the package name, and `gitignore` is written
 //!   as `.gitignore`. `init` writes `package.json` itself from `type`, `main` and
-//!   `--mode`, so templates carry no conditionals. `--type` picks `cli/<type>`, or
-//!   `desktop/app` for `desktop`; `--template` overrides it with a mounted name or a folder on disk.
+//!   `--mode`, so templates carry no conditionals. `--type` picks `cli/<type>`;
+//!   `--template` overrides it with a mounted name or a folder on disk.
 //! - A `desktop` project is built by `lunar build -p` (lunarstorm-pipeline), so
 //!   `compile` and `sign` refuse it, and `init` refuses `--mode node` for it.
 //! - `compile` signs with a per-project development key (`.lunar/dev.der`, made on
@@ -59,8 +59,8 @@ struct ProjectPackage {
 /// Returns the project package for mounting on the command line.
 ///
 /// # Arguments
-/// * `templates` - the products' templates `init` offers; `--type` needs `cli/program`,
-///   `cli/module` and `desktop/app` among them.
+/// * `templates` - the products' templates `init` offers; `--type` needs `cli/program`
+///   and `cli/module` among them.
 ///
 /// # Returns
 /// The package; it exports `project`.
@@ -91,12 +91,12 @@ impl Package for ProjectPackage {
             .child(
                 Command::new("init", "create a project: package.json, an entry file and .gitignore")
                     .arg(directory())
-                    .arg(Arg::option("type").choices(&["module", "program", "desktop"]).default("program").about("a program to run, a module to import, or a desktop app"))
+                    .arg(Arg::option("type").choices(&["module", "program"]).default("program").about("a program to run, or a module to import"))
                     .arg(Arg::option("mode").choices(&["lunar", "node"]).default("lunar").about("the runtime it targets"))
                     .arg(Arg::option("template").placeholder("<product/name|folder>").about("a template from `lunar project templates`, or a template folder; overrides --type"))
                     .run(move |invocation| init(invocation, templates))
                     .example("lunar project init hello --type program --mode lunar")
-                    .example("lunar project init notes --type desktop"),
+                    .example("lunar project init notes --template desktop/app"),
             )
             .child(Command::new("templates", "list the templates init can use").run(move |_| list(templates)))
             .child(Command::new("insight", "summarize a project: description, dependencies, files and build").arg(directory()).run(insight))
@@ -345,24 +345,6 @@ fn package_name(root: &Path) -> String {
     if name.is_empty() { String::from("app") } else { name }
 }
 
-/// Names the mounted template `--type` stands for.
-///
-/// Decision: `desktop` is the desktop product's `desktop/app`, so `--type desktop`
-/// creates the same project as `--template desktop/app`; every other type is the
-/// cli product's `cli/<type>`.
-///
-/// # Arguments
-/// * `kind` - the `--type` value: `program`, `module` or `desktop`.
-///
-/// # Returns
-/// The template name, e.g. `cli/program`.
-fn type_template(kind: &str) -> String {
-    match kind {
-        "desktop" => "desktop/app".to_owned(),
-        other => format!("cli/{other}"),
-    }
-}
-
 /// The `init` handler: writes `package.json` and the template's files, and a default
 /// `.gitignore` when the template has none.
 ///
@@ -383,7 +365,7 @@ fn init(invocation: &mut Invocation, templates: &[Templates]) -> Result<i32, Fai
     let template = match values.text("template") {
         Some(folder) if Path::new(folder).is_dir() => Template::folder(Path::new(folder))?,
         Some(name) => Template::mounted(templates, name)?,
-        None => Template::mounted(templates, &type_template(values.text("type").unwrap_or("program")))?,
+        None => Template::mounted(templates, &format!("cli/{}", values.text("type").unwrap_or("program")))?,
     };
     if root.join("package.json").exists() {
         return Err(Failure::failed(format!("{} already has a package.json", root.display())));

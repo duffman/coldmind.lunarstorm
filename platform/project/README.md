@@ -3,7 +3,7 @@
 The `project` package of the `lunar` command line, mounted by `platform/cli/app` behind the `project` feature (on by default).
 
 ```text
-lunar project init [dir] --type module|program|desktop --mode lunar|node
+lunar project init [dir] --type module|program --mode lunar|node
 lunar project init [dir] --template <product/name|folder>   e.g. desktop/app
 lunar project templates                         the templates init can use
 lunar project insight [dir]                     description, dependencies, files and lines per extension, build
@@ -30,7 +30,7 @@ A template is a folder: `template.json` plus the files to write.
 - `type` is `program`, `module` or `desktop`; `main` must name a file of the template.
 - `{{name}}` in a UTF-8 file becomes the package name; `gitignore` is written as `.gitignore` (a default is written when the template has none); names starting with `.` are never copied.
 - `init` writes `package.json` itself from `type`, `main` and `--mode`, so templates hold no conditionals.
-- `--type` picks `cli/<type>`, or `desktop/app` for `desktop`; `--template` overrides it with a mounted name or a folder on disk.
+- `--type` picks `cli/<type>`; `--template` overrides it with a mounted name or a folder on disk.
 - Adding a template: a new folder with a `template.json` in a templates crate; `build.rs` embeds it, no Rust edit.
 
 ## Developer keys
