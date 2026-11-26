@@ -286,8 +286,10 @@ pub fn validate_structure_schema<'a>(
 }
 
 /// Owned final bytecode snapshots.
+#[path = "instruction_snapshot.rs"]
 pub mod snapshot;
 /// Independent scalar semantic verifier.
+#[path = "scalar_subset_checks.rs"]
 pub mod verify;
 
 pub mod production {
@@ -296,7 +298,9 @@ pub mod production {
     pub const UPSTREAM_REVISION: &str = "7b5f588e0f9b643e2996f291bfc861abeaceddc2";
     pub const TARGET_FINGERPRINT: &str = env!("QJS_PRODUCTION_FINGERPRINT");
 }
+#[path = "native_function_graph_image.rs"]
 pub mod image;
 
 /// Rust-owned backend primitives for the pinned native regexp execution VM.
+#[path = "regexp_bytecode_compiler.rs"]
 pub mod regexp;

@@ -36,7 +36,7 @@ fn main() {
 
 /// # Returns
 /// SHA-256 (hex) over every `.c`, `.h` and `.inc` of the engine directory and
-/// every `.rs` of the compiler crates' `src`, each framed by its path relative to
+/// every `.rs` of the compiler crates' `src` (recursively), each framed by its path relative to
 /// this crate and its length, in path order.
 fn inputs_sha256() -> String {
     let mut paths: Vec<PathBuf> = std::fs::read_dir(ENGINE)
@@ -45,13 +45,7 @@ fn inputs_sha256() -> String {
         .filter(|path| matches!(path.extension().and_then(|x| x.to_str()), Some("c" | "h" | "inc")))
         .collect();
     for name in COMPILER {
-        let dir = PathBuf::from("../compiler").join(name).join("src");
-        paths.extend(
-            std::fs::read_dir(&dir)
-                .expect("Rust compiler sources")
-                .map(|entry| entry.expect("compiler source entry").path())
-                .filter(|path| path.extension().and_then(|x| x.to_str()) == Some("rs")),
-        );
+        rust_sources(&PathBuf::from("../compiler").join(name).join("src"), &mut paths);
     }
     paths.sort();
     let mut digest = Sha256::new();
@@ -65,4 +59,25 @@ fn inputs_sha256() -> String {
         digest.update(bytes);
     }
     digest.finalize().iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Collects every `.rs` file below `dir`, subdirectories included.
+///
+/// Fix: the walk read only the top of each `src`, so files in subfolders (the
+/// emitter's `script_emitter/`) were left out of the identity and an emitter
+/// change there kept the old build id. Decision: recurse, rather than list the
+/// subfolders, so a new one is covered without touching this script.
+///
+/// # Arguments
+/// * `dir` - the folder to walk.
+/// * `paths` - receives the files found.
+fn rust_sources(dir: &std::path::Path, paths: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(dir).expect("Rust compiler sources") {
+        let path = entry.expect("compiler source entry").path();
+        if path.is_dir() {
+            rust_sources(&path, paths);
+        } else if path.extension().and_then(|x| x.to_str()) == Some("rs") {
+            paths.push(path);
+        }
+    }
 }

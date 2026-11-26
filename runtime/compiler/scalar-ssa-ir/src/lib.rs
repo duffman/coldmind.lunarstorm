@@ -3,8 +3,11 @@
 //! Numbers use IEEE-754 binary64 arithmetic without JavaScript coercion.
 //! The IR deliberately excludes strings, objects, exceptions and side effects.
 
+#[path = "constant_folding.rs"]
 mod fold;
+#[path = "ir_interpreter.rs"]
 mod interpreter;
+#[path = "ir_validation.rs"]
 mod validation;
 
 pub use fold::fold_constants;
@@ -262,4 +265,5 @@ impl std::fmt::Display for ExecutionError {
 impl std::error::Error for ExecutionError {}
 
 /// Owned general JavaScript source semantics with original UTF-16 positions.
+#[path = "javascript_source_ir.rs"]
 pub mod js;

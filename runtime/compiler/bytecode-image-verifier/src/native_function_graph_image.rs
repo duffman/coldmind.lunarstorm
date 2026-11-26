@@ -264,9 +264,9 @@ fn csum(p: &[u8]) -> u32 {
     }
     h.wrapping_add(v).wrapping_mul(0x9e370001)
 }
-#[path = "image_format.rs"]
+#[path = "native_image_format.rs"]
 mod format;
-#[path = "image_verify.rs"]
+#[path = "instruction_semantics_verifier.rs"]
 mod graph_verify;
 /// Independently verify a complete image graph and encode native bytes without a runtime.
 pub fn encode(f: &FunctionImage) -> Result<Vec<u8>, ImageError> {
@@ -372,7 +372,7 @@ pub fn verify_and_encode_module_with_limits(
     image.profile = COMPILER_PROFILE;
     Ok(image)
 }
-#[path = "image_artifact.rs"]
+#[path = "protected_image_envelope.rs"]
 mod artifact;
 pub use artifact::{
     deserialize_artifact, deserialize_artifact_with_limits, source_digest_utf16, FunctionSpans,
@@ -452,10 +452,10 @@ mod module_decode_tests {
     }
 }
 
-#[path = "image_eval.rs"]
+#[path = "lexical_layout_proofs.rs"]
 pub mod eval;
 
-#[path = "image_limits.rs"]
+#[path = "image_resource_limits.rs"]
 mod limits;
 pub use limits::ImageLimits;
 pub fn encode_with_limits(f: &FunctionImage, limits: &ImageLimits) -> Result<Vec<u8>, ImageError> {

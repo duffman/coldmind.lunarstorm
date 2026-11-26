@@ -3,7 +3,7 @@ use qjs_bytecode_emitter::{
     job_protocol as protocol,
     job_request::{self, Mode},
 };
-#[path = "../worker_heap.rs"]
+#[path = "../compile_worker_heap_bound.rs"]
 mod heap;
 use std::{
     fs::File,

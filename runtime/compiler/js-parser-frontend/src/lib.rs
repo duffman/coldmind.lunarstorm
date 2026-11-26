@@ -1,5 +1,7 @@
 //! OXC parser and semantic analysis for the bounded scalar JavaScript subset.
+#[path = "parse_budgets.rs"]
 mod budget;
+#[path = "utf16_source_positions.rs"]
 pub mod source;
 pub use budget::{CompileLimits, ParsePhase};
 use oxc_allocator::Allocator;
@@ -594,6 +596,7 @@ impl Lower<'_> {
 }
 
 /// Owned general script lowering, separate from the preserved scalar entry API.
+#[path = "oxc_script_lowering.rs"]
 pub mod js;
 pub use js::{
     SourceMode, compile_eval_frame_program, compile_eval_program_input,

@@ -41,10 +41,12 @@ pub struct Target {
 pub fn lower(function: &Function) -> Result<Target, String> {
     lower_with_limits(function, &EmissionLimits::default())
 }
+#[path = "compiler_admission_limits.rs"]
 mod budget;
 pub fn lower_with_limits(function: &Function, limits: &EmissionLimits) -> Result<Target, String> {
     lower::lower_with_limits(function, limits)
 }
+#[path = "ir_lowering.rs"]
 mod lower;
 pub use budget::EmissionLimits;
 
@@ -122,6 +124,7 @@ pub fn compile(
         metadata: parsed.metadata,
     })
 }
+#[path = "emission_buffer.rs"]
 mod emit;
 pub use emit::{FinalizedFunction, emit_target, emit_target_with_limits};
 
@@ -200,10 +203,15 @@ impl CompilationUnit {
     }
 }
 
+#[path = "debugger_eval_lowering.rs"]
 pub mod eval;
+#[path = "compile_job_boundary.rs"]
 pub mod job;
+#[path = "compile_job_codec.rs"]
 pub mod job_protocol;
+#[path = "compile_job_request.rs"]
 pub mod job_request;
+#[path = "script_emitter.rs"]
 pub mod js_emit;
 pub use js_emit::{
     JsEmitOptions, compile_module, compile_script, compile_script_input_with_options,
