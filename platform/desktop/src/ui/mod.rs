@@ -641,6 +641,10 @@ impl App {
                 if let Some(fw) = self.windows.get_mut(form) {
                     fw.ready = true;
                 }
+                // The shell's `session.start` is the moment the WebView's IPC channel
+                // is live; logged with the backend it now talks to.
+                let backend = if self.loaded { "loaded" } else { "not loaded" };
+                eprintln!("zebra: {form}: WebView connected over IPC (backend epoch {}, {backend}, runtime {})", self.epoch, self.runtime.name());
                 let hello = Envelope::new(Kind::Hello, form, self.epoch, "session.ready", json!({ "controls": self.mirror.form(form) }));
                 self.post(form, &hello);
                 if let Some(errors) = &self.errors {
