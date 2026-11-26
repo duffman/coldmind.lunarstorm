@@ -1,5 +1,5 @@
 //! The default AppRuntime: the app's backend on the Lunarstorm Runtime, run by the
-//! desktop app host (`platform/desktop/host`, crate `lunarstorm-host-desktop`).
+//! desktop app host (`platform/desktop/host`, crate `lunarstorm-host-desktop-backend`).
 //!
 //! ```text
 //!  ui thread ── HostMessage ──> LunarstormRuntime ── Backend::load / dispatch ──> backend thread
@@ -22,7 +22,7 @@
 use super::{AppRuntime, Completer, HostMessage, NativeCall, NativeRouter, RuntimeContext, RuntimeMessage, Settle};
 use crate::envelope::{Envelope, Kind, MAX_RESULT, VERSION};
 use crate::manifest::HostConfig;
-use lunarstorm_host_desktop::{Backend, Program, Settler, Shell};
+use lunarstorm_host_desktop_backend::{Backend, Program, Settler, Shell};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

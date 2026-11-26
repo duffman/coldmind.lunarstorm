@@ -2,7 +2,7 @@
 //! certificate chain with a throwaway root.
 
 use lunarstorm_cli_host::Cli;
-use lunarstorm_jbn::{Limits, Package, Signer, TrustStore};
+use lunarstorm_jbn_package_format::{Limits, Package, Signer, TrustStore};
 use lunarstorm_project::developer::{self, DeveloperKey};
 use lunarstorm_project::{create, Type};
 use serde_json::Value;
@@ -161,23 +161,23 @@ fn an_issued_key_signs_and_the_package_names_its_developer() {
 
     let dir = tempfile::tempdir().expect("temp dir");
     fs::write(dir.path().join("main.ts"), "console.log(1);\n").unwrap();
-    let mut builder = lunarstorm_host_cli::compile(&dir.path().join("main.ts"), "app", "1.0.0", 1).expect("compile");
+    let mut builder = lunarstorm_host_command_line::compile(&dir.path().join("main.ts"), "app", "1.0.0", 1).expect("compile");
     for (k, v) in key.metadata() {
         builder.metadata(k, &v);
     }
     let bytes = builder.build(&key.signer).unwrap();
-    let trust = TrustStore { signers: vec![lunarstorm_jbn::Trusted { public_key: key.signer.public_key(), packages: Vec::new(), minimum_release: 0 }] };
+    let trust = TrustStore { signers: vec![lunarstorm_jbn_package_format::Trusted { public_key: key.signer.public_key(), packages: Vec::new(), minimum_release: 0 }] };
     let package = Package::open(&bytes, &trust, &Limits::default()).unwrap();
     assert_eq!(developer::signed_by(&package, &root).unwrap(), "acme");
     assert!(developer::signed_by(&package, &test_root().1).is_err());
 
     // The certified metadata copied onto a package signed with another key.
     let other = Signer::generate().unwrap();
-    let mut builder = lunarstorm_host_cli::compile(&dir.path().join("main.ts"), "app", "1.0.0", 1).expect("compile");
+    let mut builder = lunarstorm_host_command_line::compile(&dir.path().join("main.ts"), "app", "1.0.0", 1).expect("compile");
     for (k, v) in key.metadata() {
         builder.metadata(k, &v);
     }
-    let trust = TrustStore { signers: vec![lunarstorm_jbn::Trusted { public_key: other.public_key(), packages: Vec::new(), minimum_release: 0 }] };
+    let trust = TrustStore { signers: vec![lunarstorm_jbn_package_format::Trusted { public_key: other.public_key(), packages: Vec::new(), minimum_release: 0 }] };
     let forged = Package::open(&builder.build(&other).unwrap(), &trust, &Limits::default()).unwrap();
     assert!(developer::signed_by(&forged, &root).is_err());
 }

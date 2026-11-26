@@ -28,7 +28,7 @@ into the platform binary; it is never loaded at run time.
 
 | piece | where | role for extensions |
 |---|---|---|
-| `native.<ns>.<method>(...)` | `platform/desktop/host/js/desktop.js`, a `Proxy` over any namespace and method | no JS change for a flat namespace: it already resolves. Groups need a deeper path (`groups.md`) |
+| `native.<ns>.<method>(...)` | `platform/desktop/host/src/desktop_bridge_natives.rs`, a `Proxy` over any namespace and method | no change for a flat namespace: it already resolves. Groups need a deeper path (`groups.md`) |
 | the gate | `HostConfig::allows_native` (`platform/desktop/app/src/manifest.rs`), called from `platform/desktop/app/src/runtime/lunarstorm.rs` before routing | decides `ns.method` or `ns.*` |
 | the router | `NativeServices::call` (`platform/desktop/app/src/native.rs`), a `match call.ns` over the built-ins | gains an extension map after the built-ins |
 | `NativeRouter::release_epoch` | `platform/desktop/app/src/runtime/mod.rs` | called when a backend is retired (§6.2) |

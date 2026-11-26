@@ -1,11 +1,14 @@
 //! The HostApi area `fs` of the desktop host: text files under the app's `fs`
-//! roots, for the WebView (through the Runtime's dispatcher in `js/desktop.js`)
-//! and for backend code alike (`lunarstorm:hostapi/fs`).
+//! roots, for the WebView (through the backend's `call` dispatcher in
+//! `desktop_bridge_natives.rs`) and for backend code alike (`lunarstorm:hostapi/fs`).
 //!
 //! Decisions:
-//! - The module only forwards to the glue's `work('fs.<function>', args)`; the
-//!   desktop native `desktopWork` runs [`run`] on a worker thread ([`Workers`])
-//!   and settles the promise through the backend's loop. Every path is checked
+//! - The module is native and only forwards: each export is `ops.desktopWork`
+//!   bound to `'fs.<function>'`. That native runs [`run`] on a worker thread
+//!   ([`Workers`]) and settles the promise through the backend's loop. It
+//!   replaces a JS module importing `work` from the archived glue
+//!   (`lunarstorm:desktop`); binding instead of a closure keeps engine handles
+//!   out of Rust closures. Every path is checked
 //!   here with the host's own [`crate::within`], so the scope is enforced in
 //!   Rust, never in JS.
 //! - Defect fixed (review #5): the functions ran on the backend thread, so a FIFO
@@ -24,8 +27,8 @@
 //!   full, otherwise `EIO`.
 
 use lunar_extension_hostapi::{Arg, Area, Function};
-use lunarstorm_runtime::vm::Vm;
-use lunarstorm_runtime::{Bindings, Use};
+use lunarstorm_event_loop_runtime::vm::{ErrorKind, FnDecl, Item, Kind, ModuleDecl, Param, Scope, Sig, Ty, Vm};
+use lunarstorm_event_loop_runtime::{Bindings, Use};
 use serde_json::{json, Value};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
@@ -54,8 +57,56 @@ pub const MAX_WORKERS: usize = 8;
 /// while the threads make progress.
 pub const MAX_QUEUED: usize = 256;
 
-/// The module: each function forwards its arguments to a worker.
-const SOURCE: &str = "import { work } from 'lunarstorm:desktop';\nexport const readText = (...args) => work('fs.readText', args);\nexport const writeText = (...args) => work('fs.writeText', args);\nexport const list = (...args) => work('fs.list', args);\n";
+/// The `path` parameter every function takes.
+const PATH: Param = Param { name: "path", ty: Ty::String, about: "relative to the first root, or absolute under a root" };
+
+/// The module's exports, in the order [`exports`] pushes them.
+const DECLS: &[FnDecl] = &[
+    FnDecl { name: "readText", sig: Sig { params: &[PATH], rest: None, returns: Ty::Promise(&Ty::String), about: "Reads a UTF-8 file under the app's roots." } },
+    FnDecl {
+        name: "writeText",
+        sig: Sig {
+            params: &[PATH, Param { name: "text", ty: Ty::String, about: "the new content" }],
+            rest: None,
+            returns: Ty::Promise(&Ty::Null),
+            about: "Writes a UTF-8 file under the app's roots.",
+        },
+    },
+    FnDecl { name: "list", sig: Sig { params: &[PATH], rest: None, returns: Ty::Promise(&Ty::Array(&Ty::String)), about: "Lists the names in a directory under the app's roots, sorted." } },
+];
+
+/// The name `ops` carries the desktop's work native under; set by the desktop
+/// bindings (`desktop_bridge_natives.rs`).
+pub(crate) const WORK: &str = "desktopWork";
+
+/// # Returns
+/// The declaration of `lunarstorm:hostapi/fs`.
+fn declaration() -> ModuleDecl {
+    ModuleDecl { specifier: MODULE, items: DECLS.iter().map(|decl| Item::Function(*decl)).collect(), about: "Text files under the app's `fs` roots." }
+}
+
+/// Builds the module's exports: `ops.desktopWork` bound to each function's
+/// `fs.<name>`.
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `ops` - the Runtime's `ops`.
+/// * `exports` - receives the functions in [`DECLS`] order.
+///
+/// # Errors
+/// An `Error` when the Runtime is not a desktop backend (no `ops.desktopWork`).
+fn exports<'s, V: Vm>(scope: &V::Scope<'s>, ops: &V::Value<'s>, exports: &mut Vec<V::Value<'s>>) -> lunarstorm_event_loop_runtime::vm::Outcome<()> {
+    let work = scope.get(ops, WORK)?;
+    if scope.kind(&work) != Kind::Function {
+        return Err(scope.throw_error(ErrorKind::Error, "lunarstorm:hostapi/fs needs the desktop backend"));
+    }
+    let bind = scope.get(&work, "bind")?;
+    for decl in DECLS {
+        let method = scope.string(&format!("fs.{}", decl.name))?;
+        exports.push(scope.call_with(&bind, &work, &[scope.undefined(), method])?);
+    }
+    Ok(())
+}
 
 /// A required, single argument.
 ///
@@ -358,7 +409,7 @@ impl<V: Vm> Area<V> for Fs {
         Function { name: "list", summary: "Lists the names in a directory under the app's roots, sorted.", args: &[required("path")] },
     ];
 
-    /// Builds the module.
+    /// Builds the module, natively ([`exports`]).
     ///
     /// # Arguments
     /// * `_using` - unused: the roots come from the host, not the manifest.
@@ -366,7 +417,7 @@ impl<V: Vm> Area<V> for Fs {
     /// # Returns
     /// `lunarstorm:hostapi/fs`.
     fn bindings(&self, _using: &Use<'_>) -> Result<Bindings<V>, String> {
-        Ok(Bindings::<V>::new().module(MODULE, SOURCE))
+        Ok(Bindings::<V>::new().native_module_with_internals(declaration(), |scope, ops, _live, out| exports::<V>(scope, ops, out)))
     }
 }
 

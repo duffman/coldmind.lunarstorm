@@ -10,7 +10,7 @@ errors, and calls the handlers.
 platform/cli/app                 the binary: picks packages (one Cargo feature each)
   ├─ crates/cli-host            lunarstorm-cli-host: parse, help, describe, completions, dispatch
   │    └─ crates/cliui          lunarstorm-cliui: colors, help layout, error frames
-  ├─ platform/cli/host          lunarstorm-host-cli: package "runtime" → `run`, `debug`, `jbn key`, `jbn build`
+  ├─ platform/cli/host          lunarstorm-host-command-line: package "runtime" → `run`, `debug`, `jbn key`, `jbn build`, `types`
   ├─ toolchain/crates/pipeline  lunarstorm-pipeline: package "build"  → `build`, `build types`, `build check`
   └─ toolchain/crates/cli       devtools-cli: package "frontend" → `serve`, `bundle`, `preview`, `transpile`
            all packages depend on
@@ -32,6 +32,8 @@ lunar jbn key signing.der > trust.json     # new signing key, and a trust file f
 lunar jbn build src/main.ts -o app.jbn --key signing.der
 lunar run --trust trust.json app.jbn       # run a signed package (or LUNARSTORM_TRUST)
 lunar debug app.ts --port 8080             # Debug Adapter Protocol on stdin/stdout; script stdout → stderr
+lunar types                                # regenerate runtime/typescript-declarations/dist (the lunartypes .d.ts), run at the repo root
+lunar types --out <dir>                    # write index.d.ts, cli.d.ts, desktop.d.ts, extensions/*.d.ts to <dir>; a file there is a usage error (2)
 lunar build -p platform/desktop/types/app  # build into <project>/dist
 lunar build -p app -o out                  # build into out/
 lunar build types -p app                   # write app/src/desktop.d.ts
@@ -75,7 +77,7 @@ always that file, and `platform/cli/app` mounts it as `<crate>::command::package
 
 | package    | file                                         |
 |------------|----------------------------------------------|
-| `runtime`  | `platform/cli/host/src/command.rs`           |
+| `runtime`  | `platform/cli/host/src/lunar_runtime_commands.rs`           |
 | `build`    | `toolchain/crates/pipeline/src/command.rs`   |
 | `frontend` | `toolchain/crates/cli/src/command.rs`        |
 | `project`  | `platform/project/src/command.rs` |
@@ -256,4 +258,4 @@ step-by-step procedure and checklist. In short:
 | `crates/cli-host/tests/host.rs` | parsing rules, context chain, value checks, env/defaults, statuses, mount validation (probe package) |
 | `platform/cli/app/tests/commands.rs` | real binary: help, `build`/`types`/`check` on the starter, usage errors, `describe`, completion, externals |
 | `platform/cli/app/tests/frontend_commands.rs`, `frontend_transpile.rs` | real binary: `serve`, `bundle`, `preview`, `transpile` (moved from `toolchain/crates/cli`, interface rewritten from `--serve`-style flags) |
-| `platform/cli/app/tests/cli.rs`, `ui.rs` | the runtime's `run`: event loop, net, fs, modules, exit codes, color, help, usage errors (moved unchanged from the CLI host crate) |
+| `platform/cli/app/tests/cli.rs`, `ui.rs` | the runtime's `run`: event loop, net, fs, modules, exit codes, color, help, usage errors (moved unchanged from `platform/cli/host`) |

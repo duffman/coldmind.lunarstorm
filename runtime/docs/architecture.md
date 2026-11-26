@@ -5,47 +5,47 @@
 ```
                         platform/cli/app (lunar)     platform/desktop/app (lunarstorm-debug/-release)
                                │                                 │
-HOSTS        platform/cli/host  lunarstorm-host-cli      platform/desktop/host  lunarstorm-host-desktop
-                 │  CliHost, command.rs (run, debug, jbn)      │  DesktopHost, Backend<S: Shell>, watchdog
+HOSTS        platform/cli/host  lunarstorm-host-command-line      platform/desktop/host  lunarstorm-host-desktop-backend
+                 │  CliHost, lunar_runtime_commands.rs (run, debug, jbn)          │  DesktopHost, Backend<S: Shell>, watchdog
                  └───────────────┬─────────────────────────────┘
-RUNTIME      runtime/core  lunarstorm-runtime     Runtime<V, H>: loop, ops, glue, loader, ipc, workers
+RUNTIME      runtime/event-loop-runtime  lunarstorm-event-loop-runtime     Runtime<V, H>: loop, ops, Node builtins, loader, ipc, workers
                  │ uses                  │ uses                      │ uses
-             runtime/modules         runtime/jbn                 extensions/core (lunar-extension)
-             lunarstorm-modules      lunarstorm-jbn              crates/http1 (lunarstorm-http1)
+             runtime/module-sources         runtime/jbn-package-format                 extensions/core (lunar-extension)
+             lunarstorm-module-sources      lunarstorm-jbn-package-format              crates/http1 (lunarstorm-http1)
                  │ (oxc)
-VM CONTRACT  runtime/vm  lunarstorm-vm  ──depends on──▶ runtime/debug (protocol types), runtime/jbn (Image)
-ENGINE       runtime/engines/quickjs  lunarstorm-vm-quickjs
-             runtime/engines/rquickjs  rquickjs + rquickjs-sys (patched quickjs-ng 0.17.0, C)
-COMPILER     runtime/compiler/crates/qjs-*   the only JS → bytecode compiler, called from C through rquickjs_core::compiler
-DEBUGGER     runtime/debug  lunarstorm-debug  DAP adapter + engine bridge (QuickJS-ng FFI)
-BENCH        runtime/bench   http/tcp/loop benchmarks against node and bun
+VM CONTRACT  runtime/engine-contract  lunarstorm-engine-contract  ──depends on──▶ runtime/debugger (protocol types), runtime/jbn-package-format (Image)
+ENGINE       runtime/engine-quickjs-adapter  lunarstorm-engine-quickjs-adapter
+             runtime/vendor/rquickjs-binding  rquickjs + rquickjs-sys (patched quickjs-ng 0.17.0, C)
+COMPILER     runtime/compiler/*             the only JS → bytecode compiler, called from C through rquickjs_core::compiler
+DEBUGGER     runtime/debugger  lunarstorm-debug  DAP adapter + engine bridge (QuickJS-ng FFI)
+BENCH        runtime/benchmarks   http/tcp/loop benchmarks against node and bun
 ```
 
-The rule at both of `runtime/core`'s boundaries: it names no engine type and no host type.
+The rule at both of `runtime/event-loop-runtime`'s boundaries: it names no engine type and no host type.
 `Runtime<V: Vm, H: Host>` is monomorphized, so a call into the engine or the host is a direct
 call. Engines and hosts are chosen in exactly two places: `Runtime::<QuickJs, CliHost>` in
-`platform/cli/host/src/command.rs`, and `pub type Engine = QuickJs` in `platform/desktop/host/src/lib.rs`.
+`platform/cli/host/src/lunar_runtime_commands.rs`, and `pub type Engine = QuickJs` in `platform/desktop/host/src/lib.rs`.
 
 Much of this was ported from an earlier project, *jetbunny*, and the name survives in the
-engine patches (`jetbunny-*-v1`), in `JS_Jetbunny*` symbols, in `debug/tests/jetbunny_*`, and
+engine patches (`jetbunny-*-v1`), in `JS_Jetbunny*` symbols, in `debugger/tests/jetbunny_*`, and
 in comments that say "ported from jetbunny". Read "jetbunny" as "the previous runtime this code
 came from".
 
 ## Flow 1: `lunar run app.ts`
 
 ```
-platform/cli/app main → cli-host parses argv → package lunarstorm-host-cli, command run (command.rs:124)
+platform/cli/app main → cli-host parses argv → package lunarstorm-host-command-line, command run (lunar_runtime_commands.rs)
   execute(Source::File, argv)
     Runtime::<QuickJs, CliHost>::new(host)       mio Poll + Waker, Shared{io, host, refs...}, Ipc, Workers,
                                                  Modules (reads gated by Host::allow)
     register(host::bindings())                   ops.color, ops.tty, module lunarstorm:ui
-    start()                                      runtime.rs:583
+    start()                                      runtime_instance.rs
       extensions: check manifest → merge HostApi bindings
       QuickInstance::new(limits, Loader)         loader/rejection/interrupt hooks share one Rc<Loader>
       instance.context()                         rquickjs installs the Rust compiler (base); Debugger::wrap adds its observer
-      ops::install → installers → glue()         glue: compile bootstrap.js once per process, cache Image
-      bootstrap(ops) → {dispatch, ticks, describe, exitCode, invoke, modules, internal, exportsOf}
-    load(Source::File)                           runtime.rs:652
+      ops::install → installers                  host natives on `ops`
+      node_builtins::install → {dispatch, ticks, describe, exitCode, invoke, modules, internal, exportsOf}
+    load(Source::File)                           runtime_instance.rs
       read under Access::Read → Modules::entry (TS stripped, CJS wrapped, source map kept)
       scope.module(name, source) → engine resolves imports through Loader::resolve/load (recursively, synchronously)
       settle() → drain_deferred()
@@ -76,10 +76,10 @@ socket readable (edge) → on_event → http_readable → http_pump
 platform/desktop/app UI thread ─ Backend::load(Program{epoch, code, roots, budget, ...}) ─▶ backend thread
   start(): DesktopHost{shell, epoch, roots} → Runtime → register(desktop bindings) → start
            hold(true) → watchdog(pulse, interrupt, budget) → load(Source::Text "backend.js")
-  envelope from a WebView ─ Backend::dispatch(epoch, json) ─ poster.post(task) ─▶ glue dispatch(json)
-  backend calls native.ns.method() → ops.desktopNative → Shell::native(epoch, id, ...)
-  platform answers ─ Settler::settle(epoch, id, result) ─ post ─▶ glue settle → promise resolves
-  property writes batched per promise job → ops.desktopSend → Shell::send(epoch, envelope)
+  envelope from a WebView ─ Backend::dispatch(epoch, json) ─ poster.post(task) ─▶ desktop_bridge_natives::dispatch(json)
+  backend calls native.ns.method() → Shell::native(epoch, id, ...)
+  platform answers ─ Settler::settle(epoch, id, result) ─ post ─▶ desktop_bridge_natives::settle → promise resolves
+  property writes batched per microtask → Shell::send(epoch, envelope)
   reload = control message: retire old Runtime (Shell::retired) → start a new one with epoch+1
 ```
 
@@ -97,7 +97,7 @@ lunar run --trust trust.json app.jbn
 ## Flow 5: `lunar debug app.js` (DAP over stdio)
 
 ```
-command.rs debug → lunarstorm_debug::debug::host::run(owner closure on its own thread)
+lunar_runtime_commands.rs debug → lunarstorm_debugger::debug::host::run(owner closure on its own thread)
   Runtime::new(CliHost::for_debugger)       script stdout → stderr (stdout is the DAP channel)
   start → runtime.debug(break_on_start: true) → VmDebugHandle to the DAP adapter
   load → loop poll(Block): phase 0 serves debugger requests; entry() holds the first JS entry

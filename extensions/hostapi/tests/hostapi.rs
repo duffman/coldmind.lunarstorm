@@ -4,9 +4,9 @@
 use std::sync::{Arc, Mutex};
 
 use lunar_extension_hostapi::{Arg, Area, Function, HostApi};
-use lunarstorm_runtime::vm::{Call, Scope, Sig, Ty, Vm};
-use lunarstorm_runtime::{Access, Bindings, Host, Log, Manifest, Runtime, Source, Stream, Use};
-use lunarstorm_vm_quickjs::QuickJs;
+use lunarstorm_event_loop_runtime::vm::{Call, Scope, Sig, Ty, Vm};
+use lunarstorm_event_loop_runtime::{Access, Bindings, Host, Log, Manifest, Runtime, Source, Stream, Use};
+use lunarstorm_engine_quickjs_adapter::QuickJs;
 
 /// The declaration of `ops.alpha_name`.
 const NAME: Sig = Sig { params: &[], rest: None, returns: Ty::String, about: "The area's name." };

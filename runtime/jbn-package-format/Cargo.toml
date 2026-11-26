@@ -1,0 +1,25 @@
+# The `.jbn` package: a signed, self-contained container of an application's
+# compiled modules, its resources and the import table that links them. A
+# container format only: it names no engine and no VM; the Runtime builds and
+# runs packages through it.
+[package]
+name = "lunarstorm-jbn-package-format"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+license.workspace = true
+description = "Signed .jbn packages for the Lunarstorm Runtime: compiled modules, resources, import table"
+
+[features]
+default = ["zstd"]
+# Per-blob zstd compression; without it, compressed packages are refused.
+zstd = ["dep:zstd"]
+
+[dependencies]
+minicbor = { version = "0.26", features = ["std"] }
+ed25519-dalek = { version = "2", features = ["pkcs8", "alloc"] }
+sha2 = "0.10.9"
+getrandom = "0.3"
+zeroize = "1"
+serde_json.workspace = true
+zstd = { version = "0.13", optional = true }

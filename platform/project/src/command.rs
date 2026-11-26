@@ -37,7 +37,7 @@
 
 use crate::developer;
 use lunarstorm_cli_contract::{Arg, Command, Failure, Invocation, Package, ValueType};
-use lunarstorm_jbn::{Signer, TrustStore, Trusted};
+use lunarstorm_jbn_package_format::{Signer, TrustStore, Trusted};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::fs;
@@ -432,7 +432,7 @@ fn insight(invocation: &mut Invocation) -> Result<i32, Failure> {
 fn pack(project: &Project, release: u64, signer: &Signer, metadata: &[(&str, String)]) -> Result<(PathBuf, usize), Failure> {
     let name = project.name()?;
     let version = project.text("version").unwrap_or("0.0.0");
-    let mut builder = lunarstorm_host_cli::compile(&project.entry()?, name, version, release).map_err(Failure::failed)?;
+    let mut builder = lunarstorm_host_command_line::compile(&project.entry()?, name, version, release).map_err(Failure::failed)?;
     for (key, value) in metadata {
         builder.metadata(key, value);
     }

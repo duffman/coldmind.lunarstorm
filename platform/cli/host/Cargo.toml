@@ -7,22 +7,26 @@
 # mounts it is `platform/cli/app`.
 #
 # Decision: a library, not a binary. The former `lunarstorm` binary of this crate is
-# archived in `.archive/2026-11-24/runtime/hosts/cli/src/main.rs` and its end-to-end
+# archived in `.archive/2026-11-24/platform/cli/host/src/main.rs` and its end-to-end
 # tests now run against `platform/cli/app`, which keeps its command line unchanged.
 [package]
-name = "lunarstorm-host-cli"
+name = "lunarstorm-host-command-line"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "Lunarstorm runtime CLI host: the `run` and `jbn` commands of the lunarstorm command line"
+description = "Lunarstorm runtime CLI host: the `run`, `debug`, `jbn` and `types` commands of the lunarstorm command line"
 
 [dependencies]
-lunarstorm-runtime = { path = "../../../runtime/core" }
-# HostApi: the terminal API is its area `ui` (src/ui.rs).
+lunarstorm-event-loop-runtime = { path = "../../../runtime/event-loop-runtime" }
+# HostApi: the terminal API is its area `ui` (src/terminal_ui_area.rs).
 lunar-extension-hostapi = { path = "../../../extensions/hostapi" }
 # `.jbn` packages: `jbn key`, `jbn build`, and `run` of a package.
-lunarstorm-jbn = { path = "../../../runtime/jbn" }
-lunarstorm-vm-quickjs = { path = "../../../runtime/engines/quickjs" }
+lunarstorm-jbn-package-format = { path = "../../../runtime/jbn-package-format" }
+lunarstorm-engine-quickjs-adapter = { path = "../../../runtime/engine-quickjs-adapter" }
 lunarstorm-cliui = { path = "../../../crates/cliui" }
 lunarstorm-cli-contract = { path = "../../../crates/cli-contract" }
+# `lunarstorm types`: the emitter, and the desktop host's declarations (without its
+# tao shell, which only the `lunarstorm-desktop` binary needs).
+lunarstorm-typescript-declarations = { path = "../../../runtime/typescript-declarations" }
+lunarstorm-host-desktop-backend = { path = "../../desktop/host", default-features = false }
 libc = "0.2"

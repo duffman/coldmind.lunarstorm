@@ -18,29 +18,31 @@ churn, because it is an interpreter.
 | [debugger.md](debugger.md) | `lunar debug`, DAP, breakpoints, source maps |
 | [decisions-and-hazards.md](decisions-and-hazards.md) | before any change that "looks safe"; also lists docs that contradict the code |
 | [glossary.md](glossary.md) | a word in the code means something specific here |
+| [embedding-a-host.md](embedding-a-host.md) | the design rationale for hosts: lifecycle, services, policy |
+| [extension-manifests.md](extension-manifests.md) | the design rationale for extensions and their manifests |
 
-The concept docs `runtime/core/doc/hosts.md` and `runtime/core/doc/extensions.md` remain the
+The concept docs [embedding-a-host.md](embedding-a-host.md) and [extension-manifests.md](extension-manifests.md) remain the
 design rationale for hosts and extensions. Package READMEs cover build and test commands, and
 several are stale (see decisions-and-hazards.md).
 
 ## Five minutes with a new hire
 
-Start in `runtime/core/src/runtime.rs`. Everything else hangs off `Runtime<V: Vm, H: Host>`.
+Start in `runtime/event-loop-runtime/src/runtime_instance.rs`. Everything else hangs off `Runtime<V: Vm, H: Host>`.
 `V` is the engine and `H` is the program that owns the runtime. Both are type parameters, never
 trait objects. In the whole repo there are only two places that choose them: the CLI
 (`Runtime<QuickJs, CliHost>`) and the desktop backend (`type Engine = QuickJs`).
 
-`start()` builds a VM instance and then runs one JavaScript function, `bootstrap.js`. That
-50 KB file *is* Node: `console`, `process`, `Buffer`, timers, `events`, `net`, `http` and `fs`
-are all JS built on a hidden object of Rust natives called `ops`. Programs never see `ops`.
+`start()` builds a VM instance and installs the Node surface in Rust (`node_builtins`):
+`console`, `process`, `Buffer`, timers, `events`, `net`, `http`, `fs` and `path` are native
+classes and functions, built on a hidden object of lower-level natives called `ops`; no script
+runs at start. Programs never see `ops`.
 Builtins reach them as native modules (`import fs from 'node:fs'`), and host APIs reach them as
 host modules that may import `lunarstorm:internal`. Builtins have no global.
 
 The loop has one turn per `step`: timers, poll, I/O, posted work, immediates. Every call into
 JS is an *entry*. After each entry, `settle()` drains nextTicks and promise jobs, the same as
-Node. JS sees every event through one `dispatch(kind, …)` function with integer codes. Those
-codes are mirrored by hand between `runtime.rs` and `bootstrap.js`, and that is the first thing
-you will break.
+Node. Every event enters JS through one native `dispatch(kind, …)` with integer codes: `ev`
+in `runtime_public_types.rs`, switched on in `node_builtins/loop_event_dispatch.rs`.
 
 Below the contract, QuickJS is not stock. The C parser has been **removed**. Every source
 string, from your app to `eval` to the debugger console, is compiled by a Rust compiler
@@ -61,10 +63,10 @@ What will bite you:
 
 **Delete `rquickjs_core::compiler` (with the `qjs-*` crates behind it), and the most breaks with
 the least chance of a quick repair.** Every rquickjs context installs it as its base compiler.
-Without it, no JavaScript is compiled anywhere: not the glue, not a CLI script, not a desktop
+Without it, no JavaScript is compiled anywhere: not a CLI script, not a desktop
 backend, not a debugger evaluate. Nothing falls back, because the C parser is gone (its source
 only survives in `.redundant-legacy/`). Restoring the C parser would also break the debugger's
 statement markers and the verifier-based trust model `Image` relies on.
 
-Runner-up is `runtime/vm`. Its removal breaks compilation of core, the adapter and both hosts,
+Runner-up is `runtime/engine-contract`. Its removal breaks compilation of core, the adapter and both hosts,
 but that is a compile error with an obvious shape, not a silent loss of the language.

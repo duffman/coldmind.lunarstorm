@@ -13,7 +13,7 @@ dependencies. State, logs and screenshots go to `.scratch/run-lunarstorm/`.
 
 | part | what it is | read |
 |---|---|---|
-| **Runtime** `runtime/` | Node.js-like JS runtime: QuickJS-NG behind a VM contract (`runtime/vm`), a mio event loop with `node:*` builtins (`runtime/core`), TS/CJS/packages (`runtime/modules`), signed `.jbn` packages, a DAP debugger. A library: a **host** owns it (`platform/cli/host`, `platform/desktop/host`). | [runtime.md](runtime.md) |
+| **Runtime** `runtime/` | Node.js-like JS runtime: QuickJS-NG behind a VM contract (`runtime/engine-contract`), a mio event loop with `node:*` builtins (`runtime/event-loop-runtime`), TS/CJS/packages (`runtime/module-sources`), signed `.jbn` packages, a DAP debugger. A library: a **host** owns it (`platform/cli/host`, `platform/desktop/host`). | [runtime.md](runtime.md) |
 | **Platform** `platform/`, `toolchain/` | Owns the runtime and ships apps: the `lunar` CLI (runtime + build + frontend + project packages), the desktop process (`lunarstorm-debug`/`-release`: windows, WebViews, `native.*`), the browser host `lunarstorm-web`, the packager `lunarstorm-pack`; the pipeline compiles a project into the output dir they run. | [platform.md](platform.md) |
 | **Extensions** `extensions/` | lunar-extensions: modules, natives and state a host installs per Runtime, selected by the host's manifest; plugin hosts and plugins (HostApi with the CLI's `ui` area). Runtime level built; platform level design only. | [extensions.md](extensions.md) |
 
@@ -87,9 +87,9 @@ across `open`s.
 ## Test (focused; never the whole workspace)
 
 ```sh
-cargo test -q -p lunarstorm-runtime --test modules --test worker --test ipc --test extensions
+cargo test -q -p lunarstorm-event-loop-runtime --test modules --test worker --test ipc --test extensions
 cargo test -q -p lunar-extension-hostapi
-cargo test -q -p lunarstorm-vm-quickjs
+cargo test -q -p lunarstorm-engine-quickjs-adapter
 cargo test -q -p lunarstorm-web
 cargo test -q -p lunarstorm --test ui --test cli --test commands
 ```

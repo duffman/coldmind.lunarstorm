@@ -29,6 +29,8 @@ importers:
 
   framework/config: {}
 
+  runtime/typescript-declarations: {}
+
   toolchain/react:
     devDependencies:
       '@coldmind/devtools':

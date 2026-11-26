@@ -21,7 +21,7 @@
 
 use ed25519_dalek::pkcs8::DecodePrivateKey;
 use ed25519_dalek::{Signature, Signer as _, SigningKey, VerifyingKey};
-use lunarstorm_jbn::{to_hex, Package, Signer};
+use lunarstorm_jbn_package_format::{to_hex, Package, Signer};
 use serde_json::{json, Value};
 
 /// The Lunarstorm root public key: the one key that issues developer keys. Its

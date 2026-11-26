@@ -229,14 +229,14 @@ struct Arity {
 }
 
 /// The host's HostApi spec as `area -> function -> arity`, read once from
-/// `lunarstorm_host_desktop::spec()`, the same spec the Runtime's dispatcher checks.
+/// `lunarstorm_host_desktop_backend::spec()`, the same spec the Runtime's dispatcher checks.
 ///
 /// # Returns
 /// The table.
 fn hostapi() -> &'static BTreeMap<String, BTreeMap<String, Arity>> {
     static TABLE: std::sync::OnceLock<BTreeMap<String, BTreeMap<String, Arity>>> = std::sync::OnceLock::new();
     TABLE.get_or_init(|| {
-        let spec = lunarstorm_host_desktop::spec();
+        let spec = lunarstorm_host_desktop_backend::spec();
         let mut table = BTreeMap::new();
         for area in spec["areas"].as_array().into_iter().flatten() {
             let functions = area["functions"].as_array().into_iter().flatten().map(|function| {

@@ -5,7 +5,7 @@
 #                                       --fresh rebuilds every workspace crate from this checkout
 #   driver.sh cli                       lunar smoke: --version, -e, a script file using node:fs
 #   driver.sh pipeline <project> [out]  lunar build -p <project> -o <out> (default .scratch/run-lunarstorm/dist)
-#   driver.sh runtime-ipc               workers + lunarstorm:ipc through runtime/core/examples/ipc-demo.rs
+#   driver.sh runtime-ipc               workers + lunarstorm:ipc through runtime/event-loop-runtime/examples/ipc-demo.rs
 #   driver.sh project                   lunar project program create -> compile (.jbn) -> run --trust
 #   driver.sh web <dir> [steps...]     serve a built dir (zebra.json) with lunarstorm-web, keep it
 #                                       running, and run driver.mjs steps against it (open is implied)
@@ -68,7 +68,7 @@ case "$cmd" in
   runtime-ipc)
     # Workers and lunarstorm:ipc are off in the CLI host (IPC = WORKERS = false); this
     # example host turns both on.
-    cargo run -q -p lunarstorm-runtime --example ipc-demo
+    cargo run -q -p lunarstorm-event-loop-runtime --example ipc-demo
     ;;
   project)
     # init -> compile (signed .jbn with a per-project dev key) -> run it trusted.

@@ -1,0 +1,9 @@
+[package]
+name = "qjs-scalar-ssa-ir"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+description = "Validated scalar SSA IR with an interpreter and conservative constant folding"
+
+[dependencies]

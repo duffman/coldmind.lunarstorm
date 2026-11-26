@@ -2,6 +2,6 @@ Revision: 7b5f588e0f9b643e2996f291bfc861abeaceddc2
 
 Unmodified QuickJS-NG 0.17.0 sources at the revision above, fetched from
 https://github.com/quickjs-ng/quickjs and checked file by file against
-../../../engines/rquickjs/sys/quickjs/UPSTREAM-SHA256 (all 19 files match).
+../../../vendor/rquickjs-binding/sys/quickjs/UPSTREAM-SHA256 (all 19 files match).
 Used only by scripts/build-reference.sh to build the reference runner, the
 oracle the Rust compiler is compared against. Never edit these files.

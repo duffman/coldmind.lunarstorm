@@ -1,0 +1,10 @@
+[package]
+name="qjs-bytecode-emitter"
+version="0.1.0"
+edition="2024"
+rust-version="1.99"
+license="MIT"
+[dependencies]
+qjs-scalar-ssa-ir={path="../scalar-ssa-ir"}
+qjs-js-parser-frontend={path="../js-parser-frontend"}
+qjs-bytecode-image-verifier={path="../bytecode-image-verifier"}

@@ -1,7 +1,7 @@
 # The `project` package of the `lunar` command line: the project types products
 # register with their actions, `insight`, `compile` and `sign`. Mounted by `platform/cli/app` behind the `project` feature.
 #
-# Decision: it compiles through `lunarstorm-host-cli::compile`, the path `jbn build`
+# Decision: it compiles through `lunarstorm-host-command-line::compile`, the path `jbn build`
 # uses, so a project links on the same Runtime and host modules `run` gives it.
 [package]
 name = "lunarstorm-project"
@@ -12,9 +12,9 @@ description = "Lunarstorm project commands: registered project types and their a
 
 [dependencies]
 lunarstorm-cli-contract = { path = "../../crates/cli-contract" }
-lunarstorm-host-cli = { path = "../cli/host" }
-lunarstorm-jbn = { path = "../../runtime/jbn" }
-# Developer certificates: the same version and features `lunarstorm-jbn` uses.
+lunarstorm-host-command-line = { path = "../cli/host" }
+lunarstorm-jbn-package-format = { path = "../../runtime/jbn-package-format" }
+# Developer certificates: the same version and features `lunarstorm-jbn-package-format` uses.
 ed25519-dalek = { version = "2", features = ["pkcs8", "alloc"] }
 serde_json.workspace = true
 

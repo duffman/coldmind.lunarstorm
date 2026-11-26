@@ -1,12 +1,12 @@
 # Modules: what a specifier becomes
 
-Source: `runtime/core/src/modules.rs` (the VM callbacks), `runtime/modules` (`lunarstorm-modules`:
-files, packages, TypeScript, CommonJS), `runtime/jbn` (`lunarstorm-jbn`: signed packages).
+Source: `runtime/event-loop-runtime/src/module_loader_callbacks.rs` (the VM callbacks), `runtime/module-sources` (`lunarstorm-module-sources`:
+files, packages, TypeScript, CommonJS), `runtime/jbn-package-format` (`lunarstorm-jbn-package-format`: signed packages).
 
-Every module is an ES module to the engine. `Loader<V, H>` (modules.rs:156) implements
+Every module is an ES module to the engine. `Loader<V, H>` (module_loader_callbacks.rs) implements
 `Callbacks::resolve`/`load`, and it holds only the shared loop state, never the Runtime.
 
-## Resolution order (`Loader::resolve`, modules.rs:283)
+## Resolution order (`Loader::resolve`, module_loader_callbacks.rs)
 
 ```
 1. base is a module of the loaded .jbn package?
@@ -18,42 +18,41 @@ Every module is an ES module to the engine. `Loader<V, H>` (modules.rs:156) impl
       lunarstorm:worker  (only when H::WORKERS)
       a host module      exact specifier from Bindings::module (lunarstorm:ui, @desktop/api, ...)
       a builtin          events net http fs fs/promises path process buffer timers, bare or node:
-5. files and packages (lunarstorm-modules)
+5. files and packages (lunarstorm-module-sources)
 ```
 
 Host modules and builtins win over a `node_modules` package of the same name, as in Node.
 
-## What `load` answers (modules.rs:320)
+## What `load` answers (module_loader_callbacks.rs)
 
 | canonical name | answer |
 |---|---|
 | a host module | `Ready(source)`, compiled on first import |
 | `lunarstorm:ipc` | `Native`: `send` and `onMessage`, closures over this Runtime's state |
-| `lunarstorm:worker` | `Ready(js/worker.js)`: the JS half |
-| `lunarstorm:worker-native` | `Native`: `spawn`, `post`, `listen`, `listenParent`, `onExit`, `terminate`, `close`, `isWorker` |
-| `lunarstorm:internal` | `Native`: `ops` and `live` from the glue |
-| `node:<name>` | `Native`: `default` is the glue's object, each own key a named export |
+| `lunarstorm:worker` | `Native`: `spawn`, `postMessage`, `onMessage`, `close` and the `Worker` class (`worker_threads_module.rs`) |
+| `lunarstorm:internal` | `Native`: `ops` and the console's `live` slot |
+| `node:<name>` | `Native`: `default` is the builtin's native object, each own key a named export |
 | a module of the `.jbn` package | `Ready(image)`: bytecode, no source |
-| a file | `Ready(source + import.meta + source map)` after `lunarstorm-modules` transforms it |
+| a file | `Ready(source + import.meta + source map)` after `lunarstorm-module-sources` transforms it |
 
 ### Builtins have no global
 
-`bootstrap.js` returns `{ modules, internal, exportsOf, ... }`, and the Runtime keeps it in
-`Registry` (modules.rs:64). On first import of `node:fs`, `declare_builtin` reads `modules.fs`,
+`node_builtins::install` returns `{ modules, internal, exportsOf, ... }`, and the Runtime keeps it in
+`Registry` (module_loader_callbacks.rs). On first import of `node:fs`, `declare_builtin` reads `modules.fs`,
 asks `exportsOf('fs')` for the key list and declares a native module. Nothing is published on the
-global object; `builtins_are_native_modules_and_no_hidden_global_exists` (tests/embed.rs) guards
-this. The globals that do exist are web/Node conveniences set by the glue: `console`, `process`,
+global object; `builtins_are_native_modules_and_no_hidden_global_exists` (tests/runtime_embedding.rs) guards
+this. The globals that do exist are web/Node conveniences the builtins set: `console`, `process`,
 `Buffer`, `setTimeout` and friends, `TextEncoder`/`TextDecoder`, `crypto.getRandomValues`,
 `performance.now`, `global`.
 
 ### `lunarstorm:internal`: the only door to `ops`
 
-`ops` is the object of Runtime natives (ops.rs) plus everything hosts and extensions registered.
+`ops` is the object of Runtime natives (internal_natives.rs) plus everything hosts and extensions registered.
 Only a **host module**, one whose canonical name is a specifier registered through
 `Bindings::module`, may import `lunarstorm:internal`. A file importing it gets "module not
 found". So the API a host exposes is always a JS module wrapping `ops.*` calls.
 
-## Files and packages (`runtime/modules`)
+## Files and packages (`runtime/module-sources`)
 
 | file | becomes |
 |---|---|
@@ -77,13 +76,13 @@ found". So the API a host exposes is always a JS module wrapping `ops.*` calls.
 - **One `Modules` per Runtime** caches manifests and the *kind* of each file. A file that changes
   on disk keeps the kind it was first given.
 
-## `.jbn` packages (`runtime/jbn`)
+## `.jbn` packages (`runtime/jbn-package-format`)
 
 A signed container of compiled modules, resources and the import table that links them. The
-layout is in `jbn/src/lib.rs`: the `JBNY` magic, a canonical-CBOR manifest, an Ed25519 signature
+layout is in `jbn-package-format/src/lib.rs`: the `JBNY` magic, a canonical-CBOR manifest, an Ed25519 signature
 over `"lunarstorm-jbn-v1\0" || sha256(manifest)`, and a payload aligned to 8.
 
-**Build** (`Runtime::package`, runtime.rs:726; CLI `lunar jbn build`, `lunar project compile`):
+**Build** (`Runtime::package`, runtime_instance.rs; CLI `lunar jbn build`, `lunar project compile`):
 1. Start a real Runtime with the same host bindings `run` uses.
 2. Walk the graph from the entry. Each module is resolved, transformed and compiled exactly as
    `load` would, through `Scope::compile`: no linking, source stripped, positions kept.
@@ -102,7 +101,7 @@ absolute paths, so stack traces name the source files.
 
 ## Where this is hand-mirrored
 
-- `BUILTINS` (modules.rs:44) and the keys of `modules` in bootstrap.js must agree.
+- `BUILTINS` (module_loader_callbacks.rs) and the keys of `modules` set in `node_builtins.rs` must agree.
   `declare_builtin` fails with "builtin is unavailable" for a name listed in Rust but missing in
   JS.
 - `ipc`, `worker` and `internal` are reserved extension names (`lunar-extension::RESERVED`), so no

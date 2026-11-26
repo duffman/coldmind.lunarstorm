@@ -8,22 +8,37 @@
 # The binary `lunarstorm-desktop` is such a process: a tao event loop on the main
 # thread implementing `Shell`, with native windows a script opens and listens to.
 [package]
-name = "lunarstorm-host-desktop"
+name = "lunarstorm-host-desktop-backend"
 version = "0.1.0"
 edition = "2021"
 description = "Lunarstorm desktop app host: a desktop application's backend on the Runtime"
 
 [dependencies]
-lunarstorm-runtime = { path = "../../../runtime/core" }
-lunarstorm-vm-quickjs = { path = "../../../runtime/engines/quickjs" }
+lunarstorm-event-loop-runtime = { path = "../../../runtime/event-loop-runtime" }
+lunarstorm-engine-quickjs-adapter = { path = "../../../runtime/engine-quickjs-adapter" }
 libc = "0.2"
 # HostApi: the API areas (`fs`) the WebView reaches through the Runtime.
 lunar-extension-hostapi = { path = "../../../extensions/hostapi" }
-# JSON: `spec()` in the library; envelopes and native-call arguments in the binary.
+# JSON: `spec()` and the `fs` area's jobs in the library; envelopes and native-call
+# arguments in the binary.
 serde_json = "1"
 # Used by the binary only: the windowing event loop.
-tao = "0.37"
+#
+# Decision: optional behind the default feature `shell`, which the binary requires,
+# so `lunarstorm types` (platform/cli/host) reads this host's declarations through
+# the library without building tao into the `lunarstorm` command line.
+tao = { version = "0.37", optional = true }
+
+[features]
+default = ["shell"]
+# The `lunarstorm-desktop` binary: the tao shell around the library.
+shell = ["dep:tao"]
 
 [[bin]]
 name = "lunarstorm-desktop"
-path = "src/main.rs"
+path = "src/bin/lunarstorm-desktop.rs"
+required-features = ["shell"]
+
+[[test]]
+name = "desktop_binary_selfcheck"
+required-features = ["shell"]

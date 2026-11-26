@@ -12,9 +12,8 @@ Terminal UI for Lunarstorm command-line tools. The tool decides what is said; th
 | `term::live(on)`, `term::restore()` | hide/show the cursor for bars; signal-safe restore |
 | `screen::{Brand, Section, brand, help, usage_error, suggest}` | static screens; layout and color only, content passed as data |
 | `report::uncaught(label, text)` | uncaught-error report |
-| `UI_SOURCE` | `js/ui.js` as `&str`, for the host to compile as an ES module; exports `style`, `progress`, `spinner` |
 
-`ui.js` expects the host to provide on `__lunarstorm.internal`: `ops.color`, `ops.tty` (`[stdout, stderr]`), `ops.columns()`, `ops.live(on)`, `ops.print(fd, text)`, `ops.flush()`, `ops.now()`, and a `live.wrap` slot that the host's console must route output through while bars are on screen. `platform/cli/host` is the one host that does this.
+The script-facing module `lunarstorm:ui` (`style`, `progress`, `spinner`) is native and lives in `platform/cli/host/src/terminal_ui_module.rs`, because it binds to the JS engine; it draws with `term`. The former source module `js/ui.js` is archived.
 
 ## How it fits
 
@@ -36,4 +35,4 @@ The crate has no tests of its own. Its behavior is covered end to end by `platfo
 - Color is per stream, so `lunarstorm app.js > log.txt` keeps colored diagnostics on the terminal and a plain log file.
 - `report::uncaught` on a plain stream is exactly `<label> <engine text>`; scripts and tests parse that format. The code frame (2 lines before, 1 after, caret at the column) is terminal-only.
 - `term::live(true)` installs SIGINT/SIGTERM/SIGHUP handlers on first use so Ctrl-C during a bar does not leave the cursor hidden. Scripts that never draw a live region keep default signal dispositions. Handlers must stay async-signal-safe (`write(2)` only).
-- `ui.js`: bars and spinners draw on stderr so stdout stays pipe-clean; all live items share one region at the bottom; redraws throttle to 50 ms (`FRAME_MS`); when stderr is not a tty each item prints exactly one line at completion; the 16-color tier and `NO_COLOR` use block glyphs because colors cannot tell filled from empty cells.
+- `lunarstorm:ui` (in `platform/cli/host`): bars and spinners draw on stderr so stdout stays pipe-clean; all live items share one region at the bottom; redraws throttle to 50 ms (`FRAME_MS`); when stderr is not a tty each item prints exactly one line at completion; the 16-color tier and `NO_COLOR` use block glyphs because colors cannot tell filled from empty cells.

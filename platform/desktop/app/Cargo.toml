@@ -35,7 +35,7 @@ default = ["devtools"]
 devtools = ["wry/devtools"]
 
 [dependencies]
-lunarstorm-host-desktop = { path = "../host" }
+lunarstorm-host-desktop-backend = { path = "../host" }
 tao = "0.37"
 wry = "0.57"
 muda = "0.20"

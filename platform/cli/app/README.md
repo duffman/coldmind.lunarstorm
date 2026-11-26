@@ -8,7 +8,7 @@ The product is the command line, documented in `doc/cli.md`.
 
 | feature (default: both) | package mounted | commands |
 |---|---|---|
-| `runtime` | `lunarstorm-host-cli` (`platform/cli/host`) | `run` (the default command: `lunarstorm app.js`, `-e <code>`) |
+| `runtime` | `lunarstorm-host-command-line` (`platform/cli/host`) | `run` (the default command: `lunarstorm app.js`, `-e <code>`) |
 | `build` | `lunarstorm-pipeline` (`toolchain/crates/pipeline`) | `build`, `build types`, `build check` |
 
 The host (`crates/cli-host`) adds `describe`, `completions <bash|zsh>`, `--color`, `-h/--help`, `-v/--version`, and runs unknown commands as `lunarstorm-<name>` from `PATH`. Exit statuses: 0 success, 2 usage error, 70 broken mount (two packages claim one name), otherwise the handler's status (for `run`, the script's).

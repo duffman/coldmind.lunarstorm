@@ -1,6 +1,6 @@
 # lunar-extension (extensions/core)
 
-The rules every lunar-extension follows, at every level of Lunarstorm: valid names, the manifest an application declares its extensions in, the plugin hosts an extension opens, and the load-time check that compares the manifest with what a host offers. It has no VM and no platform dependency, so the runtime level (`lunarstorm-runtime`) and the platform level apply the same rules and report the same messages. Concepts: `runtime/core/doc/extensions.md`.
+The rules every lunar-extension follows, at every level of Lunarstorm: valid names, the manifest an application declares its extensions in, the plugin hosts an extension opens, and the load-time check that compares the manifest with what a host offers. It has no VM and no platform dependency, so the runtime level (`lunarstorm-event-loop-runtime`) and the platform level apply the same rules and report the same messages. Concepts: `runtime/docs/extension-manifests.md`.
 
 ## Public surface
 
@@ -28,7 +28,7 @@ The rules every lunar-extension follows, at every level of Lunarstorm: valid nam
 ## How it fits
 
 - Depends on `serde`, `serde_json`.
-- Used by `lunarstorm-runtime` (re-exported there; checked in `Runtime::start`) and through it by every extension (`extensions/hostapi`) and host.
+- Used by `lunarstorm-event-loop-runtime` (re-exported there; checked in `Runtime::start`) and through it by every extension (`extensions/hostapi`) and host.
 
 ## Build and test
 

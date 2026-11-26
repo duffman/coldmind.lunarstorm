@@ -15,15 +15,15 @@ if [ "$(sed -n 's/^Revision: //p' "$vendor/REVISION")" != "$revision" ]; then
     exit 1
 fi
 mkdir -p "$output"
-temporary=$(mktemp "$output/.qjs-reference.XXXXXX")
+temporary=$(mktemp "$output/.qjs-reference-engine-bridge.XXXXXX")
 trap 'rm -f "$temporary"' EXIT HUP INT TERM
 # Keep compiler flags under caller control; the default is a normal release build.
 # Intentional splitting for conventional CFLAGS/LDFLAGS values.
 "${CC:-cc}" -std=c11 -D_GNU_SOURCE -DQUICKJS_NG_BUILD ${CFLAGS:--O2} -I"$vendor" \
-    "$root/crates/qjs-reference/runner.c" \
+    "$root/reference-engine-bridge/runner.c" \
     "$vendor/quickjs.c" "$vendor/dtoa.c" \
     "$vendor/libregexp.c" "$vendor/libunicode.c" \
     ${LDFLAGS:-} -lm -pthread -o "$temporary"
 chmod +x "$temporary"
-mv -f "$temporary" "$output/qjs-reference"
-printf '%s\n' "$output/qjs-reference"
+mv -f "$temporary" "$output/qjs-reference-engine-bridge"
+printf '%s\n' "$output/qjs-reference-engine-bridge"

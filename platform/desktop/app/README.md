@@ -5,7 +5,7 @@ One library holds everything the two runtimes share: the TAO event loop and WRY 
 (one window per form), the IPC envelope, the asset store behind the custom protocol, native
 services, the dev change table and the release archive. The two binaries are thin. The app's
 backend does not run here: it runs on the Lunarstorm Runtime through `platform/desktop/host`
-(`lunarstorm-host-desktop`), and this crate never touches the JS engine.
+(`lunarstorm-host-desktop-backend`), and this crate never touches the JS engine.
 
 ## Public surface
 

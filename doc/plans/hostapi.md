@@ -1,6 +1,6 @@
 # Build plan: HostApi, the first host extension
 
-Status: **built** on branch `runtime-extensions`. Concepts: `runtime/core/doc/hosts.md`, `runtime/core/doc/extensions.md`.
+Status: **built** on branch `runtime-extensions`. Concepts: `runtime/docs/embedding-a-host.md`, `runtime/docs/extension-manifests.md`.
 
 ## Goal
 
@@ -14,7 +14,7 @@ active:
 | `lunarstorm:hostapi/<area>` | the API of one active area |
 
 The plan builds the extension machinery HostApi needs and proves it on an existing feature. The CLI host's
-terminal API (`lunarstorm:ui`, today registered by `bindings()` in `lunarstorm-host-cli`) becomes the
+terminal API (`lunarstorm:ui`, today registered by `bindings()` in `lunarstorm-host-command-line`) becomes the
 HostApi area `ui`. The existing end-to-end tests of that feature, unchanged, are the acceptance test.
 
 ## Result
@@ -22,12 +22,12 @@ HostApi area `ui`. The existing end-to-end tests of that feature, unchanged, are
 | package | path | contents |
 |---|---|---|
 | `lunar-extension` | `extensions/core/` | names, manifest, plugin host rules, load-time checks. No VM dependency, shared with the platform level |
-| `lunarstorm-runtime` | `runtime/core/` | `Extension<V>`, `ExtensionSet<V>`, `Host::Extensions`, extension setup in `Runtime::start` |
+| `lunarstorm-event-loop-runtime` | `runtime/event-loop-runtime/` | `Extension<V>`, `ExtensionSet<V>`, `Host::Extensions`, extension setup in `Runtime::start` |
 | `lunar-extension-hostapi` | `extensions/hostapi/` | `HostApi<V, A>`, the `Area<V>` contract, `lunarstorm:hostapi` |
-| `lunarstorm-host-cli` | `platform/cli/host/` | the area `ui`, the host's manifest, HostApi installed |
+| `lunarstorm-host-command-line` | `platform/cli/host/` | the area `ui`, the host's manifest, HostApi installed |
 
 ```
-lunarstorm-host-cli ──> lunar-extension-hostapi ──> lunarstorm-runtime ──> lunarstorm-vm
+lunarstorm-host-command-line ──> lunar-extension-hostapi ──> lunarstorm-event-loop-runtime ──> lunarstorm-engine-contract
         │                        │                         │
         └────────────────────────┴─────────────────────────┴──> lunar-extension
 ```
@@ -36,7 +36,7 @@ lunarstorm-host-cli ──> lunar-extension-hostapi ──> lunarstorm-runtime �
 
 ### What the Runtime already provides
 
-An extension is built on `Bindings<V>` (`runtime/core/src/bindings.rs`), the mechanism hosts use today:
+An extension is built on `Bindings<V>` (`runtime/event-loop-runtime/src/host_bindings_registry.rs`), the mechanism hosts use today:
 
 - `function(name, f)` and `values(install)` put natives on `ops`;
 - `module(specifier, source)` adds a source module, compiled on first import;
@@ -124,7 +124,7 @@ application writes (the desktop host). The CLI host's manifest is written by the
 
 ### The area `ui`
 
-`platform/cli/host/src/ui.rs` holds the CLI host's terminal API, since that API is specific to the host.
+`platform/cli/host/src/terminal_ui_area.rs` holds the CLI host's terminal API, since that API is specific to the host.
 
 | binding | owner after the change | reason |
 |---|---|---|
@@ -147,14 +147,14 @@ same tests pass, and the documentation follows. Sizes are added lines, tests inc
 | # | step | files | tests | size |
 |---|---|---|---|---|
 | 1 | `lunar-extension`: `Name` (`[a-z][a-z0-9]{0,31}`, reserved `ipc`, `worker`, `internal`), `Manifest` (serde, `Manifest::empty()`), `PluginHost`, `Cardinality`, `Requirement`, `Offer`, `Use`, `check` | `extensions/core/{Cargo.toml,src/lib.rs,README.md}`; root `Cargo.toml` members and header | unit tests: valid, invalid and reserved names; each load-time message; the empty manifest passes against any offer | 250 |
-| 2 | Runtime: `Extension<V>`, `ExtensionSet<V>` for tuples up to 8, the `Host` members, the checked merge in `Bindings`, extension setup in `start`, two lines in each of the 7 `impl Host` | `runtime/core/src/{extension.rs,host.rs,bindings.rs,runtime.rs,lib.rs}`, the 4 test hosts, `examples/ipc-demo.rs`, `platform/{cli,desktop}/host/src/*` | `runtime/core/tests/extensions.rs` (see below) | 280 |
+| 2 | Runtime: `Extension<V>`, `ExtensionSet<V>` for tuples up to 8, the `Host` members, the checked merge in `Bindings`, extension setup in `start`, two lines in each of the 7 `impl Host` | `runtime/event-loop-runtime/src/{extension.rs,host.rs,bindings.rs,runtime.rs,lib.rs}`, the 4 test hosts, `examples/ipc-demo.rs`, `platform/{cli,desktop}/host/src/*` | `runtime/event-loop-runtime/tests/extension_loading.rs` (see below) | 280 |
 | 3 | HostApi: `HostApi<V, A>`, `Area<V>`, `AreaSet<V>` for tuples, `lunarstorm:hostapi` | `extensions/hostapi/{Cargo.toml,src/lib.rs,js/hostapi.js,README.md}` | `extensions/hostapi/tests/hostapi.rs` (see below) | 220 |
 | 4 | The CLI host adopts HostApi: `src/ui.rs`, `manifest.json`, `type Extensions<V: Vm> = (HostApi<V, (Ui,)>,)`, the alias, `lunarstorm:hostapi` in the help's module list (`cli.rs:104`) | `platform/cli/host/{Cargo.toml,manifest.json,src/ui.rs,src/host.rs,src/cli.rs}` | `platform/cli/app/tests/ui.rs` unchanged and green, plus two new cases (see below); manifest parse test in `host.rs` | 110 |
-| 5 | Documentation | READMEs of the four packages; `runtime/core/doc/extensions.md` (built parts marked built, the open module-name and CLI-manifest questions answered); `runtime/core/doc/hosts.md` (register step and worker note); root README table | | 120 |
+| 5 | Documentation | READMEs of the four packages; `runtime/docs/extension-manifests.md` (built parts marked built, the open module-name and CLI-manifest questions answered); `runtime/docs/embedding-a-host.md` (register step and worker note); root README table | | 120 |
 
 Total about 980 lines.
 
-### Tests in step 2: `runtime/core/tests/extensions.rs`
+### Tests in step 2: `runtime/event-loop-runtime/tests/extension_loading.rs`
 
 Uses a test host with `WORKERS = true` and a test extension `probe`. `probe` counts its `bindings` calls,
 binds an `ops` function, and serves `lunarstorm:probe` as a source module reading it.
@@ -195,15 +195,15 @@ These are the focused suites, run on the final tree. Each test count is read and
 
 ```text
 cargo test -p lunar-extension
-cargo test -p lunarstorm-runtime --test extensions --test embed --test modules --test worker --test ipc
+cargo test -p lunarstorm-event-loop-runtime --test extensions --test embed --test modules --test worker --test ipc
 cargo test -p lunar-extension-hostapi
-cargo test -p lunarstorm-host-cli
+cargo test -p lunarstorm-host-command-line
 cargo test -p lunarstorm --test ui --test cli --test commands
-cargo test -p lunarstorm-host-desktop --test backend
-cargo clippy -p lunar-extension -p lunarstorm-runtime -p lunar-extension-hostapi -p lunarstorm-host-cli
+cargo test -p lunarstorm-host-desktop-backend --test backend
+cargo clippy -p lunar-extension -p lunarstorm-event-loop-runtime -p lunar-extension-hostapi -p lunarstorm-host-command-line
 ```
 
-`lunarstorm-host-desktop` is in the list because its `impl Host` changes, even though its set stays `()`.
+`lunarstorm-host-desktop-backend` is in the list because its `impl Host` changes, even though its set stays `()`.
 
 Startup cost: run `console.log(1)` through the release CLI three times before step 2 and three times after
 step 4. The CLI now runs the manifest check and HostApi's `bindings` on every start. The source modules

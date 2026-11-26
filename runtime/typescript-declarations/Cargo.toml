@@ -1,0 +1,20 @@
+# The `.d.ts` emitter of the Lunarstorm runtime (plan D6): turns the declarations in
+# `runtime/engine-contract/src/types.rs` into TypeScript. The same folder is the npm package
+# `lunartypes` (package.json), whose `dist/` is this crate's committed output.
+#
+# Decision: the emitter depends on the engine contract only. Collecting each host's
+# declarations needs the hosts, so that lives in `lunarstorm types`
+# (platform/cli/host/src/lunar_runtime_commands.rs); the golden test reaches it as a dev-dependency.
+[package]
+name = "lunarstorm-typescript-declarations"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Lunarstorm type emitter: .d.ts files from the Runtime's declarations (npm package lunartypes)"
+
+[dependencies]
+lunarstorm-engine-contract = { path = "../engine-contract" }
+
+[dev-dependencies]
+# tests/generated.rs regenerates dist/ the way `lunarstorm types` does.
+lunarstorm-host-command-line = { path = "../../platform/cli/host" }
