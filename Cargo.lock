@@ -3227,6 +3227,7 @@ name = "lunarstorm-host-desktop"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "lunar-extension-hostapi",
  "lunarstorm-runtime",
  "lunarstorm-vm-quickjs",
  "serde_json",

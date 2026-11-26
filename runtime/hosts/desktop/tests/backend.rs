@@ -113,6 +113,7 @@ fn program(epoch: u64, code: &str) -> Program {
         roots: Vec::new(),
         environment: Vec::new(),
         name: String::from("test.app"),
+        areas: Vec::new(),
     }
 }
 
@@ -223,6 +224,72 @@ fn a_backend_that_does_not_load_reports_why() {
     assert_eq!(next(&lines), "loaded 3 ok");
 }
 
+/// A backend that reads the path an event names and shows the text, or the
+/// error code, in `Label.caption`.
+const READER: &str = "\
+import { serve, setProperty } from '@desktop/bridge';\n\
+import { readFileSync } from 'node:fs';\n\
+serve((message) => {\n\
+  let shown;\n\
+  try { shown = readFileSync(message.payload.path, 'utf8'); } catch (error) { shown = error.code; }\n\
+  setProperty(message.form, 'Label', 'caption', shown);\n\
+});\n";
+
+/// Creates an empty directory unique to one test under Cargo's temp directory.
+///
+/// # Arguments
+/// * `name` - the test's name.
+///
+/// # Returns
+/// The directory.
+fn scratch(name: &str) -> std::path::PathBuf {
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("host-desktop").join(name);
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create the test directory");
+    dir
+}
+
+#[test]
+fn a_path_that_climbs_out_of_a_root_is_refused() {
+    let base = scratch("climb");
+    let root = base.join("root");
+    std::fs::create_dir_all(&root).expect("create the root");
+    std::fs::write(root.join("inside.txt"), "inside").expect("write inside");
+    std::fs::write(base.join("outside.txt"), "outside").expect("write outside");
+    let (backend, lines) = backend();
+    let mut program = program(1, READER);
+    program.roots = vec![root.clone()];
+    backend.load(program);
+    assert_eq!(next(&lines), "loaded 1 ok");
+
+    let read = |path: std::path::PathBuf| {
+        backend.dispatch(1, envelope("Button.onRead", "event", &format!("{{\"path\":{:?}}}", path.to_string_lossy())));
+        next(&lines)
+    };
+    assert!(read(root.join("inside.txt")).contains("\"caption\":\"inside\""), "a file under the root is readable");
+    let climbed = read(root.join("..").join("outside.txt"));
+    assert!(climbed.contains("\"caption\":\"EACCES\""), "`<root>/../outside.txt` must be refused: {climbed}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlink_inside_a_root_that_points_out_of_it_is_refused() {
+    let base = scratch("symlink");
+    let root = base.join("root");
+    std::fs::create_dir_all(&root).expect("create the root");
+    std::fs::write(base.join("outside.txt"), "outside").expect("write outside");
+    std::os::unix::fs::symlink(base.join("outside.txt"), root.join("link.txt")).expect("create the link");
+    let (backend, lines) = backend();
+    let mut program = program(1, READER);
+    program.roots = vec![root.clone()];
+    backend.load(program);
+    assert_eq!(next(&lines), "loaded 1 ok");
+
+    backend.dispatch(1, envelope("Button.onRead", "event", &format!("{{\"path\":{:?}}}", root.join("link.txt").to_string_lossy())));
+    let line = next(&lines);
+    assert!(line.contains("\"caption\":\"EACCES\""), "a link out of the root must be refused: {line}");
+}
+
 #[test]
 fn a_reload_retires_the_old_epoch_and_drops_its_messages() {
     let (backend, lines) = backend();
@@ -238,4 +305,92 @@ fn a_reload_retires_the_old_epoch_and_drops_its_messages() {
     assert!(line.starts_with("send 2 ") && line.contains("clicked 2"), "{line}");
     drop(backend);
     assert_eq!(next(&lines), "retired 2");
+}
+
+/// # Arguments
+/// * `id` - the call's id.
+/// * `method` - `<area>.<function>`.
+/// * `args` - the arguments as a JSON array.
+///
+/// # Returns
+/// A WebView `call` envelope from the form `Main`.
+fn call(id: u64, method: &str, args: &str) -> String {
+    format!("{{\"kind\":\"call\",\"id\":{id},\"windowId\":\"Main\",\"method\":\"{method}\",\"payload\":{{\"args\":{args}}}}}")
+}
+
+/// # Arguments
+/// * `id` - the call's id.
+/// * `method` - `<area>.<function>`.
+/// * `payload` - the expected payload as JSON.
+///
+/// # Returns
+/// The line the shell records for the `result` of that call in epoch 1.
+fn result(id: u64, method: &str, payload: &str) -> String {
+    format!("send 1 {{\"kind\":\"result\",\"id\":{id},\"windowId\":\"Main\",\"method\":\"{method}\",\"payload\":{payload}}}")
+}
+
+#[test]
+fn webview_calls_reach_the_fs_area_through_the_runtime_without_backend_code() {
+    let base = scratch("calls");
+    let root = base.join("root");
+    std::fs::create_dir_all(&root).expect("create the root");
+    std::fs::write(base.join("outside.txt"), "outside").expect("write outside");
+    let (backend, lines) = backend();
+    let mut program = program(1, "export {};\n");
+    program.roots = vec![root.clone()];
+    program.areas = vec![String::from("fs")];
+    backend.load(program);
+    assert_eq!(next(&lines), "loaded 1 ok");
+
+    let ask = |id: u64, method: &str, args: &str| {
+        backend.dispatch(1, call(id, method, args));
+        next(&lines)
+    };
+    assert_eq!(ask(1, "fs.writeText", "[\"out.txt\",\"got:hi\"]"), result(1, "fs.writeText", "{\"ok\":true,\"value\":null}"));
+    assert_eq!(std::fs::read_to_string(root.join("out.txt")).expect("written"), "got:hi");
+    assert_eq!(ask(2, "fs.readText", "[\"out.txt\"]"), result(2, "fs.readText", "{\"ok\":true,\"value\":\"got:hi\"}"));
+    assert_eq!(ask(3, "fs.list", "[\".\"]"), result(3, "fs.list", "{\"ok\":true,\"value\":[\"out.txt\"]}"));
+    let refused = |line: String, code: &str| assert!(line.contains(&format!("\"ok\":false,\"error\":{{\"code\":\"{code}\"")), "expected {code}: {line}");
+    refused(ask(4, "fs.readText", "[\"../outside.txt\"]"), "EACCES");
+    refused(ask(5, "fs.writeText", "[\"../outside.txt\",\"x\"]"), "EACCES");
+    assert_eq!(std::fs::read_to_string(base.join("outside.txt")).expect("outside"), "outside", "nothing outside the root is written");
+    refused(ask(6, "fs.readText", "[\"missing.txt\"]"), "ENOENT");
+    refused(ask(7, "fs.readText", "[1]"), "EINVAL");
+    refused(ask(8, "fs.readText", "[]"), "EINVAL");
+    refused(ask(9, "fs.nope", "[]"), "EINVAL");
+    refused(ask(10, "fs.readText.x", "[\"a\"]"), "EINVAL");
+}
+
+#[test]
+fn an_area_the_app_is_not_permitted_is_refused_and_does_not_resolve() {
+    let (backend, lines) = backend();
+    backend.load(program(1, "export {};\n"));
+    assert_eq!(next(&lines), "loaded 1 ok");
+    backend.dispatch(1, call(1, "fs.readText", "[\"a.txt\"]"));
+    let line = next(&lines);
+    assert!(line.contains("\"ok\":false,\"error\":{\"code\":\"EPERM\""), "{line}");
+
+    // Backend code cannot import it either.
+    backend.load(program(2, "import { readText } from 'lunarstorm:hostapi/fs';\n"));
+    assert_eq!(next(&lines), "retired 1");
+    let line = next(&lines);
+    assert!(line.starts_with("loaded 2 ") && !line.ends_with(" ok"), "{line}");
+
+    // Permitted, the area is listed and importable.
+    let mut program = program(3, "import { areas } from 'lunarstorm:hostapi';\nimport { readText } from 'lunarstorm:hostapi/fs';\nconsole.log(areas.join(), typeof readText);\n");
+    program.areas = vec![String::from("fs")];
+    backend.load(program);
+    // The Runtime flushes stdout at the end of the loop turn, after the load.
+    assert_eq!(next(&lines), "loaded 3 ok");
+    assert_eq!(next(&lines), "log info fs function");
+}
+
+#[test]
+fn the_spec_lists_the_fs_area() {
+    let spec = lunarstorm_host_desktop::spec();
+    let area = &spec["areas"][0];
+    assert_eq!(area["name"], "fs");
+    assert_eq!(area["module"], "lunarstorm:hostapi/fs");
+    let names: Vec<_> = area["functions"].as_array().expect("functions").iter().map(|f| f["name"].as_str().expect("name").to_owned()).collect();
+    assert_eq!(names, ["readText", "writeText", "list"]);
 }

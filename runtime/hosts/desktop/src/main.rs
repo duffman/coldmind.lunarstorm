@@ -380,6 +380,8 @@ fn main() {
         roots,
         environment: Vec::new(),
         name: path.display().to_string(),
+        // No WebView, so no `call`s to answer.
+        areas: Vec::new(),
     });
     let mut app = App {
         settler: backend.settler(),

@@ -6,8 +6,12 @@
 //   window.zebra.emit(c, e, p)   send a control event with the values it changed
 //   window.zebra.onUpdate(fn)    property updates, (controls) => void
 //   window.zebra.onRefresh(fn)   dev.refresh of this form, (stamp) => void
+//   window.lunarstorm.hostapi.<area>.<function>(...args) -> Promise
+//                                the host's API, through the Runtime (envelope `call`);
+//                                rejects with an Error carrying `code`
 //
-// The host replaces __ZEBRA_BOOT__ with {windowId, epoch, mode}.
+// The host replaces __ZEBRA_BOOT__ with {windowId, epoch, mode, hostapi}, where
+// hostapi is {<area>: [<function>, ...]} for the areas the app is permitted.
 (() => {
   'use strict';
   const boot = __ZEBRA_BOOT__;
@@ -20,6 +24,9 @@
   /** Host messages that arrived before the form registered its listeners. */
   const queue = [];
   let epoch = boot.epoch;
+  /** @type {Map<number, {resolve: Function, reject: Function}>} HostApi calls waiting for their result */
+  const calls = new Map();
+  let lastCall = 0;
 
   /**
    * Posts one envelope to the host.
@@ -116,10 +123,37 @@
   };
 
   /**
+   * Makes one HostApi call; the host answers with a `result` of the same id.
+   * @param {string} method `<area>.<function>`
+   * @param {unknown[]} args the arguments
+   * @returns {Promise<unknown>} the value, or a rejection carrying `code`
+   */
+  const invoke = (method, args) => new Promise((resolve, reject) => {
+    const id = ++lastCall;
+    calls.set(id, { resolve, reject });
+    post({ kind: 'call', id, method, payload: { args } });
+  });
+
+  /**
+   * Settles the call a `result` answers.
+   * @param {{id: number, payload: any}} envelope
+   */
+  const settle = (envelope) => {
+    const call = calls.get(envelope.id);
+    if (!call) return;
+    calls.delete(envelope.id);
+    const { ok, value, error } = envelope.payload ?? {};
+    if (ok) call.resolve(value);
+    else call.reject(Object.assign(new Error(error?.message ?? 'call failed'), { code: error?.code ?? 'EFAIL' }));
+  };
+
+  /**
    * Entry point the host calls through evaluate_script.
    * @param {object} envelope
    */
   window.__zebraReceive = (envelope) => {
+    // A result settles its call at once: a page may call before any listener exists.
+    if (envelope.kind === 'result') return settle(envelope);
     if (envelope.kind === 'dev' || updateListeners.size > 0) apply(envelope);
     else {
       if (envelope.kind === 'hello') epoch = envelope.epoch;
@@ -170,6 +204,14 @@
       return () => refreshListeners.delete(fn);
     },
   });
+
+  // Decision: one frozen function per permitted spec entry, so a page sees exactly
+  // what it may call; anything else is refused by the host and the Runtime anyway.
+  const hostapi = Object.freeze(Object.fromEntries(Object.entries(boot.hostapi ?? {}).map(([area, functions]) => [
+    area,
+    Object.freeze(Object.fromEntries(functions.map((name) => [name, (...args) => invoke(`${area}.${name}`, args)]))),
+  ])));
+  Object.defineProperty(window, 'lunarstorm', { value: Object.freeze({ hostapi }), enumerable: true });
 
   post({ kind: 'hello', method: 'session.start', payload: {} });
 })();

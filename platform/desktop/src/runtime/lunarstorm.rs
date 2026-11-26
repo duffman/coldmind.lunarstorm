@@ -13,9 +13,8 @@
 //!   `version` and `epoch` here, as the host's `Shell::send` contract leaves them out.
 //! - Permissions are checked here, before any native service sees a call, against the
 //!   host configuration of the calling epoch: services never trust the backend.
-//! - The backend gets no filesystem roots, no environment and no sockets. The host
-//!   configuration has no permission that would grant them, and the former JS thread
-//!   offered none either.
+//! - The backend gets the `permissions.fs` roots (`~/` is the home directory) and the
+//!   `permissions.hostapi` areas, no environment and no sockets.
 //! - `send` never reports a full queue: the host posts straight to the Runtime's loop,
 //!   which is unbounded. It fails only once the runtime is stopped.
 
@@ -27,6 +26,20 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+
+/// A `permissions.fs` root as a path, the way the native services read it.
+///
+/// # Arguments
+/// * `root` - the root as written; `~/` is the home directory.
+///
+/// # Returns
+/// The path.
+fn root_path(root: &str) -> std::path::PathBuf {
+    match root.strip_prefix("~/") {
+        Some(rest) => dirs::home_dir().unwrap_or_default().join(rest),
+        None => root.into(),
+    }
+}
 
 /// The platform side of the host's `Shell` contract.
 struct Bridge {
@@ -162,9 +175,10 @@ impl AppRuntime for LunarstormRuntime {
                     restore: restore.to_string(),
                     memory: Some((config.limits.heap_mb as usize) << 20),
                     budget: Duration::from_millis(config.limits.budget_ms),
-                    roots: Vec::new(),
+                    roots: config.permissions.fs.iter().map(|root| root_path(root)).collect(),
                     environment: Vec::new(),
                     name: config.application.id.clone(),
+                    areas: config.permissions.hostapi.clone(),
                 });
             }
             HostMessage::Envelope(envelope) => backend.dispatch(envelope.epoch, envelope.to_json()),

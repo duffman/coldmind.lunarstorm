@@ -5,7 +5,7 @@
 //   @desktop/bridge  setProperty, serve, restored   (what the form runtime uses)
 //   @desktop/api     native.<namespace>.<method>(...args) -> Promise
 // and gives the host two hooks, through `ops.desktopHooks`:
-//   dispatch(json)        one envelope from the desktop process (event, request, cancel)
+//   dispatch(json)        one envelope from the desktop process (event, request, cancel, call)
 //   settle(id, ok, json)  a native call finished
 //
 // Decisions:
@@ -15,7 +15,12 @@
 //   after an `await` is sent without the host having to ask for a flush.
 // - Timers, `console` and the rest of the globals are the Runtime's own; this
 //   file adds nothing to the global object.
+// - A WebView `call` (`method` = `<area>.<function>`, `payload.args`) is answered
+//   here, not by app code: it is checked against the host's spec and the active
+//   areas, then the area's function runs and a `result` goes back with the same
+//   id. The handler is module-private, so backend code cannot reach or replace it.
 import { ops } from 'lunarstorm:internal';
+import { areas } from 'lunarstorm:hostapi';
 
 /** @type {Map<number, {resolve: Function, reject: Function}>} native calls in flight */
 const pending = new Map();
@@ -31,6 +36,8 @@ let flushing = false;
 let lastCall = 0;
 /** @type {Record<string, Record<string, Record<string, unknown>>>} carried-over control values */
 const restore = JSON.parse(ops.desktopRestore());
+/** @type {Map<string, Map<string, {optional: boolean, multiple: boolean}[]>>} area -> function -> args */
+const spec = new Map(JSON.parse(ops.desktopSpec()).areas.map((area) => [area.name, new Map(area.functions.map((f) => [f.name, f.args]))]));
 
 /**
  * Describes a thrown value for the error report.
@@ -112,11 +119,61 @@ export const native = new Proxy({}, {
 });
 
 /**
+ * An error carrying a code for a `result`.
+ * @param {string} code `EINVAL` or `EPERM`
+ * @param {string} message what is wrong
+ * @returns {Error} the error, with `code` set
+ */
+const coded = (code, message) => Object.assign(new Error(message), { code });
+
+/**
+ * Runs one WebView call after checking it.
+ * @param {{method: unknown, payload: unknown}} envelope the `call` envelope
+ * @returns {Promise<unknown>} what the area's function returned
+ * @throws {Error} `EINVAL` for a method not in the spec or arguments that do not
+ *   fit it; `EPERM` for an area the app is not permitted
+ */
+const invoke = async (envelope) => {
+  const [area, name, ...more] = String(envelope.method).split('.');
+  const args = envelope.payload?.args;
+  const signature = more.length === 0 ? spec.get(area)?.get(name) : undefined;
+  if (!signature) throw coded('EINVAL', `no function ${envelope.method}`);
+  const required = signature.filter((arg) => !arg.optional && !arg.multiple).length;
+  const rest = signature.some((arg) => arg.multiple);
+  if (!Array.isArray(args) || args.length < required || (!rest && args.length > signature.length)) {
+    throw coded('EINVAL', `${envelope.method} takes ${required}..${rest ? 'n' : signature.length} arguments`);
+  }
+  if (!areas.includes(area)) throw coded('EPERM', `area ${area} is not permitted`);
+  const module = await import(`lunarstorm:hostapi/${area}`);
+  return module[name](...args);
+};
+
+/**
+ * Answers a WebView call with a `result`: `{ok: true, value}` or
+ * `{ok: false, error: {code, message}}`.
+ * @param {{id: unknown, windowId: unknown, method: unknown}} envelope the `call` envelope
+ */
+const call = (envelope) => {
+  /** @param {object} payload the result's payload */
+  const reply = (payload) => send({ kind: 'result', id: envelope.id, windowId: envelope.windowId, method: envelope.method, payload });
+  /** @param {any} error what the call threw */
+  const failed = (error) => reply({ ok: false, error: { code: typeof error?.code === 'string' ? error.code : 'EFAIL', message: String(error?.message ?? error) } });
+  invoke(envelope).then((value) => {
+    // A value JSON cannot carry (a BigInt, a cycle) fails the call, not the backend.
+    try { reply({ ok: true, value: value ?? null }); } catch (error) { failed(coded('EFAIL', `the result of ${envelope.method} is not JSON: ${error.message}`)); }
+  }, failed);
+};
+
+/**
  * Delivers one envelope from the desktop process to the backend.
  * @param {string} json the envelope
  */
 const dispatch = (json) => {
   const envelope = JSON.parse(json);
+  if (envelope.kind === 'call') {
+    call(envelope);
+    return;
+  }
   if (envelope.kind === 'cancel') {
     cancelled.add(envelope.id);
     return;

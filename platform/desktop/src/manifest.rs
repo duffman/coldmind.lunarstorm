@@ -243,6 +243,10 @@ pub struct Permissions {
     /// `namespace.method` names derived from the form classes; `namespace.*` allows a namespace.
     #[serde(default)]
     pub native: Vec<String>,
+    /// HostApi areas the WebView may call through the Runtime, e.g. `["fs"]`. `fs`
+    /// is scoped to the `fs` roots above.
+    #[serde(default)]
+    pub hostapi: Vec<String>,
 }
 
 /// Execution limits of the JS thread.
@@ -319,7 +323,8 @@ impl HostConfig {
     /// The configuration.
     ///
     /// # Errors
-    /// Invalid JSON, a newer schema, a missing main form, or a duplicate form name.
+    /// Invalid JSON, a newer schema, a missing main form, a duplicate form name, or a
+    /// `permissions.hostapi` area this host does not offer.
     pub fn parse(bytes: &[u8]) -> Result<HostConfig, String> {
         let config: HostConfig = serde_json::from_slice(bytes).map_err(|e| format!("zebra.json: {e}"))?;
         if config.schema > HOST_SCHEMA {
@@ -333,6 +338,11 @@ impl HostConfig {
         }
         if config.form(&config.application.main_form).is_none() {
             return Err(format!("zebra.json: main form {} is not a form", config.application.main_form));
+        }
+        // Decision: an unknown area is an error at load, not a call refused later, so
+        // a typo in the permission list cannot pass unnoticed.
+        if let Some(area) = config.permissions.hostapi.iter().find(|area| !crate::envelope::is_area(area)) {
+            return Err(format!("zebra.json: permissions.hostapi: no area {area}"));
         }
         Ok(config)
     }
