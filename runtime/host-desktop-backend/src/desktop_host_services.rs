@@ -1,25 +1,7 @@
 //! [`DesktopHost`]: the host services the desktop backend answers (stdio and
-//! log through the [`Shell`], fs and net policy, clock, entropy), and the hooks
-//! it keeps from the program.
+//! log through the [`Shell`], fs and net policy, clock, entropy).
 
 use crate::*;
-
-/// The glue's hooks of the instance running on this thread.
-pub(crate) struct Hooks {
-    /// `dispatch(json)`.
-    pub(crate) dispatch: <Engine as Vm>::Persistent,
-    /// `settle(id, ok, json)`.
-    pub(crate) settle: <Engine as Vm>::Persistent,
-}
-
-thread_local! {
-    /// The hooks of the backend thread's current instance.
-    ///
-    /// Decision: a thread-local, because the tasks that call the hooks are posted
-    /// from other threads and so cannot own engine handles, yet always run on the
-    /// one backend thread. It is cleared before the instance is destroyed.
-    pub(crate) static HOOKS: RefCell<Option<Hooks>> = const { RefCell::new(None) };
-}
 
 /// The host services of one backend instance.
 pub(crate) struct DesktopHost<S> {

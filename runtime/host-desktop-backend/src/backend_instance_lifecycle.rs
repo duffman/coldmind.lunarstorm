@@ -118,7 +118,7 @@ pub(crate) fn start<S: Shell>(program: Program, shell: &Arc<S>, slot: &Slot) -> 
     runtime.host().loading.set(false);
     let failure = runtime.host().failure.borrow_mut().take();
     if let Some(error) = failure.or(loaded.err()) {
-        HOOKS.with(|hooks| hooks.borrow_mut().take());
+        clear();
         runtime.stop();
         return Err(error);
     }
@@ -135,8 +135,8 @@ pub(crate) fn start<S: Shell>(program: Program, shell: &Arc<S>, slot: &Slot) -> 
 pub(crate) fn retire<S: Shell>(live: &mut Option<Instance<S>>, shell: &Arc<S>, slot: &Slot) {
     slot.lock().expect("slot lock").take();
     if let Some(mut instance) = live.take() {
-        // The hooks are engine handles and must go before the instance does.
-        HOOKS.with(|hooks| hooks.borrow_mut().take());
+        // The desktop modules' state holds engine handles and must go before the instance does.
+        clear();
         instance.runtime.stop();
         let epoch = instance.epoch;
         drop(instance);
@@ -220,42 +220,9 @@ impl<S: Shell> Settler<S> {
         }
         let shell = self.shell.clone();
         poster.post(move |scope| {
-            hook(scope, &*shell, epoch, |hooks| {
-                let (ok, json) = match &result {
-                    Ok(json) => (true, scope.string(json)?),
-                    // The glue parses the error as JSON too, so it is quoted.
-                    Err(message) => (false, scope.string(&quote(message))?),
-                };
-                let arguments = [scope.number(call as f64), scope.boolean(ok), json];
-                scope.call(&scope.local(&hooks.settle), &arguments).map(drop)
-            });
+            hook(scope, &*shell, epoch, || settle(scope, call, result));
         });
     }
-}
-
-/// Writes text as a JSON string literal.
-///
-/// # Arguments
-/// * `text` - the text.
-///
-/// # Returns
-/// The literal, quotes included.
-pub(crate) fn quote(text: &str) -> String {
-    let mut out = String::with_capacity(text.len() + 2);
-    out.push('"');
-    for character in text.chars() {
-        match character {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            control if (control as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", control as u32)),
-            other => out.push(other),
-        }
-    }
-    out.push('"');
-    out
 }
 
 /// The backend of a desktop application: a thread that runs one Runtime per
@@ -326,10 +293,7 @@ impl<S: Shell> Backend<S> {
         }
         let shell = self.shell.clone();
         poster.post(move |scope| {
-            hook(scope, &*shell, epoch, |hooks| {
-                let json = scope.string(&envelope)?;
-                scope.call(&scope.local(&hooks.dispatch), &[json]).map(drop)
-            });
+            hook(scope, &*shell, epoch, || dispatch(scope, &envelope));
         });
     }
 

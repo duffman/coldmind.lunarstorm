@@ -55,7 +55,7 @@ mod runtime_instance;
 mod runtime_public_types;
 mod worker_threads_module;
 
-pub use host_bindings_registry::{declared, AccessorImpl, Bindings, ClassImpl, Constructor, Exports, Native};
+pub use host_bindings_registry::{declared, AccessorImpl, Bindings, ClassImpl, Constructor, Exports, InternalExports, Native};
 pub use cross_thread_message_channel::{Inbox, MAX_BYTES, MAX_MESSAGES, MAX_MESSAGE_BYTES};
 pub use extension_manifest_check::{check, valid_name, Cardinality, Entry, Extension, ExtensionSet, Manifest, Offer, PluginHost, Requirement, Use, RESERVED};
 pub use host_services_trait::{Access, Host, Log, Stream};

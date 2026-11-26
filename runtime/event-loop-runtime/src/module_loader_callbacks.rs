@@ -36,7 +36,7 @@ use crate::reactor_io_state::Shared;
 use crate::ipc_module::{Ipc, MODULE as IPC_MODULE};
 use crate::worker_threads_module::{Workers, MODULE as WORKER_MODULE};
 use lunarstorm_module_sources::{FACADE, Modules, REQUIRE};
-use lunarstorm_engine_contract::{Callbacks, Image, Load, ModuleMeta, ModuleSource, Scope, Vm};
+use lunarstorm_engine_contract::{Callbacks, Image, Load, ModuleDecl, ModuleMeta, ModuleSource, Scope, Vm};
 use lunarstorm_jbn_package_format::Package;
 use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
@@ -246,6 +246,26 @@ impl<V: Vm, H: Host> Loader<V, H> {
         })
     }
 
+    /// Reads `ops` and the console's live-region slot from the builtins' registry.
+    ///
+    /// # Arguments
+    /// * `scope` - the context handle.
+    ///
+    /// # Returns
+    /// `(ops, live)`.
+    ///
+    /// # Errors
+    /// A message when the builtins are not installed.
+    fn internals<'s>(&self, scope: &V::Scope<'s>) -> Result<(V::Value<'s>, V::Value<'s>), String> {
+        let unavailable = || String::from("internals are unavailable");
+        let parts = self.registry.0.borrow();
+        let parts = parts.as_ref().ok_or_else(unavailable)?;
+        let internal = scope.local(&parts.internal);
+        let ops = scope.get(&internal, "ops").map_err(|_| unavailable())?;
+        let live = scope.get(&internal, "live").map_err(|_| unavailable())?;
+        Ok((ops, live))
+    }
+
     /// Declares `lunarstorm:internal`: `ops` and `live` from the builtins' registry.
     ///
     /// # Arguments
@@ -254,17 +274,38 @@ impl<V: Vm, H: Host> Loader<V, H> {
     /// # Errors
     /// A message when the builtins are not installed.
     fn declare_internal<'s>(&self, scope: &V::Scope<'s>) -> Result<(), String> {
-        let unavailable = || String::from("internals are unavailable");
-        let parts = self.registry.0.borrow();
-        let parts = parts.as_ref().ok_or_else(unavailable)?;
-        let internal = scope.local(&parts.internal);
-        let ops = scope.get(&internal, "ops").map_err(|_| unavailable())?;
-        let live = scope.get(&internal, "live").map_err(|_| unavailable())?;
+        let (ops, live) = self.internals(scope)?;
         scope.native_module(INTERNAL_MODULE, &[("ops", ops), ("live", live)]).map_err(|_| {
             let _ = scope.exception();
             String::from("cannot declare lunarstorm:internal")
         })
     }
+}
+
+/// Declares a host's native module from the values its builder pushed.
+///
+/// # Arguments
+/// * `scope` - the context handle.
+/// * `name` - the module's specifier.
+/// * `decl` - its declaration, naming the values in order.
+/// * `values` - one value per declared item.
+///
+/// # Returns
+/// [`Load::Native`].
+///
+/// # Errors
+/// A message when the builder pushed a different number of values than declared,
+/// or the engine refuses the module.
+fn declare_host_native<'s, V: Vm>(scope: &V::Scope<'s>, name: &str, decl: &ModuleDecl, values: Vec<V::Value<'s>>) -> Result<Load, String> {
+    if values.len() != decl.items.len() {
+        return Err(format!("{name}: {} exports declared, {} built", decl.items.len(), values.len()));
+    }
+    let pairs: Vec<_> = decl.items.iter().map(|item| item.name()).zip(values).collect();
+    scope.native_module(name, &pairs).map_err(|_| {
+        let _ = scope.exception();
+        format!("cannot declare {name}")
+    })?;
+    Ok(Load::Native)
 }
 
 impl<V: Vm, H: Host> Callbacks<V> for Loader<V, H> {
@@ -326,12 +367,16 @@ impl<V: Vm, H: Host> Callbacks<V> for Loader<V, H> {
                 };
                 let mut values = Vec::with_capacity(decl.items.len());
                 exports(scope, &mut values).map_err(|_| failed("create the exports of"))?;
-                if values.len() != decl.items.len() {
-                    return Err(format!("{name}: {} exports declared, {} built", decl.items.len(), values.len()));
-                }
-                let pairs: Vec<_> = decl.items.iter().map(|item| item.name()).zip(values).collect();
-                scope.native_module(name, &pairs).map_err(|_| failed("declare"))?;
-                return Ok(Load::Native);
+                return declare_host_native::<V>(scope, name, decl, values);
+            }
+            Some((_, HostModule::NativeWithInternals(decl, exports))) => {
+                let (ops, live) = self.internals(scope)?;
+                let mut values = Vec::with_capacity(decl.items.len());
+                exports(scope, &ops, &live, &mut values).map_err(|_| {
+                    let _ = scope.exception();
+                    format!("cannot create the exports of {name}")
+                })?;
+                return declare_host_native::<V>(scope, name, decl, values);
             }
             None => {}
         }

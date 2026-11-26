@@ -21,16 +21,12 @@ use std::io;
 use std::sync::OnceLock;
 
 use crate::terminal_ui_area::Ui;
+use crate::terminal_ui_module;
 
 /// Specifier scripts import the terminal UI module by, besides
 /// `lunarstorm:hostapi/ui`.
 pub const UI_NAME: &str = "lunarstorm:ui";
 
-/// `lunarstorm:ui`: a re-export of the area's module.
-///
-/// Decision: a re-export, not a second registration of `UI_SOURCE`, so both
-/// specifiers name one module instance with one live region.
-const UI_ALIAS: &str = "export * from 'lunarstorm:hostapi/ui'; export { default } from 'lunarstorm:hostapi/ui';";
 
 /// The host's manifest: the extensions and plugins every program of this host
 /// gets.
@@ -226,7 +222,15 @@ pub fn bindings<V: Vm>() -> Bindings<V> {
             let tty = |fd| scope.boolean(term::is_tty(fd));
             scope.set(ops, "tty", scope.array(&[tty(1), tty(2)])?)
         })
-        .module(UI_NAME, UI_ALIAS)
+        // `lunarstorm:ui`, the same module as `lunarstorm:hostapi/ui`.
+        //
+        // Decision: a native module whose exports are the area module's own
+        // objects (`terminal_ui_module::exports` builds them once and reuses them),
+        // so both specifiers share one live region. It replaces a JS re-export
+        // (`export * from 'lunarstorm:hostapi/ui'`).
+        .native_module_with_internals(terminal_ui_module::declaration(UI_NAME), |scope, ops, live, exports| {
+            terminal_ui_module::exports::<V>(scope, ops, live, exports)
+        })
 }
 
 #[cfg(test)]

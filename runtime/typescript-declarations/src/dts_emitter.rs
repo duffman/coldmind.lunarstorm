@@ -218,6 +218,14 @@ fn export(out: &mut String, indent: &str, prefix: &str, item: &Item) {
             doc(out, indent, sig.about, sig.params);
             let _ = writeln!(out, "{indent}{prefix}function {name}({}): {};", params(sig), returns(&sig.returns));
         }
+        // Fix: a module's `default` value was written `export const default: T;`,
+        // which is a syntax error (`default` is a reserved word). It is now a
+        // private constant exported as the default.
+        Item::Value(field) if field.name == "default" && !prefix.is_empty() => {
+            doc(out, indent, field.about, &[]);
+            let _ = writeln!(out, "{indent}const _default: {};", ts(&field.ty));
+            let _ = writeln!(out, "{indent}export default _default;");
+        }
         Item::Value(field) => {
             doc(out, indent, field.about, &[]);
             let _ = writeln!(out, "{indent}{prefix}const {}: {};", field.name, ts(&field.ty));

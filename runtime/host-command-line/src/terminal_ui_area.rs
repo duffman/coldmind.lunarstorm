@@ -2,29 +2,20 @@
 //! spinners and styles for scripts (`lunarstorm:hostapi/ui`, also importable as
 //! `lunarstorm:ui`).
 //!
-//! The area binds the natives only `ui.js` uses (`columns`, `live`) and serves
-//! `lunarstorm_cliui::UI_SOURCE`. `ui.js` also reads `ops.color` and `ops.tty`;
-//! those stay with the host's own bindings ([`crate::command_line_host_services::bindings`]) because the
-//! Runtime's console reads `ops.color` whether or not the area is used.
+//! The area serves one native module, built by
+//! [`crate::terminal_ui_module`] at its first import. It adds nothing to `ops`:
+//! the module reads the terminal's width, depths and cursor through
+//! [`lunarstorm_cliui::term`] directly. `ops.color` and `ops.tty` stay with the
+//! host's own bindings ([`crate::command_line_host_services::bindings`]) because
+//! the Runtime's console reads `ops.color` whether or not the area is used.
 
+use crate::terminal_ui_module;
 use lunar_extension_hostapi::{Arg, Area, Function};
-use lunarstorm_cliui::term;
-use lunarstorm_event_loop_runtime::vm::{Call, Param, Scope, Sig, Ty, Vm};
+use lunarstorm_event_loop_runtime::vm::Vm;
 use lunarstorm_event_loop_runtime::{Bindings, Use};
 
 /// The area's module.
 pub const MODULE: &str = "lunarstorm:hostapi/ui";
-
-/// `ops.columns()`.
-const COLUMNS: Sig = Sig { params: &[], rest: None, returns: Ty::Number, about: "The terminal width now." };
-
-/// `ops.live(on)`.
-const LIVE: Sig = Sig {
-    params: &[Param { name: "on", ty: Ty::Bool, about: "true to enter, false to leave" }],
-    rest: None,
-    returns: Ty::Undefined,
-    about: "Enters or leaves the live region: hides or restores the cursor.",
-};
 
 /// The terminal API area.
 pub struct Ui;
@@ -32,7 +23,7 @@ pub struct Ui;
 impl<V: Vm> Area<V> for Ui {
     const NAME: &'static str = "ui";
 
-    /// The functions `ui.js` exports, for the HostApi spec. `style` is an object of
+    /// The functions the module exports, for the HostApi spec. `style` is an object of
     /// styling functions, not a call, so it is not listed.
     const FUNCTIONS: &'static [Function] = &[
         Function {
@@ -43,24 +34,17 @@ impl<V: Vm> Area<V> for Ui {
         Function { name: "spinner", summary: "Starts a spinner for work of unknown length.", args: &[Arg { name: "label", optional: true, multiple: false }] },
     ];
 
-    /// Builds the terminal natives and the module over them.
+    /// Builds the area's module.
     ///
     /// # Arguments
     /// * `_using` - unused: the area has no configuration.
     ///
     /// # Returns
-    /// `ops.columns`, `ops.live` and `lunarstorm:hostapi/ui`.
+    /// `lunarstorm:hostapi/ui`, native.
     fn bindings(&self, _using: &Use<'_>) -> Result<Bindings<V>, String> {
-        Ok(Bindings::<V>::new()
-            // The terminal width now; a resize is seen on the next redraw.
-            .function("columns", COLUMNS, |call: &Call<'_, V>| Ok(call.scope().int(i32::from(term::columns()))))
-            // Enters or leaves the live region: hides or restores the cursor.
-            .function("live", LIVE, |call: &Call<'_, V>| {
-                let scope = call.scope();
-                term::live(call.args().first().and_then(|on| scope.as_bool(on)).unwrap_or(false));
-                Ok(scope.undefined())
-            })
-            .module(MODULE, lunarstorm_cliui::UI_SOURCE))
+        Ok(Bindings::<V>::new().native_module_with_internals(terminal_ui_module::declaration(MODULE), |scope, ops, live, exports| {
+            terminal_ui_module::exports::<V>(scope, ops, live, exports)
+        }))
     }
 }
 

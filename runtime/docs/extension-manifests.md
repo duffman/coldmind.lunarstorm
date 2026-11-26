@@ -178,7 +178,7 @@ to trust it.
 
 - **Module names.** `lunarstorm:<extension>` and `lunarstorm:<extension>/<plugin>`, enforced at
   `Runtime::start`. Reserved: `ipc`, `worker`, `internal` (the Runtime's own modules). The CLI host keeps
-  `lunarstorm:ui` as a re-export of `lunarstorm:hostapi/ui`. The platform documents still use
+  `lunarstorm:ui` as a second native specifier of `lunarstorm:hostapi/ui` (same objects). The platform documents still use
   `@extension/<name>`.
 - **The CLI host's manifest.** `runtime/host-command-line/manifest.json`, JSON as above, embedded with
   `include_str!` and parsed once per process.

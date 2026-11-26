@@ -17,7 +17,7 @@ Concepts: `runtime/docs/extension-manifests.md`. Plan: `doc/plans/hostapi.md`.
 | `Extension<V>` / `ExtensionSet<V>` | `runtime/event-loop-runtime/src/extension_manifest_check.rs` | `const NAME`, `plugin_hosts()`, `bindings(&Use) -> Result<Bindings<V>, String>`; sets are `()` and tuples up to 8; `install` runs only for extensions the manifest uses, errors prefixed `extension <name>:` |
 | `Bindings<V>` | `runtime/event-loop-runtime/src/host_bindings_registry.rs` | `function(name, f)` → `ops.<name>`; `values(f)` → raw values on `ops`; `module(specifier, source)` → a JS host module; `merge(owner, other)` fences modules to `lunarstorm:<owner>[/...]` and refuses duplicate modules/functions |
 | `HostApi<V, A>` | `extensions/hostapi` (`lunar-extension-hostapi`) | the host's own API as plugins: plugin host `area` (Many, Optional); each `Area` is fenced to `lunarstorm:hostapi/<area>`; `lunarstorm:hostapi` exports `areas` (frozen, manifest order) |
-| `Ui` area | `runtime/host-command-line/src/terminal_ui_area.rs` + `crates/cliui/js/ui.js` | `lunarstorm:hostapi/ui` (alias `lunarstorm:ui`): `style`, `progress`, `spinner` |
+| `Ui` area | `runtime/host-command-line/src/terminal_ui_area.rs` + `terminal_ui_module.rs` (native) | `lunarstorm:hostapi/ui` (alias `lunarstorm:ui`): `style`, `progress`, `spinner` |
 
 **Manifest format** (`deny_unknown_fields`; `extensions` is the only key):
 

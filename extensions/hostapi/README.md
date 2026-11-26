@@ -43,5 +43,5 @@ cargo test -p lunar-extension-hostapi   # tests/hostapi.rs: order of areas, inac
 - An area serves only `lunarstorm:hostapi/<area>` and below; HostApi refuses anything else (`extension hostapi: area <name>: module <specifier> is outside lunarstorm:hostapi/<name>`), so one area cannot shadow another.
 - Areas are installed in manifest order, after `lunarstorm:hostapi`; two areas binding one `ops` name are refused.
 - An area describes its functions in a `const` next to its bindings, not in a separate file; the spec lists every offered area, active or not, because it describes the host, not one program's manifest.
-- `areas` comes from `ops.hostapi_areas`, set once per Runtime; `js/hostapi.js` freezes a copy.
+- `areas` is built natively at the first import of `lunarstorm:hostapi` and frozen; nothing is put on `ops`.
 - At the runtime level an area is granted by being listed: its module exports everything it defines. Grants per export and data scopes come with the first host whose manifest the application writes (the desktop host).

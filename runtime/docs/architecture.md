@@ -76,10 +76,10 @@ socket readable (edge) → on_event → http_readable → http_pump
 platform/desktop UI thread ─ Backend::load(Program{epoch, code, roots, budget, ...}) ─▶ backend thread
   start(): DesktopHost{shell, epoch, roots} → Runtime → register(desktop bindings) → start
            hold(true) → watchdog(pulse, interrupt, budget) → load(Source::Text "backend.js")
-  envelope from a WebView ─ Backend::dispatch(epoch, json) ─ poster.post(task) ─▶ desktop glue dispatch(json)
-  backend calls native.ns.method() → ops.desktopNative → Shell::native(epoch, id, ...)
-  platform answers ─ Settler::settle(epoch, id, result) ─ post ─▶ desktop glue settle → promise resolves
-  property writes batched per promise job → ops.desktopSend → Shell::send(epoch, envelope)
+  envelope from a WebView ─ Backend::dispatch(epoch, json) ─ poster.post(task) ─▶ desktop_bridge_natives::dispatch(json)
+  backend calls native.ns.method() → Shell::native(epoch, id, ...)
+  platform answers ─ Settler::settle(epoch, id, result) ─ post ─▶ desktop_bridge_natives::settle → promise resolves
+  property writes batched per microtask → Shell::send(epoch, envelope)
   reload = control message: retire old Runtime (Shell::retired) → start a new one with epoch+1
 ```
 

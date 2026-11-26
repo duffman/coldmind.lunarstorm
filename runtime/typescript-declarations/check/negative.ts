@@ -1,6 +1,8 @@
 // Calls the types must reject: each line after `@ts-expect-error` is an error, and
 // `tsc` fails if one is not (plan AC6).
 import { ops } from "lunarstorm:internal";
+import { progress, spinner } from "lunarstorm:hostapi/ui";
+import { setProperty } from "@desktop/bridge";
 
 // @ts-expect-error: fd is a number
 ops.print("1", "text");
@@ -12,9 +14,9 @@ ops.timerStart(10);
 ops.write(1, 42);
 // @ts-expect-error: no such op
 ops.missing();
-// @ts-expect-error: columns returns a number
-export const width: string = ops.columns();
-// @ts-expect-error: live takes a boolean
-ops.live("on");
-// @ts-expect-error: settle's `ok` is a boolean
-ops.desktopHooks((json: string) => json, (id: number, ok: string) => id + ok);
+// @ts-expect-error: progress's total is a number
+progress({ total: "5" });
+// @ts-expect-error: a spinner has no update
+spinner().update(1);
+// @ts-expect-error: setProperty's control is a string
+setProperty("Main", 1, "text", "x");

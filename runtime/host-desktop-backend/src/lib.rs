@@ -48,18 +48,6 @@ use std::time::{Duration, Instant};
 /// The VM the desktop host is bound to.
 pub type Engine = QuickJs;
 
-/// The glue module's source.
-const GLUE: &str = include_str!("../js/desktop.js");
-
-/// Specifier of the glue module.
-const GLUE_MODULE: &str = "lunarstorm:desktop";
-
-/// Source of `@desktop/bridge`.
-const BRIDGE_MODULE: &str = "import { bridge } from 'lunarstorm:desktop';\nexport const setProperty = bridge.setProperty;\nexport const serve = bridge.serve;\nexport const restored = bridge.restored;\nexport default bridge;\n";
-
-/// Source of `@desktop/api`.
-const API_MODULE: &str = "import { native } from 'lunarstorm:desktop';\nexport { native };\nexport default native;\n";
-
 /// Most bytes one `getentropy` call fills.
 const ENTROPY_CHUNK: usize = 256;
 
@@ -143,6 +131,6 @@ mod desktop_host_services;
 
 pub use backend_instance_lifecycle::{Backend, Settler};
 pub use desktop_bridge_natives::declarations;
-use desktop_bridge_natives::*;
+use desktop_bridge_natives::{bindings, clear, dispatch, hook, settle};
 use desktop_host_services::*;
 

@@ -13,5 +13,6 @@
 pub mod lunar_runtime_commands;
 mod command_line_host_services;
 mod terminal_ui_area;
+mod terminal_ui_module;
 
 pub use lunar_runtime_commands::{compile, engine, package, type_files};

@@ -75,7 +75,7 @@ How a crate adds commands: `crates/cli-contract` (`trait Package`, `Command`, `A
 - **Release build:** `cargo build --profile platform --no-default-features --bin lunarstorm-release`. The `platform` profile unwinds on panic and drops devtools.
 
 **Split with `runtime/host-desktop-backend`.**
-- `runtime/host-desktop-backend` (`lunarstorm-host-desktop-backend`) owns the JS side: `Backend<S: Shell>`, one Runtime per epoch, a watchdog on `PULSE`, the `@desktop/bridge` and `@desktop/api` modules (`js/desktop.js`), and a JSON-only `Shell`.
+- `runtime/host-desktop-backend` (`lunarstorm-host-desktop-backend`) owns the JS side: `Backend<S: Shell>`, one Runtime per epoch, a watchdog on `PULSE`, the `@desktop/bridge` and `@desktop/api` modules (native, `src/desktop_bridge_natives.rs`), and a JSON-only `Shell`.
 - `platform/desktop` implements `Shell` (`src/runtime/lunarstorm.rs`) and owns windows, natives, the envelope and permissions.
 - `_build/lunarstorm-desktop` (from `runtime/host-desktop-backend/src/bin/lunarstorm-desktop.rs`) is a minimal tao shell with no WebView that runs one script.
 
@@ -84,7 +84,7 @@ How a crate adds commands: `crates/cli-contract` (`trait Package`, `Command`, `A
 - Serves an output dir on loopback, built once with no watcher.
 - Injects `src/host.js` (the in-page host: it answers `os.info` and refuses every other native call).
 - The backend runs in `src/worker.js`.
-- **Hazard:** the bridge exists twice, in `runtime/host-desktop-backend/js/desktop.js` and `platform/web/src/worker.js`. Change both.
+- **Hazard:** the bridge exists twice, in `runtime/host-desktop-backend/src/desktop_bridge_natives.rs` and `platform/web/src/worker.js`. Change both.
 
 ## Packager (`platform/pack`, `lunarstorm-pack`)
 

@@ -41,6 +41,12 @@ pub type Native<V> = Box<dyn for<'a> Fn(&Call<'a, V>) -> Outcome<<V as Vm>::Valu
 /// associated type (`V::Value<'s>`); see [`Call`].
 pub type Exports<V> = Box<dyn for<'s> Fn(&<V as Vm>::Scope<'s>, &mut Vec<<V as Vm>::Value<'s>>) -> Outcome<()>>;
 
+/// Builds the exports of a native module that needs the Runtime's internals, as
+/// [`Exports`] does, but also receives `ops` and the console's live-region slot
+/// (`live`, `{ wrap }`): `(scope, ops, live, exports)`.
+pub type InternalExports<V> =
+    Box<dyn for<'s> Fn(&<V as Vm>::Scope<'s>, &<V as Vm>::Value<'s>, &<V as Vm>::Value<'s>, &mut Vec<<V as Vm>::Value<'s>>) -> Outcome<()>>;
+
 /// A class constructor: runs on `new` and returns the instance's data.
 pub type Constructor<V, T> = Box<dyn for<'a> Fn(&Call<'a, V>) -> Outcome<T>>;
 
@@ -68,6 +74,8 @@ pub(crate) enum HostModule<V: Vm> {
     Source(&'static str),
     /// A native module: its declaration names the exports [`Exports`] builds.
     Native(ModuleDecl, Exports<V>),
+    /// A native module built with `ops` and `live` ([`InternalExports`]).
+    NativeWithInternals(ModuleDecl, InternalExports<V>),
 }
 
 /// A set of bindings for [`crate::Runtime::register`].
@@ -245,6 +253,32 @@ impl<V: Vm> Bindings<V> {
     {
         self.native.push(decl.clone());
         self.modules.push((decl.specifier, HostModule::Native(decl, Box::new(exports))));
+        self
+    }
+
+    /// Registers a native ES module whose exports need the Runtime's internals:
+    /// `ops` (to print through the host, read the clock) and the console's
+    /// live-region slot `live`.
+    ///
+    /// Decision: the internals are handed to the builder at the first import
+    /// rather than captured: closures given to the engine must not hold engine
+    /// handles (a handle inside a GC-managed function is a root the collector
+    /// cannot see through), so a module that keeps them stores them on its own JS
+    /// objects. It replaces the source modules that imported `lunarstorm:internal`.
+    ///
+    /// # Arguments
+    /// * `decl` - the declaration; `decl.specifier` is what scripts import.
+    /// * `exports` - receives `ops` and `live`, and pushes one value per
+    ///   `decl.items`, in order.
+    ///
+    /// # Returns
+    /// The set, for chaining.
+    pub fn native_module_with_internals<F>(mut self, decl: ModuleDecl, exports: F) -> Self
+    where
+        F: for<'s> Fn(&V::Scope<'s>, &V::Value<'s>, &V::Value<'s>, &mut Vec<V::Value<'s>>) -> Outcome<()> + 'static,
+    {
+        self.native.push(decl.clone());
+        self.modules.push((decl.specifier, HostModule::NativeWithInternals(decl, Box::new(exports))));
         self
     }
 

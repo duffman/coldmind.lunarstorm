@@ -19,10 +19,13 @@
 //!   anything else, so one area cannot shadow another.
 //! - The plugin host is `Many` and `Optional`: a host may expose any number of
 //!   areas, and a program with none still gets `areas`, empty.
+//! - `lunarstorm:hostapi` is a native module: `areas` is a frozen array built in
+//!   Rust at the first import. It replaces the source module `js/hostapi.js`
+//!   (archived), which froze a copy of `ops.hostapi_areas`; that `ops` value is gone.
 
 use std::marker::PhantomData;
 
-use lunarstorm_event_loop_runtime::vm::{Scope, Vm};
+use lunarstorm_event_loop_runtime::vm::{Field, Item, ModuleDecl, Scope, Ty, Vm};
 use lunarstorm_event_loop_runtime::{Bindings, Cardinality, Extension, PluginHost, Requirement, Use};
 
 /// The extension's name, and the first segment of its module specifiers.
@@ -31,8 +34,18 @@ pub const NAME: &str = "hostapi";
 /// The name of HostApi's plugin host.
 pub const PLUGIN_HOST: &str = "area";
 
-/// The source of `lunarstorm:hostapi`.
-const SOURCE: &str = include_str!("../js/hostapi.js");
+/// The specifier of HostApi's own module.
+const MODULE: &str = "lunarstorm:hostapi";
+
+/// # Returns
+/// The declaration of `lunarstorm:hostapi`.
+fn module_decl() -> ModuleDecl {
+    ModuleDecl {
+        specifier: MODULE,
+        items: vec![Item::Value(Field { name: "areas", ty: Ty::Array(&Ty::String), about: "The names of the active areas, in manifest order; frozen." })],
+        about: "Which of the host's API areas this program may use; each is `lunarstorm:hostapi/<area>`.",
+    }
+}
 
 /// One API area of a host: a plugin of HostApi's plugin host `area`.
 pub trait Area<V: Vm>: 'static {
@@ -250,13 +263,15 @@ impl<V: Vm, A: AreaSet<V>> Extension<V> for HostApi<V, A> {
             let built = built.map_err(|e| format!("area {name}: {e}"))?;
             areas.merge(&format!("{NAME}/{name}"), built).map_err(|e| format!("area {name}: {e}"))?;
         }
-        let mut bindings = Bindings::<V>::new()
-            .values(move |scope, ops| {
-                let items = names.iter().map(|name| scope.string(name)).collect::<Result<Vec<_>, _>>()?;
-                let areas = scope.array(&items)?;
-                scope.set(ops, "hostapi_areas", areas)
-            })
-            .module("lunarstorm:hostapi", SOURCE);
+        let mut bindings = Bindings::<V>::new().native_module(module_decl(), move |scope, exports| {
+            let items = names.iter().map(|name| scope.string(name)).collect::<Result<Vec<_>, _>>()?;
+            let areas = scope.array(&items)?;
+            let object = scope.get(&scope.global(), "Object")?;
+            let freeze = scope.get(&object, "freeze")?;
+            scope.call(&freeze, std::slice::from_ref(&areas))?;
+            exports.push(areas);
+            Ok(())
+        });
         // The areas, already fenced to their own paths, go after HostApi's module;
         // the merge refuses an `ops` name two areas both bind.
         bindings.merge(NAME, areas)?;

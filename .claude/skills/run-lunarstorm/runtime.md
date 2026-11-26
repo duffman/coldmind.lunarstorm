@@ -8,10 +8,10 @@ argv, stdio, file access, which extensions exist and whether workers/IPC exist.
 
 | dir | crate | role |
 |---|---|---|
-| `runtime/engine-contract` | `lunarstorm-engine-contract` | engine contract: `Vm`, `Instance`, `Context`, `Scope`, `Callbacks`, `Call`, `Load`, `Limits`, `Image`; conformance suite (15 checks, `src/conformance.rs`) |
+| `runtime/engine-contract` | `lunarstorm-engine-contract` | engine contract: `Vm`, `Instance`, `Context`, `Scope`, `Callbacks`, `Call`, `Load`, `Limits`, `Image`; conformance suite (`src/engine_conformance_suite.rs`) |
 | `runtime/engine-quickjs-adapter` | `lunarstorm-engine-quickjs-adapter` | the only adapter: quickjs-ng `0.17.0+lunarstorm.1`; capabilities memory_limits, termination, bytecode_cache, debug_hooks |
 | `runtime/vendor/rquickjs-binding` | `rquickjs`, `rquickjs-core`, `-sys`, `-macro` | the engine binding, owned in-repo (from upstream 0.14.0) |
-| `runtime/event-loop-runtime` | `lunarstorm-event-loop-runtime` | the Runtime: loop, timers, ops, loader, fs/net/http, ipc, worker, extensions, `js/bootstrap.js` glue |
+| `runtime/event-loop-runtime` | `lunarstorm-event-loop-runtime` | the Runtime: loop, timers, ops, loader, fs/net/http, ipc, worker, extensions, the Node surface as natives (`src/node_builtins/`) |
 | `runtime/module-sources` | `lunarstorm-module-sources` | TS/JSON/CJS → ESM (oxc), `node_modules` + `package.json` `exports`/`imports` |
 | `runtime/jbn-package-format` | `lunarstorm-jbn-package-format` | signed `.jbn` packages (Ed25519, CBOR, zstd), trust store |
 | `runtime/debugger` | `lunarstorm-debugger` | DAP debugger (from jetbunny) |
@@ -38,9 +38,9 @@ timers, live I/O, holds or refs.
 1. `.jbn` package import table (closed world: a package never reads the filesystem).
 2. `lunarstorm:worker-native`: only from `lunarstorm:worker`.
 3. `lunarstorm:internal` (`{ops, live}`): only from **host modules** (their canonical name is their specifier, never a path), so program files get "module not found".
-4. Host modules: exact specifier, registered via `Bindings::module` (extension modules are these).
+4. Host modules: exact specifier, registered via `Bindings::native_module`, `Bindings::native_module_with_internals` (exports built with `ops` and the console's `live` slot, e.g. `lunarstorm:hostapi/ui`) or `Bindings::module` (source text, third-party extensions only).
 5. `lunarstorm:ipc` / `lunarstorm:worker`: only if `Host::IPC` / `Host::WORKERS`.
-6. Builtins: `events net http fs fs/promises path process buffer timers`, as `node:x` or bare `x`. Native modules declared from the glue's registry.
+6. Builtins: `events net http fs fs/promises path process buffer timers`, as `node:x` or bare `x`, declared natively from `node_builtins`.
 7. Files and packages via `lunarstorm-module-sources`: probes `"" .js .mjs .ts .mts /index.js /index.ts`; `./x.js` finds `x.ts`; conditions `lunarstorm, node, import|require, default`. `.tsx`/`.jsx` are not transformed.
 
 ## What a script has (checked with `lunar -e`)
@@ -62,7 +62,7 @@ Defaulted: `PULSE`, `IPC`, `WORKERS` (all `false`), `manifest()` (empty), `monot
 | host | IPC/WORKERS | extensions | file access |
 |---|---|---|---|
 | `CliHost` (`runtime/host-command-line/src/command_line_host_services.rs`) | off | `(HostApi<V, (Ui,)>,)` + `manifest.json` | everything |
-| desktop backend (`runtime/host-desktop-backend/src/lib.rs`) | off, `PULSE` on | `()` | read/write under `roots` only; listen/connect refused |
+| desktop backend (`runtime/host-desktop-backend/src/desktop_host_services.rs`) | off, `PULSE` on | `()` | read/write under `roots` only; listen/connect refused |
 | `ipc-demo` (`runtime/event-loop-runtime/examples/ipc-demo.rs`) | on | `()` | example |
 
 Workers: each is a new Runtime on its own thread from `Host::worker_host`; at most 4096 messages,
@@ -76,7 +76,7 @@ Workers: each is a new Runtime on its own thread from `Host::worker_host`; at mo
 .claude/skills/run-lunarstorm/driver.sh project       # signed .jbn: init -> compile -> run --trust
 ~/.cargo-target/debug/lunar -e 'console.log(typeof fetch)'
 cargo test -q -p lunarstorm-engine-quickjs-adapter                # conformance of the adapter
-cargo test -q -p lunarstorm-event-loop-runtime --test modules --test worker --test ipc
+cargo test -q -p lunarstorm-event-loop-runtime --test module_resolution --test worker_threads --test ipc_module
 cargo test -q -p lunarstorm --test commands jbn       # jbn key/build/run --trust end to end
 ```
 
@@ -86,13 +86,13 @@ about a minute per runtime) and appends to `runtime/benchmarks/results.txt`.
 ## Hazards
 
 - **Hand-mirrored tables:** change both sides together.
-  - `ev` codes (`runtime.rs` `mod ev`) ↔ `dispatch` in `bootstrap.js`.
-  - `FS_*` codes in `bootstrap.js` ↔ `fs.rs`.
-  - `METHODS` in `bootstrap.js` ↔ `crates/http1`.
+  - `ev` codes (`runtime_public_types.rs` `mod ev`) ↔ `node_builtins/loop_event_dispatch.rs`.
+  - `FS_*` codes in `blocking_filesystem_operations.rs` ↔ `node_builtins/fs_module.rs`.
+  - `METHODS` in `crates/http1` ↔ `node_builtins/http_server.rs`.
 - **`Host::exit` never returns.** A host that must outlive its script runs the Runtime on a thread it can abandon.
 - **Out-of-memory is fatal even when caught.** The engine's mark is checked after every entry.
-- **Bump the engine identity suffix** (`engines/quickjs/src/lib.rs` ~89) whenever the vendored engine's bytecode changes: `.jbn` packages check it exactly.
-- **Long test build:** `lunarstorm-debug` compiles jetbunny's whole VM test corpus, so `cargo test -p lunarstorm-debugger` is slow.
+- **Bump the engine identity suffix** (`runtime/engine-quickjs-adapter/src/lib.rs`) whenever the vendored engine's bytecode changes: `.jbn` packages check it exactly.
+- **Long test build:** `lunarstorm-debugger` compiles jetbunny's whole VM test corpus, so `cargo test -p lunarstorm-debugger` is slow.
 - **Stale READMEs:**
   - `runtime/engine-contract` and `runtime/engine-quickjs-adapter` (check counts, capabilities, `Load::Native`).
   - `runtime/event-loop-runtime` (says bare packages are rejected; they resolve).

@@ -39,16 +39,16 @@ only decides what they may touch.
 | uncaught | framed report on stderr, `exit(1)` | `Shell::error(epoch, text)`, keeps going |
 | `PULSE` | false | true: a `lunarstorm-budget` watchdog thread interrupts an entry that runs past `Program::budget` |
 | extensions | `(HostApi<V, (Ui,)>,)` with the embedded `manifest.json` | `()` |
-| host modules | `lunarstorm:ui` (alias of `lunarstorm:hostapi/ui`) | `lunarstorm:desktop` (the desktop glue, `js/desktop.js`), `@desktop/bridge`, `@desktop/api` |
+| host modules | `lunarstorm:ui` (alias of `lunarstorm:hostapi/ui`) | `@desktop/bridge`, `@desktop/api` (native, `src/desktop_bridge_natives.rs`) |
 | IPC / workers | off | off |
 | isolation | one Runtime per process | **one Runtime per epoch**: a reload is a new Runtime (new heap, jobs, timers) |
 
 **No product host turns on `lunarstorm:ipc` or `lunarstorm:worker`.** Only the tests
 (`runtime/event-loop-runtime/tests/{ipc,worker,extensions}.rs`) and `runtime/event-loop-runtime/examples/ipc-demo.rs` set
-`IPC`/`WORKERS`. The desktop backend talks to its process through its own natives
-(`ops.desktopSend`, `desktopNative`, `desktopError`, `desktopRestore`, `desktopHooks`), and
-`js/desktop.js` wraps them as `@desktop/*`. The desktop glue keeps its `dispatch`/`settle` hooks in a
-`thread_local!`.
+`IPC`/`WORKERS`. The desktop backend talks to its process through two native modules, `@desktop/bridge` and
+`@desktop/api` (`src/desktop_bridge_natives.rs`); nothing is added to `ops`. Their state (handler,
+outbox, calls in flight) is one `thread_local!` per backend thread, cleared before the instance goes,
+and the backend thread calls `dispatch`/`settle` there directly.
 
 ## Bindings and `ops` (`host_bindings_registry.rs`, `internal_natives.rs`)
 

@@ -8,7 +8,7 @@ A command is one method of an extension's namespace: `native.<extension>.<comman
 
 ```
 backend JS   native.store.set("theme", "dark")
-  desktop.js   Proxy builds the call; arguments are JSON.stringify'd; ops.desktopNative(id, ns, method, json)
+  desktop_bridge_natives.rs   Proxy builds the call; arguments are JSON.stringify'd; Shell::native(epoch, id, ns, method, json)
   host         parses the arguments (error: "bad arguments: ...")
   gate         HostConfig::allows_native("store", "set")      -> permissions.md
   router       built-ins first; then the extension map, keyed by full namespace (`media.audio` in a group)
@@ -69,10 +69,10 @@ call.done.complete(Ok(Value::Null));
 
 How it travels (design; both ends change):
 
-- `desktop.js`: the `native` proxy replaces each function argument by `{"$channel": <id>}` and keeps the
+- `desktop_bridge_natives.rs`: the `native` proxy replaces each function argument by `{"$channel": <id>}` and keeps the
   callback in a map keyed by id. (Today `JSON.stringify` turns a function into `null`.)
 - Host: `Channel::send` posts a `channel` envelope `{channel, data}` through `Backend::dispatch(epoch, ...)`, the
-  path events already use. `desktop.js` `dispatch` looks the id up and calls the callback.
+  path events already use. `desktop_bridge_natives.rs` `dispatch` looks the id up and calls the callback.
 - `send` returns `false` when the epoch is retired. Channels die with their epoch: nothing is delivered to a
   new backend, and the extension releases its copy in `release_epoch`.
 

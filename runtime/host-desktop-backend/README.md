@@ -7,7 +7,7 @@ The desktop app host of doc/plans/main.md §5 ("DESKTOP HOST") and §6.2 (backen
 - `Backend<S: Shell>`: `spawn(shell)`, `load(Program)` (replaces the running backend, retires the previous epoch), `dispatch(epoch, envelope)` (event, request, cancel; envelopes for any other epoch are dropped), `settler()`. Dropping it stops the thread.
 - `Settler<S>`: `settle(epoch, call, Result<String, String>)` finishes a native call from any thread; results for a retired epoch are dropped.
 - `trait Shell: Send + Sync + 'static` (implemented by the desktop process): `loaded`, `send`, `native(epoch, call, namespace, method, arguments)`, `error`, `log`, `retired`.
-- `Program { epoch, code, restore, memory, budget, roots, environment, name }`: one backend to run. `code` is one ES module importing only `@desktop/bridge` (`setProperty`, `serve`, `restored`) and `@desktop/api` (`native.<namespace>.<method>(...args) -> Promise`); both are provided by `js/desktop.js` as `lunarstorm:desktop`.
+- `Program { epoch, code, restore, memory, budget, roots, environment, name }`: one backend to run. `code` is one ES module importing only `@desktop/bridge` (`setProperty`, `serve`, `restored`) and `@desktop/api` (`native.<namespace>.<method>(...args) -> Promise`); both are native modules (`src/desktop_bridge_natives.rs`); no script runs for them.
 - `Engine = QuickJs`: the one alias where the VM is bound.
 - Binary `lunarstorm-desktop <script.js>`: scripts get `native.window.create(name, {title, width, height})`, `setTitle`, `close`, `native.app.quit(code)`, and events `Window.onResize`, `Window.onCloseQuery`, `Window.onClose`. Exit: `app.quit`'s code, 0 when the last window closed, 1 when the script did not load, 2 for usage.
 
@@ -36,5 +36,5 @@ cargo run -p lunarstorm-host-desktop-backend -- runtime/host-desktop-backend/exa
 - A script error never ends the process: `Host::uncaught` reports to the shell and the loop goes on. `process.exit(code)` ends the application.
 - Policy: fs `Read`/`Write` allowed only under `Program.roots` (`Path::starts_with`, so callers should pass canonical roots; `main.rs` canonicalizes the script's directory); `Listen` and `Connect` are always refused.
 - The shell binary: the application ends when the last window closes; a close request unanswered within `CLOSE_DEADLINE` (2 s) closes the window; budget 5 s, heap 256 MiB; an `update` envelope has no target (no WebView) and is reported on stderr rather than dropped silently. `native` methods other than `window.*` and `app.quit` are refused with "this host has no native method <ns>.<method>".
-- `desktop.js` batches property writes per form and control and sends them from a promise job queued at the first write, so a handler's writes go out as one envelope per form without a flush call.
+- `setProperty` batches property writes per form and control and sends them from a microtask queued at the first write, so a handler's writes go out as one envelope per form without a flush call.
 - `tests/desktop.rs` writes `broken.js` under `std::env::temp_dir()` and removes it afterwards.
