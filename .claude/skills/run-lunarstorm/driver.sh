@@ -108,12 +108,12 @@ case "$cmd" in
     "$0" build
     "$0" cli
     "$0" pipeline templates/starters/desktop
-    "$0" web platform/examples/app \
+    "$0" web platform/desktop/examples/app \
       wait .vcl-statusbar Ready shot "$state/web-before.png" \
       type input.vcl-edit ' 2' wait .vcl-statusbar Modified \
       click text=Save wait .vcl-statusbar Saved shot "$state/web-after.png"
     "$0" stop
-    "$0" desktop platform/examples/app || echo "desktop: exit $?"
+    "$0" desktop platform/desktop/examples/app || echo "desktop: exit $?"
     "$0" stop
     ;;
   stop)

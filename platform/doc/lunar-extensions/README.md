@@ -28,23 +28,23 @@ into the platform binary; it is never loaded at run time.
 
 | piece | where | role for extensions |
 |---|---|---|
-| `native.<ns>.<method>(...)` | `runtime/hosts/desktop/js/desktop.js`, a `Proxy` over any namespace and method | no JS change for a flat namespace: it already resolves. Groups need a deeper path (`groups.md`) |
-| the gate | `HostConfig::allows_native` (`platform/desktop/src/manifest.rs`), called from `platform/desktop/src/runtime/lunarstorm.rs` before routing | decides `ns.method` or `ns.*` |
-| the router | `NativeServices::call` (`platform/desktop/src/native.rs`), a `match call.ns` over the built-ins | gains an extension map after the built-ins |
-| `NativeRouter::release_epoch` | `platform/desktop/src/runtime/mod.rs` | called when a backend is retired (§6.2) |
-| `NativeCall`, `Completer` | `platform/desktop/src/runtime/mod.rs` | what a command receives and answers with |
+| `native.<ns>.<method>(...)` | `platform/desktop/host/js/desktop.js`, a `Proxy` over any namespace and method | no JS change for a flat namespace: it already resolves. Groups need a deeper path (`groups.md`) |
+| the gate | `HostConfig::allows_native` (`platform/desktop/app/src/manifest.rs`), called from `platform/desktop/app/src/runtime/lunarstorm.rs` before routing | decides `ns.method` or `ns.*` |
+| the router | `NativeServices::call` (`platform/desktop/app/src/native.rs`), a `match call.ns` over the built-ins | gains an extension map after the built-ins |
+| `NativeRouter::release_epoch` | `platform/desktop/app/src/runtime/mod.rs` | called when a backend is retired (§6.2) |
+| `NativeCall`, `Completer` | `platform/desktop/app/src/runtime/mod.rs` | what a command receives and answers with |
 
 ## Crate layout
 
 | crate | path | contents |
 |---|---|---|
 | `lunar-extension` | `platform/extension/` | `Extension`, `Group`, `Command`, `Thread`, `Context`, `NativeCall`, `Completer`, `Channel`, `Scope`, `AppEvent`, `schema`, and a `testing` module (`Harness`) |
-| `lunarstorm-platform` | `platform/desktop/` | depends on `lunar-extension`; owns the registry and the router |
+| `lunarstorm-platform` | `platform/desktop/app/` | depends on `lunar-extension`; owns the registry and the router |
 | `lunar-extension-<name>` | any | one extension; depends on `lunar-extension` only |
 
 Decision: the trait lives in its own crate (self-contained parts are their own package), so an extension
 does not build `tao`, `wry` or the runtime. `NativeCall` and `Completer` move there from
-`platform/desktop/src/runtime/mod.rs`; `lunarstorm-platform` re-exports them.
+`platform/desktop/app/src/runtime/mod.rs`; `lunarstorm-platform` re-exports them.
 
 ## The `Extension` trait
 

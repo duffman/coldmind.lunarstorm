@@ -1,0 +1,24 @@
+# The `project` package of the `lunar` command line: `project init`, `insight`,
+# `compile` and `sign`. Mounted by `platform/cli/app` behind the `project` feature.
+#
+# Decision: it compiles through `lunarstorm-host-cli::compile`, the path `jbn build`
+# uses, so a project links on the same Runtime and host modules `run` gives it.
+[package]
+name = "lunarstorm-project"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Lunarstorm project commands: init, insight, compile to a .jbn package, sign with an issued developer key"
+
+[dependencies]
+lunarstorm-cli-contract = { path = "../../crates/cli-contract" }
+lunarstorm-host-cli = { path = "../cli/host" }
+lunarstorm-jbn = { path = "../../runtime/jbn" }
+# Developer certificates: the same version and features `lunarstorm-jbn` uses.
+ed25519-dalek = { version = "2", features = ["pkcs8", "alloc"] }
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+# The tests run the commands through the real command-line host.
+lunarstorm-cli-host = { path = "../../crates/cli-host" }

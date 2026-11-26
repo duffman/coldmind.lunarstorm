@@ -30,7 +30,7 @@ fn extensions<V: Vm>(&self) -> Self::Extensions<V> { (HostApi::new((Ui,)),) }
 ## How it fits
 
 - Depends on `lunarstorm-runtime` only; dev-depends on `lunarstorm-vm-quickjs`.
-- Used by `lunarstorm-host-cli`, whose terminal API is the area `ui` (`runtime/hosts/cli/src/ui.rs`).
+- Used by `lunarstorm-host-cli`, whose terminal API is the area `ui` (`platform/cli/host/src/ui.rs`).
 
 ## Build and test
 

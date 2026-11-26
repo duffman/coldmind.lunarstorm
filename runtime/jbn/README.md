@@ -18,7 +18,7 @@ wrote the bytecode, and never touches one.
   `TrustStore::{from_json, to_json}`, `Trusted { public_key, packages, minimum_release }`.
 
 `runtime/core` builds packages (`Runtime::package`) and runs them
-(`Source::Package`); `runtime/hosts/cli` mounts `lunarstorm jbn key`,
+(`Source::Package`); `platform/cli/host` mounts `lunarstorm jbn key`,
 `lunarstorm jbn build` and `lunarstorm run --trust <trust.json> app.jbn`.
 
 ## Layout

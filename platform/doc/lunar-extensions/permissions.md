@@ -1,7 +1,7 @@
 # Extension permissions
 
 Status: **design, not implemented.** Today's gate is `HostConfig::allows_native` in
-`platform/desktop/src/manifest.rs`; spec: `doc/plans/main.md` §2.6.
+`platform/desktop/app/src/manifest.rs`; spec: `doc/plans/main.md` §2.6.
 
 Two separate things control an extension, as they do for the built-ins:
 

@@ -19,7 +19,7 @@ backend JS   native.store.set("theme", "dark")
   host         Settler::settle(epoch, id, result)  ->  the promise settles
 ```
 
-Steps up to the router exist today (`platform/desktop/src/runtime/lunarstorm.rs`, `native.rs`). The router
+Steps up to the router exist today (`platform/desktop/app/src/runtime/lunarstorm.rs`, `native.rs`). The router
 checks `commands()` itself, so `Extension::call` never sees an undeclared method and never has to guard the
 thread.
 

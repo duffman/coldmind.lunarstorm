@@ -21,7 +21,7 @@ Capabilities reported: `memory_limits` and `termination` only.
 ## How it fits
 
 - Depends on `lunarstorm-vm` and `runtime/engines/rquickjs` (feature `loader`; a first-party workspace member, so adapter and binding change together).
-- Used by `runtime/hosts/cli` and `runtime/hosts/desktop`, which choose the engine (`Runtime<QuickJs, ...>`), and by `runtime/core`'s tests.
+- Used by `platform/cli/host` and `platform/desktop/host`, which choose the engine (`Runtime<QuickJs, ...>`), and by `runtime/core`'s tests.
 - Spec: doc/plans/main.md §5, "VM ADAPTER A wraps ENGINE A".
 
 ## Build and test

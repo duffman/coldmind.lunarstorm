@@ -1,7 +1,7 @@
 # devtools-cli
 
 The frontend tools as a package of the `lunarstorm` command line, over `devtools_server`,
-`devtools_bundler` and `devtools_core`. Library only (`devtools_cli`); `apps/lunarstorm`
+`devtools_bundler` and `devtools_core`. Library only (`devtools_cli`); `platform/cli/app`
 mounts it behind its `frontend` feature (on by default).
 
 ## Public surface
@@ -22,7 +22,7 @@ mounts it behind its `frontend` feature (on by default).
 ## How it fits
 
 Depends on `lunarstorm-cli-contract` (only), `devtools_core`, `devtools_server`,
-`devtools_bundler`, axum and tokio. `apps/lunarstorm` depends on it. Each command runs on its
+`devtools_bundler`, axum and tokio. `platform/cli/app` depends on it. Each command runs on its
 own multi-threaded tokio runtime (`execute` in `src/lib.rs`).
 
 ## Build and test
@@ -32,7 +32,7 @@ cargo build -p devtools-cli
 cargo test -p lunarstorm --test frontend_commands --test frontend_transpile
 ```
 
-The end-to-end tests live in `apps/lunarstorm/tests/` because they drive the real binary.
+The end-to-end tests live in `platform/cli/app/tests/` because they drive the real binary.
 
 ## Decisions and hazards
 

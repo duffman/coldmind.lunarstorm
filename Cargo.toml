@@ -1,8 +1,5 @@
 # Lunarstorm monorepo: the one Cargo workspace for every Rust crate in the repo.
 #
-#   apps/        product binaries that mount packages:
-#     lunarstorm      the `lunarstorm` command line: `run` (runtime) and `build` (pipeline),
-#                     one Cargo feature per package; see doc/cli.md
 #   crates/      reusable crates with no tie to one product; anything in the repo
 #                may depend on them:
 #     cliui           terminal UI: colors, help screens, error frames, progress bars
@@ -11,10 +8,6 @@
 #     cli-host        parses, documents and dispatches the commands of mounted packages
 #     http1           HTTP/1.1 request framing and response heads; no sockets, no JS
 #   runtime/     the Lunarstorm runtime, as the layers of spec section 5:
-#     hosts/cli       CLI app host: process, argv, stdio, exit code; the `run` command
-#                     package mounted by apps/lunarstorm
-#     hosts/desktop   desktop app host: a desktop application's backend on the Runtime,
-#                     and the tao shell around it (binary `lunarstorm-desktop`)
 #     core            the Runtime: event loop, timers, modules, fs and net; generic
 #                     over the VM and the host
 #     modules         module sources: TypeScript, JSON and CommonJS as ES modules,
@@ -36,14 +29,24 @@
 #     core            lunar-extension: names, manifest, plugin hosts, load-time
 #                     checks (no VM), shared by the runtime and platform levels
 #     hostapi         HostApi: a host's API areas as plugins (lunarstorm:hostapi)
-#   platform/    the Lunarstorm platform, spec section 6 (the product):
-#     desktop         native desktop process: lib + `lunarstorm-debug`, `lunarstorm-release`
-#     pack            `lunarstorm-pack`: archive, attach, package and sign per OS
-#     web             `lunarstorm-web`: the app in a browser tab, backend in a Worker
-#     lunarstation    the `lunarstation` command line: lunar's packages on the CLI host
-#                     under its own name and external prefix
+#   platform/    the Lunarstorm platform, spec section 6 (the products):
+#     cli/host        CLI app host: process, argv, stdio, exit code; the `run` command
+#                     package mounted by cli/app
+#     cli/app         the `lunar` command line: `run` (runtime), `build` (pipeline),
+#                     `project`; one Cargo feature per package; see doc/cli.md
+#     cli/lunarstation  the `lunarstation` command line: lunar's packages on the CLI
+#                     host under its own name and external prefix
+#     desktop/host    desktop app host: a desktop application's backend on the Runtime,
+#                     and the tao shell around it (binary `lunarstorm-desktop`)
+#     desktop/app     native desktop process: lib + `lunarstorm-debug`, `lunarstorm-release`
+#     desktop/pack    `lunarstorm-pack`: archive, attach, package and sign per OS
+#     desktop/web     `lunarstorm-web`: the app in a browser tab, backend in a Worker
+#     desktop/examples/app  a complete generated project (not a crate)
+#     project         `lunar project`: init, insight, compile, sign (used by cli and desktop)
 #     development     the `development` application
-#     examples/app    a complete generated project (not a crate)
+#
+# Decision: each product (cli, desktop) owns its host beside its binaries, so the
+# runtime/ tree holds only what every host shares.
 #   toolchain/   the build toolchain (devtools crates and the vendored oj_* compiler)
 #
 # Decision: one workspace at the repo root instead of the former `runtime/` and
@@ -61,7 +64,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "apps/lunarstorm",
+    "platform/cli/app",
     "runtime/vm",
     "runtime/engines/quickjs",
     "runtime/engines/rquickjs",
@@ -83,15 +86,15 @@ members = [
     "runtime/compiler/crates/qjs-bytecode",
     "runtime/compiler/crates/qjs-compiler-core",
     "runtime/compiler/crates/qjs-reference",
-    "runtime/hosts/cli",
-    "runtime/hosts/desktop",
+    "platform/cli/host",
+    "platform/desktop/host",
     "extensions/core",
     "extensions/hostapi",
-    "platform/desktop",
-    "platform/pack",
-    "platform/web",
-    "platform/extensions/project",
-    "platform/lunarstation",
+    "platform/desktop/app",
+    "platform/desktop/pack",
+    "platform/desktop/web",
+    "platform/project",
+    "platform/cli/lunarstation",
     "platform/development",
     "crates/cliui",
     "crates/cli-contract",

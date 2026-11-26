@@ -14,11 +14,11 @@ Terminal UI for Lunarstorm command-line tools. The tool decides what is said; th
 | `report::uncaught(label, text)` | uncaught-error report |
 | `UI_SOURCE` | `js/ui.js` as `&str`, for the host to compile as an ES module; exports `style`, `progress`, `spinner` |
 
-`ui.js` expects the host to provide on `__lunarstorm.internal`: `ops.color`, `ops.tty` (`[stdout, stderr]`), `ops.columns()`, `ops.live(on)`, `ops.print(fd, text)`, `ops.flush()`, `ops.now()`, and a `live.wrap` slot that the host's console must route output through while bars are on screen. `runtime/hosts/cli` is the one host that does this.
+`ui.js` expects the host to provide on `__lunarstorm.internal`: `ops.color`, `ops.tty` (`[stdout, stderr]`), `ops.columns()`, `ops.live(on)`, `ops.print(fd, text)`, `ops.flush()`, `ops.now()`, and a `live.wrap` slot that the host's console must route output through while bars are on screen. `platform/cli/host` is the one host that does this.
 
 ## How it fits
 
-- Used by `crates/cli-host` (help screens, usage errors, `--color`) and `runtime/hosts/cli` (error reports, `lunarstorm:ui`, terminal ops).
+- Used by `crates/cli-host` (help screens, usage errors, `--color`) and `platform/cli/host` (error reports, `lunarstorm:ui`, terminal ops).
 - Mentioned in the root `Cargo.toml` header and `doc/cli.md`; it implements no spec section (tooling around doc/plans/main.md §5's CLI host).
 
 ## Build and test
@@ -28,7 +28,7 @@ cargo build -p lunarstorm-cliui
 cargo test -p lunarstorm-cliui
 ```
 
-The crate has no tests of its own. Its behavior is covered end to end by `apps/lunarstorm/tests/ui.rs` (`cargo test -p lunarstorm --test ui`), which runs the real binary on a pseudo-terminal.
+The crate has no tests of its own. Its behavior is covered end to end by `platform/cli/app/tests/ui.rs` (`cargo test -p lunarstorm --test ui`), which runs the real binary on a pseudo-terminal.
 
 ## Decisions and hazards
 

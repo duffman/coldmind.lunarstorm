@@ -1,0 +1,63 @@
+# The `lunarstorm` binary: the one command line for the Lunarstorm runtime and the
+# desktop build tools.
+#
+# The packages it mounts are chosen here, one Cargo feature each, so a build can
+# carry any subset: `cargo build -p lunarstorm --no-default-features --features build`
+# gives a CLI with only `build`. Mounting a new package = an optional dependency, a
+# feature, and one `.package(...)` line in `src/main.rs` (see doc/cli.md).
+[package]
+name = "lunarstorm"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Lunarstorm command line: the runtime (`run`), the desktop build tools (`build`) and the frontend tools (`serve`, `bundle`, `preview`, `transpile`)"
+
+[[bin]]
+name = "lunar"
+path = "src/main.rs"
+
+[features]
+default = ["runtime", "build", "frontend", "project"]
+# `run`: scripts on the Lunarstorm runtime (platform/cli/host).
+runtime = ["dep:lunarstorm-host-cli"]
+# `build`: the desktop build pipeline (toolchain/crates/pipeline).
+build = ["dep:lunarstorm-pipeline"]
+# `serve`, `bundle`, `preview`, `transpile`: the frontend tools (toolchain/crates/cli).
+frontend = ["dep:devtools-cli"]
+# `project init`, `insight`, `compile`, `sign` (platform/project).
+project = ["dep:lunarstorm-project"]
+
+[dependencies]
+lunarstorm-cli-host = { path = "../../../crates/cli-host" }
+lunarstorm-host-cli = { path = "../host", optional = true }
+lunarstorm-pipeline = { path = "../../../toolchain/crates/pipeline", optional = true }
+devtools-cli = { path = "../../../toolchain/crates/cli", optional = true }
+lunarstorm-project = { path = "../../project", optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
+# tests/ui.rs drives a pseudo-terminal through libc.
+libc = "0.2"
+
+# Each suite drives commands of particular packages, so it builds only when those
+# packages are mounted; `cargo test -p lunarstorm --no-default-features --features X`
+# then runs exactly the suites X can pass.
+[[test]]
+name = "cli"
+required-features = ["runtime"]
+
+[[test]]
+name = "ui"
+required-features = ["runtime"]
+
+[[test]]
+name = "commands"
+required-features = ["runtime", "build"]
+
+[[test]]
+name = "frontend_commands"
+required-features = ["frontend"]
+
+[[test]]
+name = "frontend_transpile"
+required-features = ["frontend"]

@@ -14,7 +14,7 @@ The Lunarstorm Runtime: a single-threaded mio reactor that owns every socket and
 ## How it fits
 
 - Depends on `lunarstorm-vm`, `lunar-extension` (`extensions/core`), `lunarstorm-http1`, `mio`, `crossbeam-channel`, `bytes`, `slab`, `libc`. Dev-depends on `lunarstorm-vm-quickjs` (the library itself names no engine).
-- Used by `runtime/hosts/cli` (the `run` command) and `runtime/hosts/desktop` (backend thread), which bind the engine, and by extensions (`extensions/hostapi`).
+- Used by `platform/cli/host` (the `run` command) and `platform/desktop/host` (backend thread), which bind the engine, and by extensions (`extensions/hostapi`).
 - Concepts: `doc/hosts.md` (the Runtime, hosts, the host contract), `doc/extensions.md` (extensions, plugin hosts, plugins, manifest, permissions).
 - Spec: doc/plans/main.md §5, "RUNTIME INTERFACE" (start/load/stop, call, post, poll, register), "RUNTIME", "Bindings", "Isolation".
 

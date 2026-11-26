@@ -12,7 +12,7 @@ output dir --lunarstorm-web----> browser tab, backend in a Worker
 output dir --lunarstorm-pack---> .app / .exe / linux dir, with lunarstorm-release + archive
 ```
 
-## `lunar`: the command line (`apps/lunarstorm`)
+## `lunar`: the command line (`platform/cli/app`)
 
 `src/main.rs` mounts one package per Cargo feature on `crates/cli-host`. The default features are
 all four:
@@ -22,7 +22,7 @@ all four:
 | `runtime` | `lunarstorm-host-cli` | `run` (default command), `debug` (DAP on stdio), `jbn key`, `jbn build` |
 | `build` | `lunarstorm-pipeline` | `build [-p dir] [-o dir]`, `build types`, `build check` |
 | `frontend` | `devtools-cli` | `serve`, `bundle`, `preview`, `transpile` |
-| `project` | `lunarstorm-project` (`platform/extensions/project`) | `project init`, `project insight`, `project compile`, `project sign` |
+| `project` | `lunarstorm-project` (`platform/project`) | `project init`, `project insight`, `project compile`, `project sign` |
 
 The host adds `help`, `describe` (the whole tree as JSON), `completions <bash|zsh>`, `--color`,
 `--help` and `--version`.
@@ -35,14 +35,14 @@ fails with `cannot read pack`.
 How a crate adds commands: `crates/cli-contract` (`trait Package`, `Command`, `Arg`,
 `Invocation`, zero dependencies). See the `lunarstorm-cli` skill.
 
-## Desktop process (`platform/desktop`, crate `lunarstorm-platform`)
+## Desktop process (`platform/desktop/app`, crate `lunarstorm-platform`)
 
 - **Binaries.**
   - `lunarstorm-debug <dir>` (`src/bin/debug.rs`): loads an output dir, opens windows, and watches *the output dir* with an 80 ms debounce. Re-run `lunar build` yourself.
   - `lunarstorm-release` reads the archive attached to its own executable.
 - **Threads.**
   - UI: tao, wry, muda menus, tray, dialogs. All routing happens here.
-  - The backend thread, in `runtime/hosts/desktop`.
+  - The backend thread, in `platform/desktop/host`.
   - A 4-thread pool.
 - **Native calls** `native.<ns>.<method>` (`src/native.rs`).
 
@@ -74,19 +74,19 @@ How a crate adds commands: `crates/cli-contract` (`trait Package`, `Command`, `A
 - **Build-time switch** `LUNARSTORM_APP_RUNTIME`: `lunarstorm` (default), `mock`, or a `.rs` path.
 - **Release build:** `cargo build --profile platform --no-default-features --bin lunarstorm-release`. The `platform` profile unwinds on panic and drops devtools.
 
-**Split with `runtime/hosts/desktop`.**
-- `runtime/hosts/desktop` (`lunarstorm-host-desktop`) owns the JS side: `Backend<S: Shell>`, one Runtime per epoch, a watchdog on `PULSE`, the `@desktop/bridge` and `@desktop/api` modules (`js/desktop.js`), and a JSON-only `Shell`.
-- `platform/desktop` implements `Shell` (`src/runtime/lunarstorm.rs`) and owns windows, natives, the envelope and permissions.
-- `_build/lunarstorm-desktop` (from `runtime/hosts/desktop/src/main.rs`) is a minimal tao shell with no WebView that runs one script.
+**Split with `platform/desktop/host`.**
+- `platform/desktop/host` (`lunarstorm-host-desktop`) owns the JS side: `Backend<S: Shell>`, one Runtime per epoch, a watchdog on `PULSE`, the `@desktop/bridge` and `@desktop/api` modules (`js/desktop.js`), and a JSON-only `Shell`.
+- `platform/desktop/app` implements `Shell` (`src/runtime/lunarstorm.rs`) and owns windows, natives, the envelope and permissions.
+- `_build/lunarstorm-desktop` (from `platform/desktop/host/src/main.rs`) is a minimal tao shell with no WebView that runs one script.
 
-## Browser host (`platform/web`, `lunarstorm-web <dir> [--port n]`)
+## Browser host (`platform/desktop/web`, `lunarstorm-web <dir> [--port n]`)
 
 - Serves an output dir on loopback, built once with no watcher.
 - Injects `src/host.js` (the in-page host: it answers `os.info` and refuses every other native call).
 - The backend runs in `src/worker.js`.
-- **Hazard:** the bridge exists twice, in `runtime/hosts/desktop/js/desktop.js` and `platform/web/src/worker.js`. Change both.
+- **Hazard:** the bridge exists twice, in `platform/desktop/host/js/desktop.js` and `platform/desktop/web/src/worker.js`. Change both.
 
-## Packager (`platform/pack`, `lunarstorm-pack`)
+## Packager (`platform/desktop/pack`, `lunarstorm-pack`)
 
 `lunarstorm-pack <dir> --runtime <lunarstorm-release> --out <dir> [--target macos|windows|linux] [--sign id]`
 loads an already built dir (it does not run the pipeline).
@@ -111,15 +111,15 @@ It does not check that `--runtime` matches `--target`.
   It writes nothing on error.
 - **Dummy runtimes (commit `e59dce6`).** The embedded `vcl.js` has `mount = _load => {}`, so built projects render **blank**. The embedded `forms.ts` wires no handlers.
 - **`lunar build types`** always writes `<project>/src/desktop.d.ts`. Don't run it on a tracked template.
-- **Example app.** `platform/examples/app` is hand-written output with a working `vcl.js`. It is the only thing that renders a real UI. Rust tests name its controls, so don't regenerate it.
+- **Example app.** `platform/desktop/examples/app` is hand-written output with a working `vcl.js`. It is the only thing that renders a real UI. Rust tests name its controls, so don't regenerate it.
 
 ## Operate
 
 ```sh
 .claude/skills/run-lunarstorm/driver.sh pipeline templates/starters/desktop   # -> .scratch/run-lunarstorm/dist
 ~/.cargo-target/debug/lunar build check -p templates/starters/desktop         # ok: 1 form(s)
-.claude/skills/run-lunarstorm/driver.sh web platform/examples/app wait .vcl-statusbar Ready shot .scratch/run-lunarstorm/web.png
-.claude/skills/run-lunarstorm/driver.sh desktop platform/examples/app
+.claude/skills/run-lunarstorm/driver.sh web platform/desktop/examples/app wait .vcl-statusbar Ready shot .scratch/run-lunarstorm/web.png
+.claude/skills/run-lunarstorm/driver.sh desktop platform/desktop/examples/app
 .claude/skills/run-lunarstorm/driver.sh stop
 ~/.cargo-target/debug/lunar describe                                         # every command as JSON
 cargo test -q -p lunarstorm-web
@@ -131,4 +131,4 @@ cargo test -q -p lunarstorm --test ui --test cli --test commands
 - **Rebuilds always change `backend.js`.** Rolldown embeds the temp work directory path (`$TMPDIR/lunarstorm-backend-<pid>-…`), so the dev table sees a backend change on every rebuild.
 - **A failed `lunar bundle` leaves partial output** in `-o`.
 - **`platform/extensions/` is not about lunar-extensions.** Its only crate, `project`, is a CLI package.
-- **Stale READMEs:** `apps/lunarstorm/README.md` (says `lunarstorm`, two features) and `doc/cli.md` (no `project` package).
+- **Stale READMEs:** `platform/cli/app/README.md` (says `lunarstorm`, two features) and `doc/cli.md` (no `project` package).

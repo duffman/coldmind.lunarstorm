@@ -13,8 +13,8 @@ dependencies. State, logs and screenshots go to `.scratch/run-lunarstorm/`.
 
 | part | what it is | read |
 |---|---|---|
-| **Runtime** `runtime/` | Node.js-like JS runtime: QuickJS-NG behind a VM contract (`runtime/vm`), a mio event loop with `node:*` builtins (`runtime/core`), TS/CJS/packages (`runtime/modules`), signed `.jbn` packages, a DAP debugger. A library: a **host** owns it (`runtime/hosts/cli`, `runtime/hosts/desktop`). | [runtime.md](runtime.md) |
-| **Platform** `apps/`, `platform/`, `toolchain/` | Owns the runtime and ships apps: the `lunar` CLI (runtime + build + frontend + project packages), the desktop process (`lunarstorm-debug`/`-release`: windows, WebViews, `native.*`), the browser host `lunarstorm-web`, the packager `lunarstorm-pack`; the pipeline compiles a project into the output dir they run. | [platform.md](platform.md) |
+| **Runtime** `runtime/` | Node.js-like JS runtime: QuickJS-NG behind a VM contract (`runtime/vm`), a mio event loop with `node:*` builtins (`runtime/core`), TS/CJS/packages (`runtime/modules`), signed `.jbn` packages, a DAP debugger. A library: a **host** owns it (`platform/cli/host`, `platform/desktop/host`). | [runtime.md](runtime.md) |
+| **Platform** `platform/`, `toolchain/` | Owns the runtime and ships apps: the `lunar` CLI (runtime + build + frontend + project packages), the desktop process (`lunarstorm-debug`/`-release`: windows, WebViews, `native.*`), the browser host `lunarstorm-web`, the packager `lunarstorm-pack`; the pipeline compiles a project into the output dir they run. | [platform.md](platform.md) |
 | **Extensions** `extensions/` | lunar-extensions: modules, natives and state a host installs per Runtime, selected by the host's manifest; plugin hosts and plugins (HostApi with the CLI's `ui` area). Runtime level built; platform level design only. | [extensions.md](extensions.md) |
 
 Shared crates: `crates/cli-contract`, `crates/cli-host`, `crates/cliui`, `crates/http1` (the
@@ -47,7 +47,7 @@ The smoke run does this:
 ## Drive the UI in a browser
 
 ```sh
-.claude/skills/run-lunarstorm/driver.sh web platform/examples/app \
+.claude/skills/run-lunarstorm/driver.sh web platform/desktop/examples/app \
   wait .vcl-statusbar Ready \
   type input.vcl-edit ' 2' wait .vcl-statusbar Modified \
   click text=Save wait .vcl-statusbar Saved \
@@ -80,7 +80,7 @@ across `open`s.
 .claude/skills/run-lunarstorm/driver.sh project
 ~/.cargo-target/debug/lunar -e 'import ui from "lunarstorm:ui"; import { areas } from "lunarstorm:hostapi"; console.log(Object.keys(ui), areas)'
 .claude/skills/run-lunarstorm/driver.sh pipeline templates/starters/desktop .scratch/run-lunarstorm/dist
-.claude/skills/run-lunarstorm/driver.sh desktop platform/examples/app .scratch/run-lunarstorm/desktop.png
+.claude/skills/run-lunarstorm/driver.sh desktop platform/desktop/examples/app .scratch/run-lunarstorm/desktop.png
 .claude/skills/run-lunarstorm/driver.sh stop
 ```
 
@@ -100,7 +100,7 @@ cargo test -q -p lunarstorm --test ui --test cli --test commands
   - Seen: `lunar --help` on `main` showed the `cli-package-help` worktree's RUNTIME/BUILD sections, and `top_help_lists_every_package_and_the_host_commands` failed with `missing "COMMANDS"`.
   - Fix: `driver.sh build --fresh` (16 s), which touches every crate root and rebuilds.
 - **Hosts take output dirs, not source projects.** `lunarstorm-web` and `lunarstorm-debug` need a directory holding `zebra.json`. Given `templates/starters/desktop` they fail with `templates/starters/desktop/zebra.json: No such file or directory`. Build first.
-- **Built projects render blank.** The pipeline embeds a dummy WebView runtime (`e59dce6`) whose `mount` is `_load => {}`. Drive the UI on `platform/examples/app`.
+- **Built projects render blank.** The pipeline embeds a dummy WebView runtime (`e59dce6`) whose `mount` is `_load => {}`. Drive the UI on `platform/desktop/examples/app`.
 - **The CLI has no workers, IPC, `fetch` or `http.request`.** `lunarstorm:worker` and `lunarstorm:ipc` are "module not found" under `lunar`; use `driver.sh runtime-ipc`. See runtime.md for the builtins.
 - **Desktop capture needs Screen Recording permission** for the terminal (System Settings > Privacy & Security > Screen & System Audio Recording). Without it, `screencapture` says `could not create image from window`, even with the sandbox off. `driver.sh desktop` then exits 3 after confirming the window opened.
 - **In the browser the status bar reads `Ready · browser/web`.** The in-page host answers only `os.info`; every other `native.*` call is refused.

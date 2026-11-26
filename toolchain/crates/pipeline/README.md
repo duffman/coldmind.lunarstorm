@@ -22,8 +22,8 @@ linked into the CLI and the debug runtime (spec 4).
 ## How it fits
 
 Depends on `lunarstorm-model` and `lunarstorm-cli-contract` (`crates/cli-contract`);
-bundles with `rolldown =1.3.1` on a tokio runtime. Mounted by `apps/lunarstorm` behind its
-`build` feature. Its output is what `platform/desktop`'s `OutputDirPipeline` loads. It
+bundles with `rolldown =1.3.1` on a tokio runtime. Mounted by `platform/cli/app` behind its
+`build` feature. Its output is what `platform/desktop/app`'s `OutputDirPipeline` loads. It
 embeds three files from elsewhere in the repo via `include_str!`: `framework/desktop/forms.js`
 (backend runtime), `templates/zebra.framework/dist/vcl.js` (prebuilt React VCL; a missing
 `dist/` breaks compilation) and `framework/vcl/react/src/vcl.css`. Spec: section 4.

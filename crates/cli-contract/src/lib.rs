@@ -2,7 +2,7 @@
 //!
 //! A *package* is any crate that wants commands on the `lunarstorm` command line:
 //! the runtime exports `run`, the build pipeline exports `build`. The product binary
-//! (`apps/lunarstorm`) chooses which packages it mounts; the host
+//! (`platform/cli/app`) chooses which packages it mounts; the host
 //! (`lunarstorm-cli-host`) parses the command line against their specs and calls
 //! their handlers.
 //!

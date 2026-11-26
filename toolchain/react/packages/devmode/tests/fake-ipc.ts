@@ -1,5 +1,5 @@
 /**
- * A stand-in for the desktop host's WebView IPC (platform/desktop): `win.ipc.postMessage(json)` receives envelopes and
+ * A stand-in for the desktop host's WebView IPC (platform/desktop/app): `win.ipc.postMessage(json)` receives envelopes and
  * answers through `win.__zebraReceive(envelope)` asynchronously, running RESP on the dev mock, one session per `open`.
  */
 import { MockRedis, type Session } from "../dev/resp-mock.ts";

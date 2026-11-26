@@ -17,7 +17,7 @@ Concepts: `runtime/core/doc/extensions.md`. Plan: `doc/plans/hostapi.md`.
 | `Extension<V>` / `ExtensionSet<V>` | `runtime/core/src/extension.rs` | `const NAME`, `plugin_hosts()`, `bindings(&Use) -> Result<Bindings<V>, String>`; sets are `()` and tuples up to 8; `install` runs only for extensions the manifest uses, errors prefixed `extension <name>:` |
 | `Bindings<V>` | `runtime/core/src/bindings.rs` | `function(name, f)` → `ops.<name>`; `values(f)` → raw values on `ops`; `module(specifier, source)` → a JS host module; `merge(owner, other)` fences modules to `lunarstorm:<owner>[/...]` and refuses duplicate modules/functions |
 | `HostApi<V, A>` | `extensions/hostapi` (`lunar-extension-hostapi`) | the host's own API as plugins: plugin host `area` (Many, Optional); each `Area` is fenced to `lunarstorm:hostapi/<area>`; `lunarstorm:hostapi` exports `areas` (frozen, manifest order) |
-| `Ui` area | `runtime/hosts/cli/src/ui.rs` + `crates/cliui/js/ui.js` | `lunarstorm:hostapi/ui` (alias `lunarstorm:ui`): `style`, `progress`, `spinner` |
+| `Ui` area | `platform/cli/host/src/ui.rs` + `crates/cliui/js/ui.js` | `lunarstorm:hostapi/ui` (alias `lunarstorm:ui`): `style`, `progress`, `spinner` |
 
 **Manifest format** (`deny_unknown_fields`; `extensions` is the only key):
 
@@ -25,7 +25,7 @@ Concepts: `runtime/core/doc/extensions.md`. Plan: `doc/plans/hostapi.md`.
 { "extensions": { "hostapi": { "plugins": ["ui"], "config": null } } }
 ```
 
-The CLI host's manifest is `runtime/hosts/cli/manifest.json`, embedded with `include_str!`. The
+The CLI host's manifest is `platform/cli/host/manifest.json`, embedded with `include_str!`. The
 desktop host uses the empty default.
 
 **Enforced today:**
@@ -71,12 +71,12 @@ the Rust natives with no JS wrapper. Extensions cannot declare native modules to
    - Keep state in `Rc`/`Cell` captured by the closures; it is per Runtime.
    - Read configuration with `using.config()`.
    - For plugins, override `plugin_hosts()` and fence each plugin with `merge("foo/<plugin>")` as HostApi does.
-   - For a host-specific API, write a HostApi `Area` instead, like `runtime/hosts/cli/src/ui.rs`.
+   - For a host-specific API, write a HostApi `Area` instead, like `platform/cli/host/src/ui.rs`.
 4. **Wire it into a host.**
-   - In `runtime/hosts/cli/src/host.rs`, set `type Extensions<V: Vm> = (HostApi<V, (Ui,)>, Foo);` and build it in `extensions()`. Tuple order is install order.
-   - Add `"foo": {}` to `runtime/hosts/cli/manifest.json`.
-   - Add the dependency to `runtime/hosts/cli/Cargo.toml`.
-   - Optionally list it in the help's MODULES rows (`cli.rs`).
+   - In `platform/cli/host/src/host.rs`, set `type Extensions<V: Vm> = (HostApi<V, (Ui,)>, Foo);` and build it in `extensions()`. Tuple order is install order.
+   - Add `"foo": {}` to `platform/cli/host/manifest.json`.
+   - Add the dependency to `platform/cli/host/Cargo.toml`.
+   - Optionally list it in the help's MODULES rows (`platform/cli/host/src/command.rs`).
 5. **Test**, modelled on `runtime/core/tests/extensions.rs` and `extensions/hostapi/tests/hostapi.rs`, with a `TestHost`, `Manifest::parse`, `Runtime::<QuickJs, _>::new`, `start`, `load(Source::Text)` and `run`. Cover:
    - the module works;
    - unused means inert;
@@ -84,7 +84,7 @@ the Rust natives with no JS wrapper. Extensions cannot declare native modules to
    - fence refusals;
    - per-Runtime state.
 
-   Also keep the host's `the_manifest_matches_the_host` passing, and add an end-to-end case in `apps/lunarstorm/tests/`.
+   Also keep the host's `the_manifest_matches_the_host` passing, and add an end-to-end case in `platform/cli/app/tests/`.
 
 ## Operate
 

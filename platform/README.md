@@ -34,8 +34,8 @@ package.json    optional; a change forces a restart
 Run from the repo root:
 
 ```bash
-cargo run --bin lunarstorm-debug -- platform/examples/app
-cargo run --bin lunarstorm-web -- platform/examples/app
+cargo run --bin lunarstorm-debug -- platform/desktop/examples/app
+cargo run --bin lunarstorm-web -- platform/desktop/examples/app
 ```
 
 Release builds use the `platform` profile (`release` aborts on panic; the platform catches panics):
@@ -56,12 +56,12 @@ and answer every `request`.
 
 | value         | runtime                                                              |
 |---------------|----------------------------------------------------------------------|
-| `lunarstorm`  | default: the backend on the Lunarstorm Runtime, through the desktop app host (`runtime/hosts/desktop`) |
+| `lunarstorm`  | default: the backend on the Lunarstorm Runtime, through the desktop app host (`platform/desktop/host`) |
 | `mock`        | `MockRuntime`: logs every IPC message to stderr as `[mock-runtime] {…}` |
 | `<path>.rs`   | that file; it defines `pub fn create(ctx: crate::runtime::RuntimeContext) -> Box<dyn crate::runtime::AppRuntime>` |
 
 ```bash
-LUNARSTORM_APP_RUNTIME=mock cargo run --bin lunarstorm-debug -- platform/examples/app
+LUNARSTORM_APP_RUNTIME=mock cargo run --bin lunarstorm-debug -- platform/desktop/examples/app
 ```
 
 ## Layout

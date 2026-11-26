@@ -16,12 +16,12 @@ argv, stdio, file access, which extensions exist and whether workers/IPC exist.
 | `runtime/jbn` | `lunarstorm-jbn` | signed `.jbn` packages (Ed25519, CBOR, zstd), trust store |
 | `runtime/debug` | `lunarstorm-debug` | DAP debugger (from jetbunny) |
 | `runtime/compiler/crates/qjs-*` | `qjs-ir`, `qjs-frontend`, `qjs-bytecode`, `qjs-compiler-core`, `qjs-reference` | jetbunny's Rust JS compiler, pulled in by `lunarstorm-debug` |
-| `runtime/hosts/cli` | `lunarstorm-host-cli` | library: the `run`, `debug`, `jbn` commands and `CliHost`; mounted by `lunar` |
-| `runtime/hosts/desktop` | `lunarstorm-host-desktop` (+ bin `lunarstorm-desktop`) | a desktop app's backend on a thread, new Runtime per epoch |
+| `platform/cli/host` | `lunarstorm-host-cli` | library: the `run`, `debug`, `jbn` commands and `CliHost`; mounted by `lunar` |
+| `platform/desktop/host` | `lunarstorm-host-desktop` (+ bin `lunarstorm-desktop`) | a desktop app's backend on a thread, new Runtime per epoch |
 
 ## How `lunar run file.js` runs
 
-1. `runtime/hosts/cli/src/cli.rs` `run`: argv is `["lunar", script, ...]` (`ARGV0`); a `.jbn` needs `--trust` or `LUNARSTORM_TRUST`.
+1. `platform/cli/host/src/command.rs` `run`: argv is `["lunar", script, ...]` (`ARGV0`); a `.jbn` needs `--trust` or `LUNARSTORM_TRUST`.
 2. `Runtime::<QuickJs, CliHost>::new` (mio poll, waker), `register(host::bindings())` (`ops.color`, `ops.tty`, `lunarstorm:ui`).
 3. `Runtime::start` (`runtime/core/src/runtime.rs` ~583): check the host's manifest, install extensions, create Loader + engine instance, `ops::install`, run binding installers, run the glue (`bootstrap.js`, compiled once per process into shared bytecode).
 4. `load(Source::File)`: read through `Host::allow(Access::Read)`, transform TS/CJS/JSON, evaluate, `settle`.
@@ -61,8 +61,8 @@ Defaulted: `PULSE`, `IPC`, `WORKERS` (all `false`), `manifest()` (empty), `monot
 
 | host | IPC/WORKERS | extensions | file access |
 |---|---|---|---|
-| `CliHost` (`runtime/hosts/cli/src/host.rs`) | off | `(HostApi<V, (Ui,)>,)` + `manifest.json` | everything |
-| desktop backend (`runtime/hosts/desktop/src/lib.rs`) | off, `PULSE` on | `()` | read/write under `roots` only; listen/connect refused |
+| `CliHost` (`platform/cli/host/src/host.rs`) | off | `(HostApi<V, (Ui,)>,)` + `manifest.json` | everything |
+| desktop backend (`platform/desktop/host/src/lib.rs`) | off, `PULSE` on | `()` | read/write under `roots` only; listen/connect refused |
 | `ipc-demo` (`runtime/core/examples/ipc-demo.rs`) | on | `()` | example |
 
 Workers: each is a new Runtime on its own thread from `Host::worker_host`; at most 4096 messages,
@@ -96,6 +96,6 @@ about a minute per runtime) and appends to `runtime/bench/results.txt`.
 - **Stale READMEs:**
   - `runtime/vm` and `runtime/engines/quickjs` (check counts, capabilities, `Load::Native`).
   - `runtime/core` (says bare packages are rejected; they resolve).
-  - `runtime/hosts/cli` (argv[0] and the command list).
+  - `platform/cli/host` (argv[0] and the command list).
 
   Trust the code.

@@ -35,7 +35,7 @@ structure can be tested (worker threads, Task 4), the plan says so and names the
 
 #### Task 1: Links cannot widen a root (review #1, plan review #5, #6)
 
-**Description:** In `within()` (`runtime/hosts/desktop/src/lib.rs`), a component that
+**Description:** In `within()` (`platform/desktop/host/src/lib.rs`), a component that
 `symlink_metadata` reports as a symlink but that cannot be canonicalised refuses the path (D5).
 In `fs.rs`, an existing regular file with `nlink > 1` is refused (D4), using the `fstat` of
 Task 3. Comments at both sites name the defect, the decision and the dropped alternative.
@@ -50,26 +50,26 @@ Task 3. Comments at both sites name the defect, the decision and the dropped alt
 
 **Verification:** `cargo test -p lunarstorm-host-desktop --test backend`
 **Dependencies:** Task 3 (for the hard-link half: it uses the open handle's `fstat`) ·
-**Files:** `runtime/hosts/desktop/src/lib.rs`, `src/fs.rs`, `tests/backend.rs` · **Scope:** S
+**Files:** `platform/desktop/host/src/lib.rs`, `src/fs.rs`, `tests/backend.rs` · **Scope:** S
 
 #### Task 2: The backend's `node:fs` no longer inherits `permissions.fs` (D1)
 
 **Description:** `Program` gains `area_roots: Vec<PathBuf>` (the `fs` area's scope). `roots`
 stays the backend's `node:fs` scope. The platform passes `permissions.fs` as `area_roots` and an
-empty `roots`. `runtime/hosts/desktop/src/main.rs` (the test shell) passes its script directory
+empty `roots`. `platform/desktop/host/src/main.rs` (the test shell) passes its script directory
 as both.
 
 **Acceptance criteria:**
 - [ ] New test `the_backend_gets_no_fs_roots_from_permissions_fs` in
-  `platform/desktop/src/runtime/tests.rs` (real `LunarstormRuntime`). Config `permissions.fs =
+  `platform/desktop/app/src/runtime/tests.rs` (real `LunarstormRuntime`). Config `permissions.fs =
   [dir]`; the backend runs `readFileSync(dir/a.txt)` and logs the outcome. It expects `EACCES`;
   today it logs the content (red).
 - [ ] `tests/e2e_hostapi.rs` (WebView `fs.readText` under `permissions.fs`) stays green.
 
 **Verification:** `cargo test -p lunarstorm-platform` · `cargo test -p lunarstorm-host-desktop`
-**Dependencies:** None · **Files:** `runtime/hosts/desktop/src/lib.rs`, `src/main.rs`,
-`tests/backend.rs` (the `Program` literal), `platform/desktop/src/runtime/lunarstorm.rs`,
-`platform/desktop/src/runtime/tests.rs` · **Scope:** M
+**Dependencies:** None · **Files:** `platform/desktop/host/src/lib.rs`, `src/main.rs`,
+`tests/backend.rs` (the `Program` literal), `platform/desktop/app/src/runtime/lunarstorm.rs`,
+`platform/desktop/app/src/runtime/tests.rs` · **Scope:** M
 
 ### Checkpoint: Security
 - [ ] `lunarstorm-host-desktop`, `lunarstorm-platform` green, counts read; clippy clean.
@@ -92,7 +92,7 @@ does the same before truncating. `list` maps `NotADirectory` to `ENOTDIR`.
   reader and the suite ends instead of hanging.
 
 **Verification:** `cargo test -p lunarstorm-host-desktop --test backend`
-**Dependencies:** None · **Files:** `runtime/hosts/desktop/src/fs.rs`, `tests/backend.rs` ·
+**Dependencies:** None · **Files:** `platform/desktop/host/src/fs.rs`, `tests/backend.rs` ·
 **Scope:** S
 
 #### Task 4: `fs` work runs off the backend thread (review #5: hung network mount; D2)
@@ -120,12 +120,12 @@ does the same before truncating. `list` maps `NotADirectory` to `ENOTDIR`.
 
 **Verification:** `cargo test -p lunarstorm-host-desktop` · `cargo test -p lunarstorm-platform --test e2e_hostapi`
 **Dependencies:** Tasks 1, 3 (their checks move into the job unchanged) · **Files:**
-`runtime/hosts/desktop/src/lib.rs`, `src/fs.rs`, `js/desktop.js` · **Scope:** M
+`platform/desktop/host/src/lib.rs`, `src/fs.rs`, `js/desktop.js` · **Scope:** M
 
 #### Task 5: Results are bounded (review #3, plan review #4, #8, #13)
 
 **Description:** Implement D6. `readText` reads through `take(MAX_TEXT + 1)`: more than
-`MAX_TEXT` bytes → `E2BIG`. `Bridge::send` (`platform/desktop/src/runtime/lunarstorm.rs`)
+`MAX_TEXT` bytes → `E2BIG`. `Bridge::send` (`platform/desktop/app/src/runtime/lunarstorm.rs`)
 replaces a `result` envelope longer than `MAX_RESULT` with a failed `result` (`E2BIG`, same id
 and window).
 
@@ -138,13 +138,13 @@ and window).
   (red).
 
 **Verification:** `cargo test -p lunarstorm-host-desktop` · `cargo test -p lunarstorm-platform`
-**Dependencies:** Task 4 (same read path) · **Files:** `runtime/hosts/desktop/src/fs.rs`,
-`tests/backend.rs`, `platform/desktop/src/envelope.rs`, `src/runtime/lunarstorm.rs`,
+**Dependencies:** Task 4 (same read path) · **Files:** `platform/desktop/host/src/fs.rs`,
+`tests/backend.rs`, `platform/desktop/app/src/envelope.rs`, `src/runtime/lunarstorm.rs`,
 `src/runtime/tests.rs` · **Scope:** M
 
 #### Task 6: A new page does not inherit the old page's calls (review #2, plan review #2, #9)
 
-**Description:** Implement D8 in `on_ipc`'s `Inbound::Hello` (`platform/desktop/src/ui/mod.rs`).
+**Description:** Implement D8 in `on_ipc`'s `Inbound::Hello` (`platform/desktop/app/src/ui/mod.rs`).
 
 **Acceptance criteria:**
 - [ ] New e2e test `a_reloaded_page_does_not_inherit_the_old_pages_calls` with its own fixture
@@ -158,8 +158,8 @@ and window).
   - Expected `reload.txt == "ok"`; today it is `"EREFUSED"` (red).
 
 **Verification:** `cargo test -p lunarstorm-platform --test e2e_hostapi`
-**Dependencies:** None · **Files:** `platform/desktop/src/ui/mod.rs`,
-`platform/desktop/tests/e2e_hostapi.rs` · **Scope:** S
+**Dependencies:** None · **Files:** `platform/desktop/app/src/ui/mod.rs`,
+`platform/desktop/app/tests/e2e_hostapi.rs` · **Scope:** S
 
 #### Task 7: At most `MAX_CALLS` in flight per form (review #4)
 
@@ -171,20 +171,20 @@ and window).
   `codes.txt`. Expected: 64 × `ok`, 1 × `EAGAIN`; today 65 × `ok` (red).
 
 **Verification:** `cargo test -p lunarstorm-platform --test e2e_hostapi`
-**Dependencies:** Task 6 · **Files:** `platform/desktop/src/ui/mod.rs`,
-`platform/desktop/tests/e2e_hostapi.rs` · **Scope:** S
+**Dependencies:** Task 6 · **Files:** `platform/desktop/app/src/ui/mod.rs`,
+`platform/desktop/app/tests/e2e_hostapi.rs` · **Scope:** S
 
 ### Checkpoint: Robustness
 - [ ] Green with counts read: `lunarstorm-host-desktop`, `lunarstorm-platform` (all three e2e
   tests), `lunar-extension-hostapi`, `lunarstorm-web`, `lunarstorm-pack`; clippy clean on the
   touched crates.
-- [ ] `lunarstorm-debug platform/examples/app` starts and logs "WebView connected over IPC".
+- [ ] `lunarstorm-debug platform/desktop/examples/app` starts and logs "WebView connected over IPC".
 
 ### Phase 3: Design findings
 
 #### Task 8: Every runtime answers every call (D9)
 
-**Description:** The contract line in `platform/desktop/src/runtime/mod.rs` says every `call`
+**Description:** The contract line in `platform/desktop/app/src/runtime/mod.rs` says every `call`
 gets a `result`. `MockRuntime` answers `EUNAVAIL` with the call's id.
 
 **Acceptance criteria:**
@@ -196,14 +196,14 @@ gets a `result`. `MockRuntime` answers `EUNAVAIL` with the call's id.
 
 #### Task 9: One list of areas (D10)
 
-**Description:** `pub type Areas = (Fs,)` in `runtime/hosts/desktop/src/lib.rs`; `spec()` and
+**Description:** `pub type Areas = (Fs,)` in `platform/desktop/host/src/lib.rs`; `spec()` and
 `Extensions` use it. Refactor only.
 
 **Acceptance criteria:**
 - [ ] `the_spec_lists_the_fs_area` and the e2e tests green, unchanged.
 
 **Verification:** `cargo test -p lunarstorm-host-desktop` · **Dependencies:** None ·
-**Files:** `runtime/hosts/desktop/src/lib.rs` · **Scope:** XS
+**Files:** `platform/desktop/host/src/lib.rs` · **Scope:** XS
 
 #### Task 10: Write the call contract down (D6, D11, D12)
 
@@ -225,7 +225,7 @@ gets a `result`. `MockRuntime` answers `EUNAVAIL` with the call's id.
 - [ ] Each point is present at the named site; behaviour unchanged; suites green.
 
 **Verification:** `cargo test -p lunarstorm-platform` · **Dependencies:** Tasks 1–8 (codes
-final) · **Files:** `platform/desktop/src/envelope.rs`, `src/shell/shell.js`, `src/ui/mod.rs`,
+final) · **Files:** `platform/desktop/app/src/envelope.rs`, `src/shell/shell.js`, `src/ui/mod.rs`,
 `tests/e2e_hostapi.rs` · **Scope:** XS
 
 ### Checkpoint: Complete
@@ -242,5 +242,5 @@ final) · **Files:** `platform/desktop/src/envelope.rs`, `src/shell/shell.js`, `
 | A red FIFO run hangs the suite | High | The Task 3 guard object, dropped before the backend, releases the reader (`O_NONBLOCK`, `ENXIO` ignored) |
 | A hung network mount leaks a worker thread | Low | At most 8 per backend (D2); the backend and other calls keep working; `EAGAIN` once all 8 hang |
 | Three e2e tests need a desktop session | Med | Header of `e2e_hostapi.rs` states it; macOS runs as-is, Linux under `xvfb-run`; never `#[ignore]` |
-| D1 breaks an app whose backend read `permissions.fs` folders | Low | No such app in the repo (`platform/examples/app` declares no `fs`); `manifest.rs` doc states the scope |
+| D1 breaks an app whose backend read `permissions.fs` folders | Low | No such app in the repo (`platform/desktop/examples/app` declares no `fs`); `manifest.rs` doc states the scope |
 | 16 MiB / 3 MiB test files slow the suite | Low | Written under `CARGO_TARGET_TMPDIR`, about 0.1 s each |

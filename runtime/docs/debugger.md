@@ -7,8 +7,8 @@ has four parts:
 - a source registry with Source Map v3;
 - a QuickJS-ng backend over a private C bridge (`jbq_*`, ABI 14) compiled into `rquickjs-sys`.
 
-**The one production caller is `lunar debug <script>`** (`runtime/hosts/cli/src/cli.rs`). The
-desktop binary also called `lunarstorm-debug` (`platform/desktop`) is a different thing: the dev
+**The one production caller is `lunar debug <script>`** (`platform/cli/host/src/command.rs`). The
+desktop binary also called `lunarstorm-debug` (`platform/desktop/app`) is a different thing: the dev
 runtime.
 
 There is no debugger VM. The debugger uses the same `Runtime` and the same loop through four VM
