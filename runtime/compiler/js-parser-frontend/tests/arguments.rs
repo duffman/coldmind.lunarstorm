@@ -1,3 +1,6 @@
+//! The frontend's `arguments`: an ordinary function's own `arguments`, and explicit
+//! shadowing.
+
 use qjs_js_parser_frontend::{SourceMode, compile_program};
 use qjs_scalar_ssa_ir::js::{ExpressionKind, StatementKind};
 #[test]

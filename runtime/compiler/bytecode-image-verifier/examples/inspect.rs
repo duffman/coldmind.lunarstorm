@@ -1,3 +1,6 @@
+//! Example: decodes a hand-assembled function (`false ? 1 : 42`) and prints its
+//! instructions and jump targets.
+
 use qjs_bytecode_image_verifier::{ids, validate_structure, Limits};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -1,3 +1,5 @@
+//! Object literal lowering: computed keys, accessors and `__proto__`.
+
 use qjs_js_parser_frontend::{SourceMode, compile_program};
 #[test]
 fn computed_keys_accessors_prototype_and_object_spread_are_supported() {

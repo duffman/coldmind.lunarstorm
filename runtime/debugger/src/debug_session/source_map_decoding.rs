@@ -1,3 +1,6 @@
+//! Source map decoding: basic and indexed maps parsed losslessly from JSON, VLQ
+//! segments, and lookup from generated to original positions.
+
 use super::DebugError;
 use crate::engine::{JsString, OriginalSource, SourceDigest, SourceMapAttachment};
 use serde::{

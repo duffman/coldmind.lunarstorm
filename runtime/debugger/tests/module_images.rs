@@ -1,3 +1,6 @@
+//! Compiled module images: compiler images keep their exact identity, and execution
+//! caches are bound to the source they came from.
+
 use coldmind_runtime::engine::*;
 fn profile() -> ImageProfile {
     ImageProfile {

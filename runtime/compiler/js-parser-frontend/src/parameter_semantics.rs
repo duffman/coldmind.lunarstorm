@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 quickjs-rust contributors
+//! Parameter semantics: whether a parameter list contains expressions (defaults or
+//! computed patterns), which changes its scope.
 // Adapted from Lewin671/quickjs-rust, commit
 // 9d1a4bb5ab25774470ddab81e087f9794424e209,
 // crates/qjs-runtime/src/bytecode/compiler_params.rs::contains_expressions.

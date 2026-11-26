@@ -1,3 +1,6 @@
+//! Whole-script emission: completion values, functions and parameters, lexical scopes,
+//! loops, closures, templates and long flat scripts.
+
 use qjs_bytecode_emitter::compile_script;
 
 #[test]

@@ -1,3 +1,6 @@
+//! Unit tests of the VM command transaction: a consumed command never runs twice, and
+//! typed optional commands and calls are validated.
+
 use super::*;
 use crate::{
     engine::JsEngine,

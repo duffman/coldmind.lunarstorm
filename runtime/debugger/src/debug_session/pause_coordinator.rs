@@ -1,3 +1,6 @@
+//! The pause coordinator: registers scripts, resolves breakpoints, decides where to stop
+//! and publishes pauses, evaluations and detach to the session.
+
 use super::transport::{ContextControl, Session};
 use super::*;
 use crate::engine::{ContextId, FailureClass, FailureCode, FailureReport};

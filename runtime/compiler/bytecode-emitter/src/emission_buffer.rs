@@ -1,3 +1,6 @@
+//! Final native instructions of one function (`FinalizedFunction`), operand widths and
+//! the compiler-owned stack capacity analysis.
+
 use super::*;
 use qjs_bytecode_image_verifier::snapshot::Position;
 use std::collections::{BTreeMap, VecDeque};

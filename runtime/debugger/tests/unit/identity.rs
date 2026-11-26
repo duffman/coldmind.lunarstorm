@@ -1,3 +1,6 @@
+//! Unit tests of engine and context identities: epochs and generations never wrap,
+//! foreign owners are rejected, invalid context limits change nothing.
+
 use super::*;
 use crate::engine::{ContextLimits, ValueStore};
 

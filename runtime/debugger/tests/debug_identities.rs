@@ -1,3 +1,6 @@
+//! Debugger reference identities across sessions: independent issuers, pause
+//! references that expire, shared cursors, and invalidation when a context closes.
+
 use coldmind_runtime::{debug::*, engine::*};
 use std::num::NonZeroU64;
 

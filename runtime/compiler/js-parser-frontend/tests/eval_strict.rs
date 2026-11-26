@@ -1,3 +1,5 @@
+//! Strictness inherited by eval code: checks, validation and early errors.
+
 use qjs_js_parser_frontend::{compile_eval_program_input, source::SourceInput};
 use qjs_scalar_ssa_ir::js::StatementKind;
 fn input(source: &str) -> SourceInput {

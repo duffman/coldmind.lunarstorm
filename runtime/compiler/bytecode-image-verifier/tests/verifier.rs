@@ -1,3 +1,6 @@
+//! The scalar-subset verifier: stack depth at joins, local initialization, constant and
+//! operand widths, and provenance checks.
+
 use qjs_bytecode_image_verifier::{ids, snapshot::*, verify::*};
 fn sample(code: Vec<u8>) -> Snapshot {
     Snapshot {

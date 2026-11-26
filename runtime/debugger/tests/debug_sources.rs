@@ -1,3 +1,6 @@
+//! The debugger's source registry and source maps: deduplicated registration, paged
+//! sources, revisions, basic and indexed maps, malformed maps and capacity accounting.
+
 use coldmind_runtime::{
     debug::{
         DebugError, DebugIdentities, DebugLimits, DebugLocation, DebugReply, NativeScriptKey,

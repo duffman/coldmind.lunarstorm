@@ -1,4 +1,6 @@
-//! Private native lifecycle guard checks.
+//! Private native lifecycle guard checks of the QuickJS-NG debug engine: owner
+//! validation without moving native state, fault precedence, and finalizer and
+//! closed guards that block every public native entry.
 use super::*;
 use crate::vm::contract_fixture as fixtures;
 

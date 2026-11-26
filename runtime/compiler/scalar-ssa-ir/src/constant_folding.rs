@@ -1,3 +1,6 @@
+//! Constant folding of the scalar IR: folds numeric operations whose operands are
+//! constants, transitively.
+
 use std::collections::BTreeMap;
 
 use crate::{interpreter::numeric_binary, *};

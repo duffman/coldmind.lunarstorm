@@ -1,3 +1,6 @@
+//! Protected location artifacts: native locations, truncation, span bounds and the
+//! lossless UTF-16 source digest.
+
 use qjs_bytecode_image_verifier::{image::*, production::ids, snapshot::Position};
 use sha2::{Digest, Sha256};
 fn function() -> FunctionImage {

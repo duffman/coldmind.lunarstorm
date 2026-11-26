@@ -1,3 +1,6 @@
+//! The reference engine bridge: evaluation of arithmetic, closures and UTF-8 files,
+//! lone surrogates, exceptions, syntax errors and interrupts.
+
 use qjs_reference_engine_bridge::{ReferenceError, ReferenceRunner, ReferenceValue};
 use std::fs;
 use std::path::PathBuf;

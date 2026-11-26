@@ -1,3 +1,6 @@
+//! Identities of engines, contexts, tasks, sources and operations: an engine epoch plus
+//! a generation, so a stale id never matches a new object.
+
 use super::{FailureCode, FailureReport};
 use std::{
     cell::Cell,

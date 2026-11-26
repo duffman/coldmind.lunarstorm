@@ -1,3 +1,6 @@
+//! Optional chain lowering: members, calls and `delete`, contiguous segments, and
+//! parentheses ending a short circuit.
+
 use qjs_js_parser_frontend::{SourceMode, compile_program};
 #[test]
 fn optional_members_calls_and_delete_lower_without_fallback() {

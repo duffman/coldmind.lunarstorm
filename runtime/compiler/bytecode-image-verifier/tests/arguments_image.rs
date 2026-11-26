@@ -1,3 +1,6 @@
+//! Image verification of `arguments`: strict and mapped objects, materialization tags
+//! and markers.
+
 use qjs_bytecode_image_verifier::{image::*, production::ids};
 fn function(strict: bool) -> FunctionImage {
     let mut f = FunctionImage {

@@ -1,3 +1,6 @@
+//! The scalar SSA IR end to end: validation, execution and constant folding of straight
+//! line, branching and diamond functions, with IEEE edge cases.
+
 use qjs_scalar_ssa_ir::*;
 
 const S: Span = Span { start: 0, end: 1 };

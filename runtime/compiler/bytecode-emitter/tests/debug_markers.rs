@@ -1,3 +1,6 @@
+//! Debug markers in emitted code: opt-in markers, nested lexical scopes, loops, captured
+//! variables, columns of astral and CRLF sources, and body anchors.
+
 use qjs_bytecode_image_verifier::{
     Limits,
     image::{Constant, FunctionImage},

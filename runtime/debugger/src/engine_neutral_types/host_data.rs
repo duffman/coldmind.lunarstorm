@@ -1,3 +1,6 @@
+//! Owned host data: `JsString` (lossless UTF-16) and `JsData`, the bounded tree a
+//! value is copied into when it leaves the engine.
+
 use super::{FailureCode, FailureReport};
 use std::{fmt, mem::size_of};
 

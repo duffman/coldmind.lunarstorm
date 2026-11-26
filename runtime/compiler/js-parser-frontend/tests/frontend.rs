@@ -1,3 +1,6 @@
+//! The scalar frontend end to end: arithmetic, branch merges, shadowing, diagnostics,
+//! IEEE edge cases and seeded programs checked against the reference engine.
+
 use qjs_js_parser_frontend::{Category, compile, compile_with_metadata};
 use qjs_scalar_ssa_ir::{Scalar, execute};
 fn run(s: &str) -> Scalar {

@@ -1,3 +1,6 @@
+//! The engine-neutral scope: `JsScope` (every value operation), value kinds, property
+//! keys, scoped errors, deferreds and promise settlement.
+
 use super::*;
 use std::{num::NonZeroUsize, rc::Rc};
 

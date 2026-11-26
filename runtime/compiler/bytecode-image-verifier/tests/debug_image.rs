@@ -1,3 +1,6 @@
+//! Image verification of debug markers: lexical marker chains, stack-neutral end markers
+//! and debug location records.
+
 use qjs_bytecode_image_verifier::{image::*, production::ids};
 fn marker(raw: u32) -> Vec<u8> {
     let mut b = vec![ids::debug_stmt];

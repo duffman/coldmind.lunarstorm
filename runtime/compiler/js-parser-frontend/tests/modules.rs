@@ -1,3 +1,5 @@
+//! Module lowering: symbol identity, default exports and unsupported module effects.
+
 use qjs_js_parser_frontend::{SourceMode, compile_program};
 use qjs_scalar_ssa_ir::js::{Export, StatementKind};
 #[test]

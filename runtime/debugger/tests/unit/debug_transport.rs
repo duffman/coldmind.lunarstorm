@@ -1,3 +1,6 @@
+//! Unit tests of the debugger's message transport: session lifetime, published
+//! controls and the wake gate, reserved replies, queued evaluations and stale sequences.
+
 use super::*;
 use crate::engine::{ContextLimits, EngineIdentity, ValueStore};
 use std::sync::{atomic::AtomicUsize, mpsc};

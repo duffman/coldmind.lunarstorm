@@ -1,3 +1,6 @@
+//! Example: evaluates a JavaScript snippet with the pinned reference QuickJS-NG and
+//! prints the result.
+
 use qjs_reference_engine_bridge::ReferenceRunner;
 use std::io::{self, Read};
 

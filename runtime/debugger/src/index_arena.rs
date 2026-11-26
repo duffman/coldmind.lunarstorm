@@ -1,3 +1,6 @@
+//! A generational index arena: `Arena<T>` hands out `Key`s whose slot is retired, not
+//! reused, when its generation is exhausted.
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct Key {
     pub slot: u32,

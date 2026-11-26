@@ -1,3 +1,5 @@
+//! Lowering of scalar SSA IR to native bytecode, under tighten-only program-wide limits.
+
 use super::*;
 use qjs_scalar_ssa_ir::{BinaryOp, BlockId, Edge, InstructionKind, TerminatorKind, UnaryOp};
 use std::collections::BTreeMap;

@@ -1,3 +1,6 @@
+//! Module providers: the in-memory provider keeps exact keys, and the file provider
+//! confines resolution to its root and resolves relative parent segments.
+
 use coldmind_runtime::{engine::*, modules::*};
 fn key(s: &str) -> ModuleKey {
     ModuleKey::from_utf8(s).unwrap()

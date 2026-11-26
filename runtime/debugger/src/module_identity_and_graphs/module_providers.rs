@@ -1,3 +1,6 @@
+//! Module providers: `MemoryModuleProvider` (sources by specifier) and
+//! `FileModuleProvider` (a confined directory, through the cached virtual dir).
+
 use super::vfs::VirtualDir;
 use super::*;
 use std::{

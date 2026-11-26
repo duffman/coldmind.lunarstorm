@@ -1,3 +1,6 @@
+//! Module emission: verified source modules, import assignment errors, execution and
+//! import attributes.
+
 use qjs_bytecode_emitter::compile_module;
 #[test]
 fn source_modules_have_verified_two_phase_images() {

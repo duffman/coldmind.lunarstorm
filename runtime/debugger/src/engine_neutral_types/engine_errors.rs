@@ -1,3 +1,6 @@
+//! Detached failure reports: class and code of a failure, its source location and stack
+//! frames, rejections, cancel outcomes and checkpoint reports.
+
 use super::{JsData, JsString};
 use std::fmt;
 

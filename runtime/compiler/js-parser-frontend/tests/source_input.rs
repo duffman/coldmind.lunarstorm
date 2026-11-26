@@ -1,3 +1,6 @@
+//! Source input: astral characters, lone surrogates and NULs, raw template text,
+//! diagnostics mapped back to original positions, and regexp validation.
+
 use qjs_js_parser_frontend::source::{SourceInput, Utf16Span};
 
 #[test]

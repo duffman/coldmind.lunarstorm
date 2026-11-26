@@ -1,3 +1,6 @@
+//! The debugger's session API: capabilities, mode and limits, the ids of sessions,
+//! pauses, requests and scripts, and the requests and replies a session exchanges.
+
 use super::{HitCondition, OriginalLocation, evaluation::*, inspection::*};
 use crate::engine::{ContextId, FailureReport, JsString, ScriptSource, SourceDigest};
 use std::{fmt, rc::Rc, sync::Arc};

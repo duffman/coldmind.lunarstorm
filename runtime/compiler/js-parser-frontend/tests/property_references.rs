@@ -1,3 +1,6 @@
+//! Property reference lowering: prefix and postfix updates, compound and logical
+//! assignment, `delete`, and evaluation order of each reference.
+
 use qjs_js_parser_frontend::{SourceMode, compile_program};
 
 #[test]

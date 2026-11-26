@@ -1,3 +1,6 @@
+//! `in` and `instanceof` lowering: operand order, invalid operands and dynamic type
+//! errors.
+
 use qjs_js_parser_frontend::{Category, SourceMode, compile_program};
 
 #[test]

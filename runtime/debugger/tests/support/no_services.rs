@@ -1,3 +1,6 @@
+//! Test loop services that do nothing: a `NoLoop` that refuses timers, operations and
+//! callbacks, for tests that need no event loop.
+
 use coldmind_runtime::engine::*;
 use std::{rc::Rc, time::Duration};
 pub struct NoLoop;

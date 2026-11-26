@@ -1,3 +1,5 @@
+//! Class lowering: class definition regions, element scheduling, `super` and private
+//! names, and the initializer function.
 // Class-definition regions, element scheduling, and private-element separation
 // adapted from Lewin671/quickjs-rust, commit
 // 9d1a4bb5ab25774470ddab81e087f9794424e209,

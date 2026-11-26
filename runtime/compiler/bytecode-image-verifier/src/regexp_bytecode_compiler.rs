@@ -1,6 +1,8 @@
 // Copyright (c) 2017-2018 Fabrice Bellard.
 // Copyright (c) 2026 Jetbunny contributors.
 // SPDX-License-Identifier: MIT
+//! A Rust regexp compiler for QuickJS-NG's regexp VM: opcode schema from
+//! `libregexp-opcode.h`, register allocation and bounded literal programs.
 // Native register-allocation algorithm ported from the pinned libregexp.c.
 // The complete upstream MIT notice is retained in vendor/quickjs-ng/LICENSE.
 //! Rust-owned native regexp compiler primitives for the pinned regex VM.

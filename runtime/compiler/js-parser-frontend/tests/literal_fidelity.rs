@@ -1,3 +1,6 @@
+//! Literal fidelity: cooked directive values, quoted method keys, module request
+//! strings and export names.
+
 use qjs_js_parser_frontend::{compile_module_input, compile_program_input, source::SourceInput};
 use qjs_scalar_ssa_ir::js::{Export, ExpressionKind, Literal, StatementKind};
 fn source(prefix: &str, raw: &[u16], suffix: &str) -> SourceInput {

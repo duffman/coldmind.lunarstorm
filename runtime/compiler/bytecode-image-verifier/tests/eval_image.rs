@@ -1,3 +1,6 @@
+//! Eval images: the lexical layout proof, TDZ on eval writes, forged layouts, inherited
+//! strictness and hidden context bindings.
+
 use qjs_bytecode_image_verifier::{
     image::{eval::*, *},
     production::ids,

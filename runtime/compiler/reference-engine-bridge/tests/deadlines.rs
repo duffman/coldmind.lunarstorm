@@ -1,3 +1,6 @@
+//! Deadlines and bounds of the reference-engine subprocess: timeouts, blocked stdio,
+//! exit codes, bounded input and output, and non-regular input files.
+
 #![cfg(unix)]
 use qjs_reference_engine_bridge::ReferenceRunner;
 use std::{

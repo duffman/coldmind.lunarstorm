@@ -1,3 +1,6 @@
+//! Property reference emission: reference operations, temporaries, rebinding and global
+//! identifier deletion.
+
 use qjs_bytecode_emitter::{EmissionLimits, JsEmitOptions, compile_script, emit_program_with_limits};
 #[test]
 fn property_reference_operations_have_verified_images() {

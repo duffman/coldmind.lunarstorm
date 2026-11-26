@@ -1,3 +1,5 @@
+// Shared DAP conformance assertions, included (`include!`) by the external API tests
+// and the internal guard build.
 // Shared assertions run against both the external API and internal guard build.
 #[test]
 fn framing_handles_fragmentation_multiple_messages_and_checked_output_lengths() {

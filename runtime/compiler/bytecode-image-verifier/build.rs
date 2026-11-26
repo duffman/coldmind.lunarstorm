@@ -1,3 +1,6 @@
+//! Generates the opcode schema and production tables from the vendored QuickJS-NG
+//! headers (`opcodes.rs`, `production.rs` in `OUT_DIR`).
+
 use std::{env, fs, path::PathBuf, process::Command};
 
 fn main() {

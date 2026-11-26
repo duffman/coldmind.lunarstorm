@@ -1,3 +1,6 @@
+//! Frontend budgets: AST node, nesting, function and binding limits, capacity
+//! diagnostics, and limits that cannot be loosened.
+
 use qjs_js_parser_frontend::{Category, SourceMode, compile_program};
 #[test]
 fn default_frontend_rejects_excessive_original_ast_nesting_before_semantics() {

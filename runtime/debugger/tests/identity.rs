@@ -1,3 +1,6 @@
+//! Owner-thread job identity and ordering: FIFO posting from callbacks, admission when
+//! full, cancellation of ready and running jobs, and capture cancellation.
+
 use coldmind_runtime::{engine::*, scheduler::*};
 use static_assertions::assert_not_impl_any;
 use std::{

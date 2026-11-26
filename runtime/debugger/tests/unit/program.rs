@@ -1,3 +1,5 @@
+//! Unit test of admitted programs: native import comparison.
+
 use super::same_imports;
 use crate::engine::JsString;
 use std::collections::HashSet;

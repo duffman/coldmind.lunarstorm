@@ -1,3 +1,6 @@
+//! General script lowering: completion values, parameters, inherited strict mode, dead
+//! unsupported code and owned UTF-16 strings.
+
 use qjs_js_parser_frontend::{SourceMode, compile_program};
 use qjs_scalar_ssa_ir::js::*;
 #[test]

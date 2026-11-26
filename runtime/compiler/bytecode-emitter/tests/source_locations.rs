@@ -1,3 +1,6 @@
+//! Source locations of emitted code: whole-source mapping, UTF-8 spans of scalar code
+//! and hand-built IR.
+
 use qjs_bytecode_image_verifier::image::{Constant, SourceUnit};
 use qjs_bytecode_emitter::{
     CompileOptions, JsEmitOptions, SourceInput, compile, compile_script, emit_program_with_options,

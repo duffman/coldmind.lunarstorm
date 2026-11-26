@@ -1,3 +1,6 @@
+//! Unit tests of the index arena: slot exhaustion retires a slot, oversized capacity
+//! and failed backing allocation are reported, not panicked on.
+
 use super::*;
 #[test]
 fn exhausted_slot_retires_instead_of_wrapping() {

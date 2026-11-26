@@ -1,3 +1,6 @@
+//! Unit tests of debugger identities: owner and transferable requests, issuer epoch
+//! exhaustion, forged reference kinds, generations and foreign owners.
+
 use super::*;
 use crate::engine::{ContextLimits, EngineIdentity, ValueStore};
 

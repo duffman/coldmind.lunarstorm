@@ -1,3 +1,6 @@
+//! The native image writer: serializes verified function graphs in QuickJS-NG's
+//! bytecode format (LEB128, atoms, UTF-16 strings, function records).
+
 use super::*;
 use std::collections::BTreeMap;
 const MAX: usize = 1024 * 1024 * 1024;

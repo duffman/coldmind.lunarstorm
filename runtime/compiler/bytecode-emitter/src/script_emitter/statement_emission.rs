@@ -1,4 +1,5 @@
-//! Statement emission, with labels.
+//! Statement emission: every statement kind (declarations, control flow, `try`,
+//! loops, `with`, labels), with completion values and abrupt exits.
 
 use super::*;
 

@@ -1,3 +1,6 @@
+//! Basic emission: arithmetic without the C compiler, strict boolean `!`, numbers, jumps
+//! both ways and full-width local operands.
+
 use qjs_bytecode_emitter::*;
 #[test]
 fn rust_emits_arithmetic_without_native_finalizer() {

@@ -1,3 +1,6 @@
+//! Unit tests of the ready-item queue: backing capacity failure and reuse of a removed
+//! middle node.
+
 use super::*;
 #[test]
 fn impossible_backing_capacity_is_a_checked_allocation_error() {

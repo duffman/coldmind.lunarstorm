@@ -1,3 +1,6 @@
+//! Compile-time shape checks of the engine contract: generic engine, scope, callback,
+//! debugger and port bounds, with a `NeverEngine` that implements every trait.
+
 use coldmind_runtime::{debug::*, engine::*};
 use static_assertions::{assert_impl_all, assert_not_impl_any};
 

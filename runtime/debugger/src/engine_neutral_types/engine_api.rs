@@ -1,3 +1,6 @@
+//! The engine-neutral engine API: `JsEngine`, its descriptor, features and requirements,
+//! context limits, abort signals and heap usage.
+
 use super::*;
 use crate::debug::{DebugBackend, DebugDescriptor, DebugMode, DebugRequirements};
 use std::{fmt, rc::Rc, sync::Arc, thread::ThreadId, time::Duration};

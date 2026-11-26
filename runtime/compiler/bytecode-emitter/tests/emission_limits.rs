@@ -1,3 +1,6 @@
+//! Emission limits at their boundaries: IR nodes, functions, locals, atoms, code size and
+//! temporaries; a caller cannot relax hard limits.
+
 use qjs_bytecode_emitter::{EmissionLimits, JsEmitOptions, emit_program_with_limits};
 fn check(source: &str, count: usize, set: impl Fn(&mut EmissionLimits, usize), category: &str) {
     let program =

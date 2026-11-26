@@ -1,3 +1,5 @@
+//! Example: builds typed scalar IR by hand, validates it, folds its constants and runs it.
+
 use qjs_scalar_ssa_ir::{
     execute, fold_constants, validate, BinaryOp, Block, BlockId, Edge, Function, Instruction,
     InstructionKind, Parameter, Scalar, Span, Terminator, TerminatorKind, Type, ValueId,

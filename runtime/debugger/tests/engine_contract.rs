@@ -1,3 +1,6 @@
+//! Engine-contract behaviour every adapter must keep: unique module ids, root limits,
+//! retained values across scopes, context close, UTF-16 strings and re-entrant callbacks.
+
 use coldmind_runtime::engine::{
     ContextLimits, EngineIdentity, FailureCode, JsData, JsString, RootedValue, ScopedValue,
     ValueStore,

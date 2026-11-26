@@ -1,3 +1,6 @@
+//! Image verification of `delete`: property and global deletes, atoms, and eval
+//! identifier deletes.
+
 use qjs_bytecode_image_verifier::{
     image::{eval::*, *},
     production::ids,

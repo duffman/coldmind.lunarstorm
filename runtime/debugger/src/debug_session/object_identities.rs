@@ -1,3 +1,6 @@
+//! Identities the debugger hands to a client: issuer epochs, `DebugReference`s for
+//! pauses, inspections and writes, and `DebugIdentities`, which checks them on return.
+
 use super::*;
 use crate::engine::{ContextId, FailureCode, FailureReport};
 use std::sync::{

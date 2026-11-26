@@ -1,3 +1,5 @@
+//! Model tests of the transport's sleep gate: publication, arming and cancellation.
+
 use super::*;
 use loom::sync::{
     Arc, Mutex,

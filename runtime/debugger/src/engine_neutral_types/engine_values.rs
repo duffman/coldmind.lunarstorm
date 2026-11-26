@@ -1,3 +1,6 @@
+//! Rooted values: scoped values, `RootKey`s and leases into a per-context root table,
+//! and the release queue that frees roots from any thread.
+
 use super::{ContextId, ContextLimits, EngineIdentity, FailureCode, FailureReport};
 use std::{
     cell::{Cell, RefCell},

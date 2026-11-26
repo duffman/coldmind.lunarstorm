@@ -1,3 +1,6 @@
+//! Unit tests of jetbunny's owner-thread VM facade: owner guards, state transitions,
+//! turn cancellation, binding, source and artifact failures, and debugger attach.
+
 use super::*;
 use contract_fixture::{FixtureProbe, Inline, with_watchdog};
 use faults::{AttachFault, FaultEngine, ScopeFault};

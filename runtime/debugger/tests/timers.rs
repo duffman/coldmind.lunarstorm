@@ -1,3 +1,6 @@
+//! Timer scheduling on the owner loop: equal deadlines, intervals that skip missed
+//! periods, cancellation after a timer is ready, invalid periods and overflow.
+
 use coldmind_runtime::{engine::*, scheduler::*};
 use std::{
     cell::{Cell, RefCell},

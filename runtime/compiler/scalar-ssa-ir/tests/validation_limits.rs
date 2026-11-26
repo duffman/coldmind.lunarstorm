@@ -1,3 +1,6 @@
+//! Validation limits of the scalar IR: dominator work, structural node counts and
+//! tighten-only overrides.
+
 use qjs_scalar_ssa_ir::*;
 const S: Span = Span { start: 0, end: 1 };
 fn chain(n: u32) -> Function {

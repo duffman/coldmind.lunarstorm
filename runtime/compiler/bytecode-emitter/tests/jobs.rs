@@ -1,3 +1,6 @@
+//! The isolated compile worker: lossless compiles, source bounds, compiler errors, heap
+//! exhaustion, the watchdog and cancellation.
+
 use qjs_bytecode_emitter::job::{self, Error, Limits};
 use std::{
     path::Path,

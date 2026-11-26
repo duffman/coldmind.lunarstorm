@@ -1,3 +1,6 @@
+//! Validation of scalar SSA functions: definitions before uses, dominance, spans and
+//! tighten-only work limits.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::*;

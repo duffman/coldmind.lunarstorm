@@ -1,3 +1,6 @@
+//! The bytecode decoder: operand widths of every opcode, limits applied before unbounded
+//! work, and jump targets that must stay inside the function.
+
 use qjs_bytecode_image_verifier::{decode, ids, validate_structure, Error, Limits, OperandFormat, FINAL_OPCODES};
 
 #[test]

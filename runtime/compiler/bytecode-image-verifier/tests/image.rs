@@ -1,3 +1,6 @@
+//! Native function images: round trips, truncation and checksums, nested functions,
+//! scope links, BigInt constants and module records.
+
 use qjs_bytecode_image_verifier::{image::*, production::ids};
 fn function() -> FunctionImage {
     FunctionImage {

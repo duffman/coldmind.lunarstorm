@@ -1,3 +1,6 @@
+//! Emission of `new` expressions: ordinary construction and argument order, checked
+//! against the vendored engine.
+
 use qjs_bytecode_emitter::compile_script;
 #[test]
 fn ordinary_new_expressions_have_verified_final_call_operands() {

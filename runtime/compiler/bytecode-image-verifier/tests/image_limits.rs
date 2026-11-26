@@ -1,3 +1,6 @@
+//! Image resource limits: caller work quotas, depth, atoms, positions, serialization and
+//! allocation bounds, all tighten-only.
+
 use qjs_bytecode_image_verifier::{image::*, production::ids};
 fn function() -> FunctionImage {
     FunctionImage {

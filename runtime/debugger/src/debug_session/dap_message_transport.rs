@@ -1,3 +1,6 @@
+//! The transport between a debugger session and its VM: `DebugSessionOptions`,
+//! request and control receipts, and `VmDebugHandle`, which wakes the VM's owner thread.
+
 use super::identities::RequestIssuer;
 use super::*;
 use crate::engine::{FailureCode, FailureReport, Rejected, RejectionReason, SourceDigest};

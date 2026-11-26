@@ -1,3 +1,6 @@
+//! Unit tests of rooted values: forged scope and root keys, stale releases, root
+//! generation retirement, close while a scope is active, and destructor panics.
+
 use super::*;
 
 fn store(capacity: usize) -> ValueStore<i32> {

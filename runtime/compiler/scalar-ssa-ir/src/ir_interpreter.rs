@@ -1,3 +1,6 @@
+//! A reference interpreter for the scalar IR, used to check emitted code against its
+//! source semantics; work is bounded.
+
 use std::collections::BTreeMap;
 
 use crate::*;

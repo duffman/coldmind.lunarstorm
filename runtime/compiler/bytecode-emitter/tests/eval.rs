@@ -1,3 +1,6 @@
+//! Direct eval against a frame's lexical layout: reads and writes, shadowing, closures,
+//! unavailable bindings and caller strictness.
+
 use qjs_bytecode_image_verifier::image::{
     self, ScopeLink,
     eval::{EnvBinding, EnvLayout, VerifiedEnvLayout, verify_env_layout},

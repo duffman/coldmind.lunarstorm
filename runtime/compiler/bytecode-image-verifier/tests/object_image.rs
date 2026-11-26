@@ -1,3 +1,6 @@
+//! Image verification of object literals: method definitions, flags and atoms, spread
+//! and computed data properties.
+
 use qjs_bytecode_image_verifier::{image::*, production::ids};
 
 fn method(computed: bool, flags: u8) -> FunctionImage {

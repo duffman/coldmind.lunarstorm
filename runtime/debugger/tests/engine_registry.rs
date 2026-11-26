@@ -1,3 +1,5 @@
+//! Engine registry selection: an engine is chosen explicitly by id, never by default.
+
 mod support;
 use coldmind_runtime::{engine::*, engines::*};
 use std::{cell::Cell, rc::Rc};

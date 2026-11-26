@@ -1,3 +1,6 @@
+//! Source and artifact types an engine accepts: `SourceDigest` of UTF-16 source, script
+//! sources with source maps, compile options, compiled artifacts and module ids.
+
 use super::*;
 use sha2::{Digest, Sha256};
 

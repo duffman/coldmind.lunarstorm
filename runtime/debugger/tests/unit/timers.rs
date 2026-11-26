@@ -1,3 +1,6 @@
+//! Unit tests of the timer heap: sequence exhaustion, index repair after removal,
+//! duplicate and stale keys, and interval re-arming at the sequence limit.
+
 use super::*;
 impl TimerHeap {
     /// Simulates the final checked sequence without performing 2^64 admissions.
