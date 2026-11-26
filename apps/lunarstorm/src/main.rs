@@ -21,7 +21,7 @@ use lunarstorm_cli_host::Cli;
 fn main() {
     let cli = Cli::new("lunar", "☾ lunarstorm", env!("CARGO_PKG_VERSION"), "JavaScript runtime, desktop build tools and frontend tools").external_prefix("lunarstorm");
     #[cfg(feature = "runtime")]
-    let cli = cli.detail(lunarstorm_host_command_line::command::engine()).package(lunarstorm_host_command_line::command::package());
+    let cli = cli.detail(lunarstorm_host_command_line::lunar_runtime_commands::engine()).package(lunarstorm_host_command_line::lunar_runtime_commands::package());
     #[cfg(feature = "build")]
     let cli = cli.package(lunarstorm_pipeline::command::package());
     #[cfg(feature = "frontend")]

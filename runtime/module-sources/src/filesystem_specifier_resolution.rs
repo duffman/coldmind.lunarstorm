@@ -16,8 +16,8 @@
 //!   CommonJS: Node's syntax detection, which also keeps scripts without a
 //!   `package.json` working as they did.
 
-use crate::package::{self, Manifest, Type};
-use crate::transform::{self, FACADE, REQUIRE, Required};
+use crate::package_json_exports::{self, Manifest, Type};
+use crate::load_time_esm_transforms::{self, FACADE, REQUIRE, Required};
 use crate::{Error, Kind};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -80,9 +80,9 @@ impl Modules {
     /// Strips types and keeps the map under `name`.
     ///
     /// # Errors
-    /// As [`transform::strip_types`].
+    /// As [`load_time_esm_transforms::strip_types`].
     fn strip_mapped(&self, name: &str, text: &str) -> Result<String, Error> {
-        let (code, map) = transform::strip_types_mapped(name, text)?;
+        let (code, map) = load_time_esm_transforms::strip_types_mapped(name, text)?;
         if let Some(map) = map {
             self.maps.borrow_mut().insert(name.to_owned(), map);
         }
@@ -109,7 +109,7 @@ impl Modules {
             Some(rest) => (rest, true),
             None => (specifier, false),
         };
-        let conditions = if require { package::REQUIRE } else { package::IMPORT };
+        let conditions = if require { package_json_exports::REQUIRE } else { package_json_exports::IMPORT };
         let found = if is_path(specifier) {
             self.relative(directory, specifier, require)?
         } else if specifier.starts_with('#') {
@@ -192,18 +192,18 @@ impl Modules {
         let text = utf8(&name, bytes)?;
         let code = match kind {
             Kind::TypeScript { commonjs: false } => self.strip_mapped(&name, &text)?,
-            Kind::TypeScript { .. } => transform::strip_types(&name, &text)?,
+            Kind::TypeScript { .. } => load_time_esm_transforms::strip_types(&name, &text)?,
             _ => text,
         };
         let module = match kind {
-            Kind::Json => transform::json_module(&name, &code)?,
+            Kind::Json => load_time_esm_transforms::json_module(&name, &code)?,
             Kind::TypeScript { commonjs: false } => code,
             _ if !facade => self.commonjs_body(&name, &code, builtin)?,
             _ => {
                 // The facade: an `import` of a CommonJS file runs its body and re-exports.
                 let file = name.rsplit_once('/').map_or(&*name, |(_, file)| file);
-                let exports = transform::scan_commonjs(&name, &code)?.exports;
-                transform::commonjs_facade(&format!("{REQUIRE}./{file}"), &exports)
+                let exports = load_time_esm_transforms::scan_commonjs(&name, &code)?.exports;
+                load_time_esm_transforms::commonjs_facade(&format!("{REQUIRE}./{file}"), &exports)
             }
         };
         Ok(module.into_bytes())
@@ -211,7 +211,7 @@ impl Modules {
 
     /// The body module of a CommonJS file, with its literal requires bound.
     fn commonjs_body(&self, name: &str, code: &str, builtin: Builtin<'_>) -> Result<String, Error> {
-        let scan = transform::scan_commonjs(name, code)?;
+        let scan = load_time_esm_transforms::scan_commonjs(name, code)?;
         let mut requires = Vec::new();
         for specifier in scan.requires {
             if !is_path(&specifier)
@@ -232,7 +232,7 @@ impl Modules {
             };
             requires.push((specifier.clone(), format!("{REQUIRE}{specifier}"), required));
         }
-        Ok(transform::commonjs_body(code, name, &requires))
+        Ok(load_time_esm_transforms::commonjs_body(code, name, &requires))
     }
 
     /// How a file becomes a module.
@@ -269,7 +269,7 @@ impl Modules {
                             }
                         };
                         let text = String::from_utf8_lossy(bytes);
-                        transform::has_module_syntax(&path.to_string_lossy(), &text)
+                        load_time_esm_transforms::has_module_syntax(&path.to_string_lossy(), &text)
                     }
                 };
                 match (extension, module) {

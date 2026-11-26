@@ -23,7 +23,7 @@
 //! - A `.jbn` script runs only when a trust file (`--trust`, or `LUNARSTORM_TRUST`)
 //!   names its signer; there is no unsigned or untrusted mode.
 
-use crate::host::{self, CliHost};
+use crate::command_line_host_services::{self, CliHost};
 use lunarstorm_cli_contract::{Arg, Command, Failure, Invocation, Package, Section, ValueType};
 use lunarstorm_event_loop_runtime::vm::Vm;
 use lunarstorm_event_loop_runtime::{Runtime, Source};
@@ -170,7 +170,7 @@ fn execute(source: Source, argv: Vec<String>) -> i32 {
             return 70;
         }
     };
-    runtime.register(host::bindings());
+    runtime.register(command_line_host_services::bindings());
     if let Err(message) = runtime.start() {
         eprintln!("lunarstorm: bootstrap failed: {message}");
         return 70;
@@ -206,7 +206,7 @@ fn debug(invocation: &mut Invocation) -> Result<i32, Failure> {
     let exit = code.clone();
     lunarstorm_event_loop_runtime::vm::lunarstorm_debugger::debug::host::run(move |ready| {
         let mut runtime = Runtime::<QuickJs, CliHost>::new(CliHost::for_debugger(argv)).map_err(|e| format!("cannot create the event loop: {e}"))?;
-        runtime.register(host::bindings());
+        runtime.register(command_line_host_services::bindings());
         runtime.start().map_err(|e| format!("bootstrap failed: {e}"))?;
         // Decision: always held at entry. jetbunny's DAP adapter requires it: the
         // script starts at the client's `configurationDone`, after its breakpoints
@@ -311,7 +311,7 @@ fn build(invocation: &mut Invocation) -> Result<i32, Failure> {
 pub fn compile(entry: &Path, name: &str, version: &str, release: u64) -> Result<lunarstorm_jbn_package_format::Builder, String> {
     let mut runtime = Runtime::<QuickJs, CliHost>::new(CliHost::new(vec![String::from(ARGV0)]))
         .map_err(|e| format!("cannot create the event loop: {e}"))?;
-    runtime.register(host::bindings());
+    runtime.register(command_line_host_services::bindings());
     runtime.start().map_err(|e| format!("bootstrap failed: {e}"))?;
     runtime.package(entry, name, version, release)
 }
@@ -356,7 +356,7 @@ fn types(invocation: &mut Invocation) -> Result<i32, Failure> {
 ///   `lunarstorm_host_desktop_backend::declarations`.
 /// - The core is what both hosts declare identically, so `index.d.ts` holds only
 ///   what every program can rely on.
-/// - HostApi's layer is this host's Runtime before [`host::bindings`] is
+/// - HostApi's layer is this host's Runtime before [`command_line_host_services::bindings`] is
 ///   registered, minus the core: HostApi is this host's only extension, and its
 ///   areas (`ui`) are the ones this host's manifest selects.
 ///
@@ -369,7 +369,7 @@ pub fn type_files() -> Result<Vec<(PathBuf, String)>, String> {
     let mut runtime = Runtime::<QuickJs, CliHost>::new(CliHost::new(vec![String::from(ARGV0)]))
         .map_err(|e| format!("cannot create the event loop: {e}"))?;
     let installed = runtime.declarations()?;
-    runtime.register(host::bindings());
+    runtime.register(command_line_host_services::bindings());
     let cli = runtime.declarations()?;
     let desktop = lunarstorm_host_desktop_backend::declarations()?;
     let core = lunarstorm_typescript_declarations::common(&cli, &desktop);

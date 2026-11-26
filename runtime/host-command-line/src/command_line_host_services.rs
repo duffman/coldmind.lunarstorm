@@ -8,7 +8,7 @@
 //! - Stdout and stderr are written with `write(2)` directly. The Runtime already
 //!   batches stdout into one buffer per loop turn, so a second layer of buffering
 //!   in front of the descriptor would only add a copy.
-//! - The terminal API is the HostApi area `ui` ([`crate::ui`]), selected by the
+//! - The terminal API is the HostApi area `ui` ([`crate::terminal_ui_area`]), selected by the
 //!   host's manifest (`manifest.json`). The host's own bindings keep `ops.color`
 //!   and `ops.tty`, which the Runtime's console reads, and `lunarstorm:ui`, the
 //!   specifier scripts used before HostApi.
@@ -20,7 +20,7 @@ use lunarstorm_event_loop_runtime::{Access, Bindings, Host, Log, Manifest, Strea
 use std::io;
 use std::sync::OnceLock;
 
-use crate::ui::Ui;
+use crate::terminal_ui_area::Ui;
 
 /// Specifier scripts import the terminal UI module by, besides
 /// `lunarstorm:hostapi/ui`.
@@ -212,7 +212,7 @@ impl Host for CliHost {
 
 /// Builds the bindings this host registers itself: the terminal facts the
 /// Runtime's console reads, and the `lunarstorm:ui` specifier. The terminal API
-/// is the HostApi area `ui` ([`crate::ui`]).
+/// is the HostApi area `ui` ([`crate::terminal_ui_area`]).
 ///
 /// # Returns
 /// The set for `Runtime::register`. It is generic over the engine: the same

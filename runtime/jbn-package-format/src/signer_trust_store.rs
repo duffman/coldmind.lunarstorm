@@ -69,9 +69,9 @@ impl Signer {
     /// `[public key, signature]` over the manifest digest, encoded.
     pub(crate) fn sign(&self, digest: &[u8; 32]) -> Vec<u8> {
         let signature = self.0.sign(&message(digest));
-        crate::wire::encode(&crate::wire::Value::Array(vec![
-            crate::wire::Value::Bytes(self.public_key().to_vec()),
-            crate::wire::Value::Bytes(signature.to_bytes().to_vec()),
+        crate::canonical_cbor_encoding::encode(&crate::canonical_cbor_encoding::Value::Array(vec![
+            crate::canonical_cbor_encoding::Value::Bytes(self.public_key().to_vec()),
+            crate::canonical_cbor_encoding::Value::Bytes(signature.to_bytes().to_vec()),
         ]))
     }
 }
@@ -84,7 +84,7 @@ impl Signer {
 /// # Errors
 /// Not `[32 bytes, 64 bytes]`.
 pub(crate) fn signature(section: &[u8]) -> Result<([u8; 32], [u8; 64]), Error> {
-    let value = crate::wire::decode(section)?;
+    let value = crate::canonical_cbor_encoding::decode(section)?;
     match value.array()? {
         [key, signature] => Ok((
             key.bytes()?.try_into().map_err(|_| Error::Format(String::from("public key is not 32 bytes")))?,

@@ -4,7 +4,7 @@
 //!
 //! The area binds the natives only `ui.js` uses (`columns`, `live`) and serves
 //! `lunarstorm_cliui::UI_SOURCE`. `ui.js` also reads `ops.color` and `ops.tty`;
-//! those stay with the host's own bindings ([`crate::host::bindings`]) because the
+//! those stay with the host's own bindings ([`crate::command_line_host_services::bindings`]) because the
 //! Runtime's console reads `ops.color` whether or not the area is used.
 
 use lunar_extension_hostapi::{Arg, Area, Function};

@@ -567,7 +567,7 @@ impl<V: Vm, H: Host> Runtime<V, H> {
         while let Some((module, code)) = queue.pop() {
             let text = String::from_utf8(code).map_err(|_| format!("{module}: not UTF-8"))?;
             let mut table = Vec::new();
-            for specifier in lunarstorm_module_sources::transform::imports(&module, &text).map_err(|e| e.to_string())? {
+            for specifier in lunarstorm_module_sources::load_time_esm_transforms::imports(&module, &text).map_err(|e| e.to_string())? {
                 let target = loader::resolve(&native, &self.sources, &module, &specifier)
                     .map_err(|e| format!("{module}: cannot resolve {specifier}: {e}"))?;
                 if native(&target).as_deref() != Some(target.as_str()) && seen.insert(target.clone()) {

@@ -23,12 +23,12 @@
 //! consistency, and every blob's digest. A `Package` is therefore fully trusted,
 //! and its bytecode may be handed to an engine without further checks.
 
-pub mod manifest;
-pub mod trust;
-mod wire;
+pub mod package_manifest;
+pub mod signer_trust_store;
+mod canonical_cbor_encoding;
 
-pub use manifest::{Blob, Compression, Manifest, Module, Resource};
-pub use trust::{Signer, TrustStore, Trusted, to_hex};
+pub use package_manifest::{Blob, Compression, Manifest, Module, Resource};
+pub use signer_trust_store::{Signer, TrustStore, Trusted, to_hex};
 
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -321,7 +321,7 @@ impl Package {
         // Trust first: nothing of an unsigned manifest is interpreted beyond what
         // the signature check needs (its name and release).
         let manifest = Manifest::decode(manifest_bytes)?;
-        let (signer, signature) = trust::signature(&bytes[manifest_end..signature_end])?;
+        let (signer, signature) = signer_trust_store::signature(&bytes[manifest_end..signature_end])?;
         trust.check(&signer, &signature, &digest, &manifest.name, manifest.release)?;
         manifest.validate(limits)?;
 

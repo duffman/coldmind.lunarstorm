@@ -1,5 +1,5 @@
 //! The manifest: what a package holds and how its modules link, encoded as
-//! canonical CBOR (see [`crate::wire`]). Its SHA-256 is the package identity and
+//! canonical CBOR (see [`crate::canonical_cbor_encoding`]). Its SHA-256 is the package identity and
 //! what the signature covers.
 //!
 //! | key | field       | value                                                  |
@@ -15,7 +15,7 @@
 //! | 8   | metadata    | `[[key, value]...]`                                    |
 //! | 9   | blobs       | `[{0 offset, 1 stored, 2 size, 3 sha256, 4 codec}...]` |
 
-use crate::wire::{self, Value};
+use crate::canonical_cbor_encoding::{self, Value};
 use crate::{Error, Limits};
 use std::collections::HashSet;
 
@@ -97,7 +97,7 @@ impl Manifest {
     pub fn encode(&self) -> Vec<u8> {
         let text = |s: &str| Value::Text(s.to_owned());
         let pair = |(a, b): &(String, String)| Value::Array(vec![text(a), text(b)]);
-        wire::encode(&Value::Map(vec![
+        canonical_cbor_encoding::encode(&Value::Map(vec![
             Value::U(FORMAT),
             text(&self.name),
             text(&self.version),
@@ -139,7 +139,7 @@ impl Manifest {
     /// # Errors
     /// Not a canonical manifest of [`FORMAT`].
     pub fn decode(bytes: &[u8]) -> Result<Manifest, Error> {
-        let root = wire::decode(bytes)?;
+        let root = canonical_cbor_encoding::decode(bytes)?;
         let f = root.map(10)?;
         if f[0].uint()? != FORMAT {
             return Err(Error::Format(format!("manifest format {} is not {FORMAT}", f[0].uint()?)));

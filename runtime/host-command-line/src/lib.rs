@@ -1,17 +1,17 @@
 //! The runtime's package for the `lunar` command line: `run`, `debug` and `jbn`.
 //!
-//! | module        | role                                                                 |
-//! |---------------|----------------------------------------------------------------------|
-//! | [`command`]   | the `runtime` package: specs and handlers, driving the Runtime it owns |
-//! | `host`        | the host services and the terminal bindings this host registers      |
-//! | `ui`          | the terminal API as the HostApi area `ui` (`lunarstorm:ui`)          |
+//! | module                          | role                                                              |
+//! |---------------------------------|-------------------------------------------------------------------|
+//! | [`lunar_runtime_commands`]      | the `runtime` package: specs and handlers driving the Runtime     |
+//! | `command_line_host_services`    | the host services and the terminal bindings this host registers   |
+//! | `terminal_ui_area`              | the terminal API as the HostApi area `ui` (`lunarstorm:ui`)       |
 //!
-//! Everything else is a package of its own: the Runtime (`core/`), the VM contract
-//! (`vm/`), the QuickJS adapter (`engines/quickjs/`), the terminal UI
+//! Everything else is a package of its own: the Runtime (`event-loop-runtime/`), the VM
+//! contract (`engine-contract/`), the QuickJS adapter (`engine-quickjs-adapter/`), the terminal UI
 //! (`crates/cliui/`) and the command-line host (`crates/cli-host/`).
 
-pub mod command;
-mod host;
-mod ui;
+pub mod lunar_runtime_commands;
+mod command_line_host_services;
+mod terminal_ui_area;
 
-pub use command::{compile, engine, package, type_files};
+pub use lunar_runtime_commands::{compile, engine, package, type_files};

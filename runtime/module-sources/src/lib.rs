@@ -20,13 +20,13 @@
 //! the Runtime's loader: real paths under the host's read policy instead of a
 //! frozen snapshot, Node's `node_modules` lookup instead of a declared closure.
 
-mod package;
-mod resolve;
-pub mod transform;
+mod package_json_exports;
+mod filesystem_specifier_resolution;
+pub mod load_time_esm_transforms;
 
-pub use package::{IMPORT, Manifest, REQUIRE as REQUIRE_CONDITIONS, Type};
-pub use resolve::{Builtin, Modules, Read};
-pub use transform::{FACADE, REQUIRE};
+pub use package_json_exports::{IMPORT, Manifest, REQUIRE as REQUIRE_CONDITIONS, Type};
+pub use filesystem_specifier_resolution::{Builtin, Modules, Read};
+pub use load_time_esm_transforms::{FACADE, REQUIRE};
 
 use std::fmt;
 

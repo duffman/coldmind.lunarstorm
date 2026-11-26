@@ -33,9 +33,9 @@ shell = ["dep:tao", "dep:serde_json"]
 
 [[bin]]
 name = "lunarstorm-desktop"
-path = "src/main.rs"
+path = "src/bin/lunarstorm-desktop.rs"
 required-features = ["shell"]
 
 [[test]]
-name = "desktop"
+name = "desktop_binary_selfcheck"
 required-features = ["shell"]
