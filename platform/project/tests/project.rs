@@ -186,6 +186,20 @@ fn init_writes_a_desktop_app_that_compile_refuses() {
     assert!(!app.join("build").exists());
 }
 
+/// `--type desktop` creates the desktop product's `desktop/app`, the same project
+/// `--template desktop/app` writes.
+#[test]
+fn init_type_desktop_creates_the_desktop_app() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let app = dir.path().join("notes");
+    let path = app.to_str().unwrap();
+    assert_eq!(lunar(&["project", "init", path, "--type", "desktop"]), 0);
+    let description = json(&app.join("package.json"));
+    assert_eq!(description["main"], "src/app.tsx");
+    assert_eq!(description["lunar"]["type"], "desktop");
+    assert!(app.join("src/forms/main.view.tsx").is_file());
+}
+
 #[test]
 fn init_takes_a_template_folder_and_refuses_unknown_or_broken_templates() {
     let dir = tempfile::tempdir().expect("temp dir");

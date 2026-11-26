@@ -96,7 +96,11 @@ pub fn help(pen: Pen, identity: &Brand, parts: &[Part]) -> String {
             Part::Rows((title, rows)) => {
                 out.push_str(&format!("\n  {}\n", pen.sgr("1", title)));
                 for (left, right) in *rows {
-                    let left = if right.is_empty() { (*left).to_owned() } else { format!("{left:<LEFT_WIDTH$}") };
+                    // Fix: a label of LEFT_WIDTH columns or more got no padding and ran
+                    // into its description. Decision: such a label keeps a two-space gap
+                    // (the table gap) and its description starts after it, off the column.
+                    let width = LEFT_WIDTH.max(left.chars().count() + 2);
+                    let left = if right.is_empty() { (*left).to_owned() } else { format!("{left:<width$}") };
                     out.push_str(&format!("    {}{right}\n", pen.rgb(CYAN, &left)));
                 }
             }
@@ -191,6 +195,17 @@ mod tests {
         assert!(screen.contains(&format!("\x1b[1;{}mB\x1b[0m", fg(PALETTE[1]))), "{screen:?}");
         assert!(screen.contains(&format!("\x1b[2;{}m<file>", fg(shade(PALETTE[0])))), "{screen:?}");
         assert!(screen.contains(&format!("\x1b[2;{}m[options]", fg(shade(PALETTE[1])))), "{screen:?}");
+    }
+
+    /// A row label as wide as the left column or wider still has a gap before its
+    /// description (it ran into it: `--template <product/name|folder>a template`).
+    #[test]
+    fn a_row_label_wider_than_the_left_column_keeps_a_gap() {
+        let identity = Brand { mark: "m", version: "1", tagline: "t" };
+        let wide = "w".repeat(LEFT_WIDTH);
+        let rows: &[(&str, &str)] = &[(&wide, "about")];
+        let screen = help(Pen(Depth::Plain), &identity, &[Part::Rows(("Options", rows))]);
+        assert!(screen.contains(&format!("{wide}  about")), "{screen}");
     }
 
     /// The columns line up across tables, and a plain stream gets no escape codes.
