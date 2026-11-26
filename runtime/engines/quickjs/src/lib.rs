@@ -1187,10 +1187,16 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
         }
     }
 
-    /// Calls straight into `JS_Call`. The arguments are borrowed: the engine does
-    /// not consume them, so their reference counts are untouched.
+    /// [`Scope::call_with`] with `this` undefined.
     #[inline]
     fn call(&self, function: &Value<'s>, args: &[Value<'s>]) -> Outcome<Value<'s>> {
+        self.call_with(function, &Value::new_undefined(self.clone()), args)
+    }
+
+    /// Calls straight into `JS_Call`. The receiver and arguments are borrowed: the
+    /// engine does not consume them, so their reference counts are untouched.
+    #[inline]
+    fn call_with(&self, function: &Value<'s>, this: &Value<'s>, args: &[Value<'s>]) -> Outcome<Value<'s>> {
         let mut inline = [qjs::JS_UNDEFINED; INLINE_ARGS];
         let mut spilled;
         let raw: &mut [qjs::JSValue] = if args.len() <= INLINE_ARGS {
@@ -1207,7 +1213,7 @@ impl<'s> Scope<'s, QuickJs> for Ctx<'s> {
         // by us: it is either wrapped or, for the exception sentinel, not a
         // reference at all.
         unsafe {
-            let result = qjs::JS_Call(self.as_raw().as_ptr(), function.as_raw(), qjs::JS_UNDEFINED, raw.len() as _, raw.as_mut_ptr());
+            let result = qjs::JS_Call(self.as_raw().as_ptr(), function.as_raw(), this.as_raw(), raw.len() as _, raw.as_mut_ptr());
             if qjs::JS_IsException(result) {
                 Err(Thrown)
             } else {

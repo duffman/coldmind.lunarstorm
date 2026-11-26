@@ -300,6 +300,13 @@ fn calls_and_exceptions<V: Vm>() {
         let count = eval::<V>(&scope, "(function () { return arguments.length; })");
         let counted = scope.call(&count, &many).expect("conformance: call");
         check("call passes more than eight arguments", scope.as_number(&counted) == Some(12.0));
+        let receiver = scope.object().expect("conformance: object");
+        let me = eval::<V>(&scope, "(function (a) { 'use strict'; return [this, a]; })");
+        let pair = scope.call_with(&me, &receiver, &[scope.int(4)]).expect("conformance: call_with");
+        let this = scope.get(&pair, "0").expect("conformance: this");
+        check("call_with passes the receiver", scope.identity(&this) == scope.identity(&receiver));
+        let a = scope.get(&pair, "1").expect("conformance: argument");
+        check("call_with passes the arguments", scope.as_number(&a) == Some(4.0));
         check("calling a non-function throws", scope.call(&scope.int(1), &[]).is_err());
         scope.exception();
         check("a throwing script reports Thrown", scope.eval("throw new RangeError('far')").is_err());

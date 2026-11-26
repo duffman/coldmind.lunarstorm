@@ -1,729 +1,51 @@
 // lunarstorm JS glue: the Node-compatible surface, built on the native `ops` object.
 //
 // This file is one function expression. The Runtime evaluates it once at startup,
-// calls it with `ops`, and keeps what it returns: the hooks ({ dispatch, ticks,
-// describe, exitCode, invoke }) and the module registry ({ modules, internal,
-// exportsOf }). Every event the loop delivers enters through `dispatch`.
+// calls it with `ops` and `native` (the builtins already ported to Rust, see
+// `src/node/mod.rs`: `native.modules` plus the helpers this file uses), and keeps
+// what it returns: the hooks ({ dispatch, ticks, describe, exitCode, invoke }) and
+// the module registry ({ modules, internal, exportsOf }). Every event the loop
+// delivers enters through `dispatch`.
 //
-// `ops` holds the Runtime's own natives plus whatever the host registered. Host
-// natives are optional here: the glue reads them defensively (`ops.color`), so it
-// runs unchanged under a host that registers none.
+// `ops` holds the Runtime's own natives plus whatever the host registered.
 //
 // Conventions:
 // - Handles (sockets, servers) are identified by the reactor's slab key and looked up
 //   in the dense `handles` array.
-// - Hot paths (data, request, timers) avoid rest arrays and closures.
+// - Hot paths (data, request) avoid rest arrays and closures.
 // - Builtin modules are plain objects in the returned `modules` registry; the module
 //   loader declares each as a native module (`default` is the object, every key a
 //   named export). Nothing is published on the global object.
-(function (ops) {
+(function (ops, native) {
   'use strict';
 
   // ------------------------------------------------------------------ events
 
-  /**
-   * Node-compatible event emitter.
-   *
-   * Design: a listener slot holds one function or an array. Arrays are copy-on-write
-   * (on/off build a new array), so `emit` iterates without copying and a listener
-   * added or removed during an emit does not affect that emit.
-   */
-  class EventEmitter {
-    /**
-     * Adds a listener.
-     * @param {string} type event name
-     * @param {Function} fn listener
-     * @return {this}
-     */
-    on(type, fn) {
-      const ev = this._ev || (this._ev = Object.create(null));
-      const cur = ev[type];
-      ev[type] = cur === undefined ? fn : typeof cur === 'function' ? [cur, fn] : cur.concat(fn);
-      return this;
-    }
-
-    /**
-     * Adds a listener that is removed before its first call.
-     * @param {string} type event name
-     * @param {Function} fn listener
-     * @return {this}
-     */
-    once(type, fn) {
-      const wrap = (...args) => {
-        this.off(type, wrap);
-        fn.apply(this, args);
-      };
-      wrap.listener = fn;
-      return this.on(type, wrap);
-    }
-
-    /**
-     * Removes a listener (or the `once` wrapper around it).
-     * @param {string} type event name
-     * @param {Function} fn listener
-     * @return {this}
-     */
-    off(type, fn) {
-      const ev = this._ev;
-      const cur = ev && ev[type];
-      if (cur === undefined) return this;
-      if (typeof cur === 'function') {
-        if (cur === fn || cur.listener === fn) ev[type] = undefined;
-      } else {
-        const i = cur.findIndex((f) => f === fn || f.listener === fn);
-        if (i >= 0) ev[type] = cur.length === 2 ? cur[1 - i] : cur.filter((_, j) => j !== i);
-      }
-      return this;
-    }
-
-    /**
-     * Calls every listener of an event. An `error` event with no listener throws.
-     * @param {string} type event name
-     * @param {...*} args listener arguments
-     * @return {boolean} whether any listener was called
-     */
-    emit(type, ...args) {
-      const cur = this._ev && this._ev[type];
-      if (cur === undefined) {
-        if (type === 'error') throw args[0] instanceof Error ? args[0] : new Error('Unhandled error: ' + args[0]);
-        return false;
-      }
-      if (typeof cur === 'function') cur.apply(this, args);
-      else for (let i = 0; i < cur.length; i++) cur[i].apply(this, args);
-      return true;
-    }
-
-    /**
-     * Removes all listeners of one event, or of every event.
-     * @param {string} [type] event name
-     * @return {this}
-     */
-    removeAllListeners(type) {
-      if (type === undefined) this._ev = undefined;
-      else if (this._ev) this._ev[type] = undefined;
-      return this;
-    }
-
-    /**
-     * Returns a copy of the listeners of an event.
-     * @param {string} type event name
-     * @return {Function[]}
-     */
-    listeners(type) {
-      const cur = this._ev && this._ev[type];
-      return cur === undefined ? [] : typeof cur === 'function' ? [cur] : cur.slice();
-    }
-
-    /**
-     * Counts the listeners of an event.
-     * @param {string} type event name
-     * @return {number}
-     */
-    listenerCount(type) {
-      return this.listeners(type).length;
-    }
-  }
-  EventEmitter.prototype.addListener = EventEmitter.prototype.on;
-  EventEmitter.prototype.removeListener = EventEmitter.prototype.off;
-  // Node exports the class itself as `events`, with `EventEmitter` as a property.
-  EventEmitter.EventEmitter = EventEmitter;
-
-  /**
-   * `emit` for hot paths: at most two arguments, no rest-array allocation.
-   * @param {EventEmitter} self emitter
-   * @param {string} type event name
-   * @param {*} [a] first argument
-   * @param {*} [b] second argument
-   * @return {boolean} whether any listener was called
-   */
-  function emit2(self, type, a, b) {
-    const cur = self._ev && self._ev[type];
-    if (cur === undefined) return false;
-    if (typeof cur === 'function') cur.call(self, a, b);
-    else for (let i = 0; i < cur.length; i++) cur[i].call(self, a, b);
-    return true;
-  }
+  /** The native EventEmitter (`src/node/events.rs`) and its hot-path emit. */
+  const EventEmitter = native.modules.events;
+  const emit2 = native.emit2;
 
   // ------------------------------------------------------------------ timers
 
-  // A timer id is `key * 2^32 + seq`: `key` indexes this table and the reactor's slab,
-  // `seq` makes a stale id (already fired or cleared) harmless after the key is reused.
-  const TIMER_SHIFT = 4294967296;
-  /** @type {(Function|undefined)[]} callbacks of armed timers, by key */
-  const timers = [];
-
-  /**
-   * Arms a timer.
-   * @param {Function} fn callback
-   * @param {number} ms delay in milliseconds
-   * @param {boolean} repeat whether the timer repeats
-   * @param {Array} args extra arguments for the callback
-   * @return {number} timer id
-   */
-  function setTimer(fn, ms, repeat, args) {
-    if (typeof fn !== 'function') throw new TypeError('The "callback" argument must be a function');
-    const id = ops.timerStart(+ms || 0, repeat);
-    timers[Math.floor(id / TIMER_SHIFT)] = args.length ? () => fn(...args) : fn;
-    return id;
-  }
-
-  /**
-   * Cancels a timer. Unknown and stale ids are ignored.
-   * @param {number} id timer id
-   */
-  function clearTimer(id) {
-    if (typeof id === 'number' && ops.timerCancel(id)) timers[Math.floor(id / TIMER_SHIFT)] = undefined;
-  }
-
-  globalThis.setTimeout = (fn, ms, ...args) => setTimer(fn, ms, false, args);
-  globalThis.setInterval = (fn, ms, ...args) => setTimer(fn, ms, true, args);
-  globalThis.clearTimeout = globalThis.clearInterval = clearTimer;
-
-  /** @type {{fn: Function, args: Array, live: boolean}[]} immediates queued for the next check phase */
-  let immQueue = [];
-  /** @type {{fn: Function, args: Array, live: boolean}[]} batch being run by the reactor */
-  let immBatch = [];
-  /** Index of the next immediate of the batch. */
-  let immAt = 0;
-
-  globalThis.setImmediate = (fn, ...args) => {
-    if (typeof fn !== 'function') throw new TypeError('The "callback" argument must be a function');
-    if (immQueue.length === 0) ops.immediate();
-    const handle = { fn, args, live: true };
-    immQueue.push(handle);
-    return handle;
-  };
-  globalThis.clearImmediate = (handle) => {
-    if (handle) handle.live = false;
-  };
-
-  /**
-   * Runs one immediate of the current batch. The reactor calls this once per
-   * callback so promise jobs run between immediates, as in Node.
-   * @return {boolean} whether the batch has more callbacks
-   */
-  function runImmediate() {
-    if (immAt === immBatch.length) {
-      // Defect fixed: a fresh array per batch and per drained callback allocated on
-      // every immediate of a chain. Decision: the two arrays swap roles and the
-      // drained one is cleared with `length = 0`, the same reuse `ticks()` has.
-      const spent = immBatch;
-      immBatch = immQueue;
-      immQueue = spent;
-      spent.length = 0;
-      immAt = 0;
-    }
-    const handle = immBatch[immAt++];
-    const more = immAt < immBatch.length;
-    if (!more) {
-      immBatch.length = 0;
-      immAt = 0;
-    }
-    if (handle && handle.live) {
-      if (handle.args.length) handle.fn(...handle.args);
-      else handle.fn();
-    }
-    return more;
-  }
-
-  /**
-   * Callbacks queued by process.nextTick, consumed from `tickAt`.
-   *
-   * Decision: one array with a read index, reused from the start whenever the
-   * drain catches up. The earlier design swapped in a fresh array for every
-   * round of the drain, which cost an allocation per callback in a chain where
-   * each tick queues the next.
-   * @type {Function[]}
-   */
-  let tickQueue = [];
-  /** Index in `tickQueue` of the next callback to run. */
-  let tickAt = 0;
-  /**
-   * Whether `ticks` is draining. A callback queued during the drain is picked up
-   * by the drain itself, so the native `ops.tick()` wake-up is skipped for it.
-   * A callback that throws leaves this set; that is an uncaught error, after
-   * which the loop runs no more JS.
-   */
-  let ticking = false;
-
-  /**
-   * Queues a callback to run before promise jobs, after the current JS call.
-   * @param {Function} fn callback
-   * @param {...*} args callback arguments
-   */
-  function nextTick(fn, ...args) {
-    if (!ticking && tickQueue.length === 0) ops.tick();
-    tickQueue.push(args.length ? () => fn(...args) : fn);
-  }
-
-  /** Runs the tick queue until it is empty. Called by the loop. */
-  function ticks() {
-    ticking = true;
-    while (tickAt < tickQueue.length) {
-      const fn = tickQueue[tickAt++];
-      // Caught up: restart the array before the call, so what `fn` queues lands
-      // at index 0 and an endless chain of ticks never grows the queue.
-      if (tickAt === tickQueue.length) {
-        tickQueue.length = 0;
-        tickAt = 0;
-      }
-      fn();
-    }
-    ticking = false;
-  }
-
-  if (typeof globalThis.queueMicrotask !== 'function') {
-    globalThis.queueMicrotask = (fn) => {
-      Promise.resolve().then(fn);
-    };
-  }
+  // The timers, immediates and the nextTick queue are native (`src/node/timers.rs`);
+  // the globals are installed there.
+  const { nextTick, ticks, runImmediate, fireTimer } = native;
 
   // ------------------------------------------------------------------ buffer
 
-  /**
-   * Rejects encodings the runtime does not implement instead of mis-decoding.
-   * @param {string} [enc] encoding name
-   */
-  function utf8Only(enc) {
-    if (enc !== undefined && !/^utf-?8$/i.test(enc)) throw new TypeError('Unsupported encoding: ' + enc);
-  }
-
-  /** Node's Buffer: a Uint8Array with UTF-8 helpers. Only UTF-8 is implemented. */
-  class Buffer extends Uint8Array {
-    /**
-     * Creates a buffer from a string, array, typed array or ArrayBuffer.
-     * @param {string|ArrayLike<number>|ArrayBuffer} value source
-     * @param {string} [enc] encoding of a string source
-     * @return {Buffer}
-     */
-    static from(value, enc) {
-      if (typeof value === 'string') {
-        utf8Only(enc);
-        return asBuffer(ops.utf8Encode(value));
-      }
-      return asBuffer(new Uint8Array(value));
-    }
-
-    /**
-     * Allocates a zero-filled buffer.
-     * @param {number} size length in bytes
-     * @return {Buffer}
-     */
-    static alloc(size) {
-      return new Buffer(size);
-    }
-
-    /**
-     * Joins buffers.
-     * @param {Uint8Array[]} list parts
-     * @param {number} [total] combined length, when known
-     * @return {Buffer}
-     */
-    static concat(list, total) {
-      if (list.length === 1 && total === undefined) return asBuffer(list[0]);
-      if (total === undefined) {
-        total = 0;
-        for (let i = 0; i < list.length; i++) total += list[i].length;
-      }
-      const out = new Buffer(total);
-      let at = 0;
-      for (let i = 0; i < list.length && at < total; i++) {
-        const part = at + list[i].length > total ? list[i].subarray(0, total - at) : list[i];
-        out.set(part, at);
-        at += part.length;
-      }
-      return out;
-    }
-
-    /**
-     * Byte length of a string in UTF-8, or of a buffer.
-     * @param {string|Uint8Array} value input
-     * @return {number}
-     */
-    static byteLength(value) {
-      return typeof value === 'string' ? ops.utf8Encode(value).length : value.byteLength;
-    }
-
-    /**
-     * Tests whether a value is a Buffer.
-     * @param {*} value input
-     * @return {boolean}
-     */
-    static isBuffer(value) {
-      return value instanceof Buffer;
-    }
-
-    /**
-     * Decodes the buffer as UTF-8 (invalid sequences become U+FFFD).
-     * @param {string} [enc] encoding
-     * @return {string}
-     */
-    toString(enc) {
-      utf8Only(enc);
-      return ops.utf8Decode(this);
-    }
-  }
-
-  /**
-   * Re-types a Uint8Array as a Buffer without copying its bytes.
-   * @param {Uint8Array} bytes array from native code
-   * @return {Buffer}
-   */
-  function asBuffer(bytes) {
-    return Object.setPrototypeOf(bytes, Buffer.prototype);
-  }
-
-  globalThis.Buffer = Buffer;
-  globalThis.TextEncoder = class TextEncoder {
-    /** @return {string} always "utf-8" */
-    get encoding() {
-      return 'utf-8';
-    }
-
-    /**
-     * Encodes a string as UTF-8.
-     * @param {string} [text] input
-     * @return {Uint8Array}
-     */
-    encode(text = '') {
-      return ops.utf8Encode(String(text));
-    }
-  };
-  globalThis.TextDecoder = class TextDecoder {
-    /**
-     * @param {string} [enc] encoding; only UTF-8 is implemented
-     */
-    constructor(enc) {
-      if (enc !== undefined && !/^utf-?8$/i.test(enc)) throw new RangeError('Unsupported encoding: ' + enc);
-    }
-
-    /** @return {string} always "utf-8" */
-    get encoding() {
-      return 'utf-8';
-    }
-
-    /**
-     * Decodes UTF-8 bytes.
-     * @param {ArrayBuffer|ArrayBufferView} [input] bytes
-     * @return {string}
-     */
-    decode(input) {
-      if (input === undefined) return '';
-      if (input instanceof Uint8Array) return ops.utf8Decode(input);
-      return ops.utf8Decode(
-        ArrayBuffer.isView(input) ? new Uint8Array(input.buffer, input.byteOffset, input.byteLength) : new Uint8Array(input),
-      );
-    }
-  };
+  // Buffer, TextEncoder and TextDecoder are native (`src/node/buffer.rs`).
+  const { asBuffer, utf8Only } = native;
 
   // ----------------------------------------------------------------- console
 
-  /**
-   * Formats an error with its name, message and stack.
-   * @param {Error} err error
-   * @return {string}
-   */
-  function errorText(err) {
-    const head = err.name + (err.message ? ': ' + err.message : '');
-    const stack = typeof err.stack === 'string' ? err.stack.trimEnd() : '';
-    return !stack ? head : stack.startsWith(head) ? stack : head + '\n' + stack;
-  }
-
-  /**
-   * Wraps text in one SGR color when coloring is on.
-   * @param {boolean} c whether to color
-   * @param {string} code SGR parameter
-   * @param {string} text text to wrap
-   * @return {string}
-   */
-  const paint = (c, code, text) => (c ? '\x1b[' + code + 'm' + text + '\x1b[0m' : text);
-
-  /**
-   * Renders a value the way `console.log` shows it.
-   * @param {*} v value
-   * @param {number} depth nesting level; 0 is the top
-   * @param {object[]} seen ancestors, for cycle detection
-   * @return {string}
-   */
-  function inspect(v, depth, seen, c) {
-    const t = typeof v;
-    if (t === 'string') return depth === 0 ? v : paint(c, '32', "'" + v + "'");
-    if (t === 'function') return paint(c, '36', v.name ? '[Function: ' + v.name + ']' : '[Function (anonymous)]');
-    if (t === 'bigint') return paint(c, '33', v + 'n');
-    if (t === 'symbol') return paint(c, '32', v.toString());
-    if (t !== 'object' || v === null) return paint(c, v === null ? '1' : v === undefined ? '90' : '33', String(v));
-    if (v instanceof Error) return errorText(v);
-    if (v instanceof Date) return paint(c, '35', isNaN(v) ? 'Invalid Date' : v.toISOString());
-    if (v instanceof RegExp) return paint(c, '31', String(v));
-    if (seen.includes(v)) return paint(c, '36', '[Circular]');
-    const list = Array.isArray(v) || ArrayBuffer.isView(v);
-    if (depth > 2) return paint(c, '36', list ? '[Array]' : '[Object]');
-    seen.push(v);
-    const name = v.constructor && v.constructor.name;
-    let out;
-    if (list) {
-      const parts = [];
-      const shown = Math.min(v.length, 100);
-      for (let i = 0; i < shown; i++) parts.push(inspect(v[i], depth + 1, seen, c));
-      if (v.length > shown) parts.push('... ' + (v.length - shown) + ' more items');
-      out = (Array.isArray(v) ? '' : name + '(' + v.length + ') ') + (parts.length ? '[ ' + parts.join(', ') + ' ]' : '[]');
-    } else if (v instanceof Map || v instanceof Set) {
-      const parts = [];
-      if (v instanceof Map) for (const [k, x] of v) parts.push(inspect(k, depth + 1, seen, c) + ' => ' + inspect(x, depth + 1, seen, c));
-      else for (const x of v) parts.push(inspect(x, depth + 1, seen, c));
-      out = name + '(' + v.size + ') ' + (parts.length ? '{ ' + parts.join(', ') + ' }' : '{}');
-    } else {
-      const parts = [];
-      for (const k of Object.keys(v)) {
-        parts.push((/^[A-Za-z_$][\w$]*$/.test(k) ? k : "'" + k + "'") + ': ' + inspect(v[k], depth + 1, seen, c));
-      }
-      const tag = name === undefined ? '[Object: null prototype] ' : name && name !== 'Object' ? name + ' ' : '';
-      out = tag + (parts.length ? '{ ' + parts.join(', ') + ' }' : '{}');
-    }
-    seen.pop();
-    return out;
-  }
-
-  /**
-   * Joins console arguments, honouring printf-style placeholders in the first one.
-   * @param {Array} args arguments
-   * @param {boolean} [c] color inspected values
-   * @return {string}
-   */
-  function format(args, c) {
-    let i = 0;
-    let out = '';
-    if (typeof args[0] === 'string' && args.length > 1 && args[0].includes('%')) {
-      i = 1;
-      out = args[0].replace(/%([sdifjoO%])/g, (match, kind) => {
-        if (kind === '%') return '%';
-        if (i >= args.length) return match;
-        const a = args[i++];
-        switch (kind) {
-          case 's':
-            return typeof a === 'string' ? a : inspect(a, 1, [], c);
-          case 'd':
-            return typeof a === 'bigint' ? a + 'n' : String(Number(a));
-          case 'i':
-            return String(parseInt(a, 10));
-          case 'f':
-            return String(parseFloat(a));
-          case 'j':
-            return JSON.stringify(a);
-          default:
-            return inspect(a, 0, [], c);
-        }
-      });
-    } else if (args.length) {
-      i = 1;
-      out = inspect(args[0], 0, [], c);
-    }
-    for (; i < args.length; i++) out += ' ' + inspect(args[i], 0, [], c);
-    return out;
-  }
-
-  /**
-   * Whether console output to each fd is colored; decided once at startup by the
-   * CLI (`--color`, FORCE_COLOR, NO_COLOR, tty). Index 0 is unused.
-   * @type {boolean[]}
-   */
-  // `ops.color` is a host binding (the CLI host registers it); other hosts get
-  // uncolored console output.
-  const depth = ops.color || [0, 0];
-  const tint = [false, depth[0] > 0, depth[1] > 0];
-
-  /**
-   * Hook the `lunarstorm:ui` module installs while progress bars are on screen.
-   * `wrap(fd, text)` erases the bars, prints the line and redraws them, so console
-   * output scrolls above a live region. `null` (the normal case) costs one
-   * property load per console call.
-   * @type {{wrap: ?function(number, string): void}}
-   */
-  const live = { wrap: null };
-
-  /**
-   * Builds a console method that writes one formatted line.
-   * @param {number} fd 1 for stdout, 2 for stderr
-   * @return {function(...*): void}
-   */
-  const printer = (fd) => (...args) => {
-    const text = format(args, tint[fd]) + '\n';
-    if (live.wrap === null) ops.print(fd, text);
-    else live.wrap(fd, text);
-  };
-  globalThis.console = {
-    log: printer(1),
-    info: printer(1),
-    debug: printer(1),
-    error: printer(2),
-    warn: printer(2),
-    /**
-     * Prints a message and the current stack to stderr.
-     * @param {...*} args message
-     */
-    trace(...args) {
-      ops.print(2, 'Trace: ' + format(args, tint[2]) + '\n' + new Error().stack);
-    },
-  };
+  // `console` and the inspector are native (`src/node/console.rs`). `inspect(value)`
+  // renders a value uncolored; `live` is the slot `lunarstorm:ui` writes `wrap` to.
+  const { inspect, live } = native;
 
   // ----------------------------------------------------------------- process
 
-  const process = new EventEmitter();
-  Object.assign(process, {
-    argv: ops.argv,
-    pid: ops.pid,
-    platform: ops.platform,
-    arch: ops.arch,
-    version: 'v' + ops.version,
-    versions: { lunarstorm: ops.version },
-    exitCode: undefined,
-    cwd: ops.cwd,
-    nextTick,
-    /**
-     * Ends the process now.
-     * @param {number} [code] exit status; defaults to process.exitCode, then 0
-     */
-    exit(code) {
-      ops.exit((code === undefined ? process.exitCode : code) | 0);
-    },
-    /** @return {number} seconds since the process started */
-    uptime: () => ops.now() / 1000,
-    hrtime: {
-      /** @return {bigint} nanoseconds since the process started */
-      bigint: () => BigInt(Math.round(ops.now() * 1e6)),
-    },
-    stdout: {
-      /**
-       * Writes text to stdout.
-       * @param {*} text output
-       * @return {boolean} always true
-       */
-      write(text) {
-        ops.print(1, String(text));
-        return true;
-      },
-    },
-    stderr: {
-      /**
-       * Writes text to stderr.
-       * @param {*} text output
-       * @return {boolean} always true
-       */
-      write(text) {
-        ops.print(2, String(text));
-        return true;
-      },
-    },
-  });
-  // The environment is copied from the OS on first use: most scripts never read it.
-  Object.defineProperty(process, 'env', {
-    enumerable: true,
-    configurable: true,
-    get() {
-      const env = ops.env();
-      Object.defineProperty(process, 'env', { value: env, writable: true, enumerable: true });
-      return env;
-    },
-  });
-  globalThis.process = process;
-  if (typeof globalThis.crypto !== 'object') {
-    globalThis.crypto = {
-      /**
-       * Fills a typed array with random bytes from the host's entropy source.
-       * @param {Uint8Array} array integer typed array of at most 65536 bytes
-       * @return {Uint8Array} the same array
-       */
-      getRandomValues(array) {
-        const bytes = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
-        bytes.set(ops.random(bytes.length));
-        return array;
-      },
-    };
-  }
-  globalThis.global = globalThis;
-  if (typeof globalThis.performance !== 'object') globalThis.performance = { now: ops.now };
-
-  // -------------------------------------------------------------------- path
-
-  /** POSIX path helpers. */
-  const path = {
-    sep: '/',
-    delimiter: ':',
-    /**
-     * @param {string} p path
-     * @return {boolean} whether the path starts at the root
-     */
-    isAbsolute: (p) => p.charCodeAt(0) === 47,
-    /**
-     * Resolves `.` and `..` segments and repeated slashes.
-     * @param {string} p path
-     * @return {string}
-     */
-    normalize(p) {
-      const abs = p.charCodeAt(0) === 47;
-      const out = [];
-      for (const part of p.split('/')) {
-        if (part === '' || part === '.') continue;
-        if (part !== '..') out.push(part);
-        else if (out.length && out[out.length - 1] !== '..') out.pop();
-        else if (!abs) out.push('..');
-      }
-      let joined = out.join('/');
-      if (joined && p.endsWith('/')) joined += '/';
-      return abs ? '/' + joined : joined || '.';
-    },
-    /**
-     * Joins segments and normalizes the result.
-     * @param {...string} parts segments
-     * @return {string}
-     */
-    join(...parts) {
-      return path.normalize(parts.filter(Boolean).join('/') || '.');
-    },
-    /**
-     * Resolves segments right to left into an absolute path.
-     * @param {...string} parts segments
-     * @return {string}
-     */
-    resolve(...parts) {
-      let joined = '';
-      for (let i = parts.length - 1; i >= 0 && joined.charCodeAt(0) !== 47; i--) {
-        if (parts[i]) joined = parts[i] + '/' + joined;
-      }
-      if (joined.charCodeAt(0) !== 47) joined = ops.cwd() + '/' + joined;
-      const out = path.normalize(joined);
-      return out.length > 1 && out.endsWith('/') ? out.slice(0, -1) : out;
-    },
-    /**
-     * @param {string} p path
-     * @return {string} the directory part
-     */
-    dirname(p) {
-      const trimmed = p.replace(/\/+$/, '');
-      if (trimmed === '') return p.charCodeAt(0) === 47 ? '/' : '.';
-      const i = trimmed.lastIndexOf('/');
-      return i < 0 ? '.' : i === 0 ? '/' : trimmed.slice(0, i);
-    },
-    /**
-     * @param {string} p path
-     * @param {string} [ext] suffix to strip
-     * @return {string} the last segment
-     */
-    basename(p, ext) {
-      const trimmed = p.replace(/\/+$/, '');
-      const base = trimmed.slice(trimmed.lastIndexOf('/') + 1);
-      return ext && base.endsWith(ext) && base !== ext ? base.slice(0, -ext.length) : base;
-    },
-    /**
-     * @param {string} p path
-     * @return {string} the extension including its dot, or ''
-     */
-    extname(p) {
-      const base = path.basename(p);
-      const i = base.lastIndexOf('.');
-      return i <= 0 ? '' : base.slice(i);
-    },
-  };
+  // `process`, `global`, `crypto` and `performance` are native (`src/node/process.rs`).
+  const process = native.modules.process;
 
   // --------------------------------------------------------------------- net
 
@@ -1343,12 +665,8 @@
    */
   function dispatch(kind, id, a, b, c, d, e) {
     switch (kind) {
-      case 0: { // TIMER (key, oneShot)
-        const fn = timers[id];
-        if (a) timers[id] = undefined;
-        fn();
-        return;
-      }
+      case 0: // TIMER (key, oneShot)
+        return fireTimer(id, a);
       case 1: // IMMEDIATE
         return runImmediate();
       case 8: { // HTTP (listener, conn, method, url, fields, body)
@@ -1424,30 +742,18 @@
 
   // ----------------------------------------------------------------- modules
 
-  const timersModule = {
-    setTimeout: globalThis.setTimeout,
-    setInterval: globalThis.setInterval,
-    setImmediate: globalThis.setImmediate,
-    clearTimeout: clearTimer,
-    clearInterval: clearTimer,
-    clearImmediate: globalThis.clearImmediate,
-  };
   /**
    * The builtin modules by name (without the `node:` prefix). Decision: they are
    * returned to the Runtime, not published on a global, so a script can reach them
-   * only through `import`, exactly like `lunarstorm:ipc`.
+   * only through `import`, exactly like `lunarstorm:ipc`. The ported builtins
+   * (`node:path`, ...) are already in `native.modules`; this adds the rest.
    */
-  const modules = {
-    events: EventEmitter,
+  const modules = Object.assign(native.modules, {
     net,
     http,
     fs,
     'fs/promises': fsPromises,
-    path,
-    process,
-    buffer: { Buffer },
-    timers: timersModule,
-  };
+  });
 
   /**
    * What `lunarstorm:internal` exports, for host modules only: the Runtime's natives
@@ -1473,7 +779,7 @@
       const json = JSON.stringify(value);
       return json === undefined ? null : json;
     } catch {
-      return inspect(value, 0, []);
+      return inspect(value);
     }
   }
 
@@ -1493,7 +799,7 @@
      * @param {*} value thrown value or rejection reason
      * @return {string}
      */
-    describe: (value) => inspect(value, 0, []),
+    describe: (value) => inspect(value),
     /** @return {number} process.exitCode as an integer */
     exitCode: () => process.exitCode | 0,
     /**
@@ -1507,7 +813,7 @@
     invoke: (fn, id, ...args) => {
       new Promise((resolve) => resolve(fn(...args))).then(
         (value) => ops.settled(id, true, plain(value)),
-        (error) => ops.settled(id, false, inspect(error, 0, [])),
+        (error) => ops.settled(id, false, inspect(error)),
       );
     },
   };

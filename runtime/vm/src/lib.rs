@@ -933,6 +933,25 @@ pub trait Scope<'s, V: Vm>: Clone {
     /// [`Thrown`] when the callee throws or is not callable.
     fn call(&self, function: &V::Value<'s>, args: &[V::Value<'s>]) -> Outcome<V::Value<'s>>;
 
+    /// Calls a function with a receiver, as `function.call(this, ...args)`. Runs JS.
+    ///
+    /// Decision: required, like [`Scope::call`]. The natives that implement Node's
+    /// builtins call listeners with their emitter as `this` and builtin methods on
+    /// their objects (`Map.prototype.get`); the alternative, `Reflect.apply` through
+    /// [`Scope::call`], allocates an argument array per call on hot paths.
+    ///
+    /// # Arguments
+    /// * `function` - the callee.
+    /// * `this` - the receiver.
+    /// * `args` - the arguments.
+    ///
+    /// # Returns
+    /// The function's return value.
+    ///
+    /// # Errors
+    /// [`Thrown`] when the callee throws or is not callable.
+    fn call_with(&self, function: &V::Value<'s>, this: &V::Value<'s>, args: &[V::Value<'s>]) -> Outcome<V::Value<'s>>;
+
     // ---- code -----------------------------------------------------------------
 
     /// Evaluates a classic script. Runs JS.

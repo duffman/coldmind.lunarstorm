@@ -23,6 +23,7 @@
 //! | `host`     | the host services contract                                         |
 //! | `bindings` | host-supplied native functions and modules                         |
 //! | `ops`      | the Runtime's own native functions                                 |
+//! | `node`     | Node's builtin modules and globals (`node:path`, `console`, ...)   |
 //! | `modules`  | module resolver and loader; the VM callbacks                       |
 //! | `io`       | loop-owned state: sockets, write buffers, timers, deferred work    |
 //! | `pool`     | bounded worker pool for blocking work (fs, DNS)                    |
@@ -43,6 +44,7 @@ mod host;
 mod io;
 mod ipc;
 mod modules;
+mod node;
 mod ops;
 mod pool;
 mod runtime;
@@ -53,4 +55,5 @@ pub use channel::{Inbox, MAX_BYTES, MAX_MESSAGES, MAX_MESSAGE_BYTES};
 pub use extension::{check, valid_name, Cardinality, Entry, Extension, ExtensionSet, Manifest, Offer, PluginHost, Requirement, Use, RESERVED};
 pub use host::{Access, Host, Log, Stream};
 pub use lunarstorm_vm as vm;
+pub use node::{declarations as builtin_declarations, GLOBAL};
 pub use runtime::{glue_compiles, Arg, CallId, Poster, Runtime, Source, State, Wait};

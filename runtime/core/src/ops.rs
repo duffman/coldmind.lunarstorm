@@ -32,7 +32,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::rc::Rc;
 
 /// Largest `crypto.getRandomValues` request, as in the Web Crypto specification.
-const ENTROPY_MAX: usize = 65_536;
+pub(crate) const ENTROPY_MAX: usize = 65_536;
 
 /// Reads a numeric argument the declaration has checked.
 ///
@@ -130,6 +130,43 @@ pub fn throw_fault<'s, V: Vm>(scope: &V::Scope<'s>, fault: Fault) -> Thrown {
             scope.throw(error)
         }
         Err(thrown) => thrown,
+    }
+}
+
+/// Writes text to stdout (buffered) or stderr: what `ops.print` and `console` do.
+///
+/// # Arguments
+/// * `shared` - loop state: the stdout buffer and the host.
+/// * `fd` - 2 for stderr, anything else for stdout.
+/// * `text` - the bytes to write.
+pub(crate) fn print<H: Host>(shared: &Shared<H>, fd: i32, text: &[u8]) {
+    let mut io = shared.io.borrow_mut();
+    if fd == 2 {
+        // Keep stdout and stderr in program order when both reach a terminal.
+        io.flush_stdout(&shared.host);
+        shared.host.write(Stream::Err, text);
+    } else {
+        io.print(text, &shared.host);
+    }
+}
+
+/// # Returns
+/// The OS, spelled as Node spells it (`darwin`, `win32`, `linux`).
+pub(crate) fn platform() -> &'static str {
+    match std::env::consts::OS {
+        "macos" => "darwin",
+        "windows" => "win32",
+        other => other,
+    }
+}
+
+/// # Returns
+/// The CPU, spelled as Node spells it (`arm64`, `x64`).
+pub(crate) fn arch() -> &'static str {
+    match std::env::consts::ARCH {
+        "aarch64" => "arm64",
+        "x86_64" => "x64",
+        other => other,
     }
 }
 
@@ -432,18 +469,8 @@ pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>)
     scope.set(&ops, "argv", scope.array(&argv)?)?;
     scope.set(&ops, "pid", scope.number(f64::from(std::process::id())))?;
     scope.set(&ops, "version", scope.string(env!("CARGO_PKG_VERSION"))?)?;
-    let platform = match std::env::consts::OS {
-        "macos" => "darwin",
-        "windows" => "win32",
-        other => other,
-    };
-    scope.set(&ops, "platform", scope.string(platform)?)?;
-    let arch = match std::env::consts::ARCH {
-        "aarch64" => "arm64",
-        "x86_64" => "x64",
-        other => other,
-    };
-    scope.set(&ops, "arch", scope.string(arch)?)?;
+    scope.set(&ops, "platform", scope.string(platform())?)?;
+    scope.set(&ops, "arch", scope.string(arch())?)?;
 
     op!(ENV, |s, call| {
         let scope = call.scope();
@@ -462,16 +489,7 @@ pub fn install<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>)
         Ok(call.scope().number(s.host.monotonic().duration_since(s.start).as_secs_f64() * 1000.0))
     });
     op!(PRINT, |s, call| {
-        text(call, 1, |line| {
-            let mut io = s.io.borrow_mut();
-            if int(call, 0) == 2 {
-                // Keep stdout and stderr in program order when both reach a terminal.
-                io.flush_stdout(&s.host);
-                s.host.write(Stream::Err, line.as_bytes());
-            } else {
-                io.print(line.as_bytes(), &s.host);
-            }
-        })?;
+        text(call, 1, |line| print(&s, int(call, 0), line.as_bytes()))?;
         Ok(call.scope().undefined())
     });
     op!(FLUSH, |s, call| {

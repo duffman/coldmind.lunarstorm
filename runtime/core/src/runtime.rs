@@ -55,6 +55,7 @@ use crate::host::{Access, Host, Log};
 use lunarstorm_http1::{self as http, Body, Step};
 use crate::io::{flag, Deferred, Entry, Fault, Io, Shared, Wake, WAKER};
 use crate::modules::{self as loader, Loader, Registry, Rejections};
+use crate::node::{self, Node};
 use crate::ops;
 use crate::pool::{Pool, ResultMsg};
 use bytes::Buf;
@@ -74,7 +75,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 /// The JS glue, evaluated once at `start`. It is a single function expression that
-/// receives the `ops` object and returns the hooks the loop calls.
+/// receives the `ops` object and the ported builtins ([`node::install`]) and
+/// returns the hooks the loop calls.
 const BOOTSTRAP: &str = include_str!("js/bootstrap.js");
 /// How many times this process has compiled [`BOOTSTRAP`].
 ///
@@ -352,6 +354,9 @@ pub struct Runtime<V: Vm, H: Host> {
     ipc: Rc<Ipc<V>>,
     /// The `lunarstorm:worker` children and, for a worker, the link to its parent.
     workers: Rc<Workers<V>>,
+    /// The builtins' kept values and queues; handles into the heap, cleared before
+    /// the instance is destroyed.
+    node: Rc<Node<V>>,
     /// Limits for the instance `start` creates.
     limits: Limits,
     /// Id of the next `call`.
@@ -368,6 +373,7 @@ impl<V: Vm, H: Host> Drop for Runtime<V, H> {
     fn drop(&mut self) {
         self.rejections.borrow_mut().clear();
         self.registry.clear();
+        self.node.clear();
         // Workers end first: their listeners are persistent handles into the heap.
         self.workers.shutdown(&self.shared.refs);
         // The receiver is a persistent handle into the instance's heap.
@@ -430,6 +436,7 @@ impl<V: Vm, H: Host> Runtime<V, H> {
             poster: Poster { tasks: sender, waker, pending },
             ipc,
             workers,
+            node: Node::new(),
             limits: Limits::default(),
             next_call: 0,
             polls: 0,
@@ -645,8 +652,10 @@ impl<V: Vm, H: Host> Runtime<V, H> {
                 for install in installers {
                     install(&scope, &ops)?;
                 }
+                // The ported builtins, then the glue, which receives them.
+                let native = node::install::<V, H>(&scope, shared, &self.node, &ops)?;
                 let bootstrap = glue::<V>(&scope)?;
-                let hooks = scope.call(&bootstrap, &[ops])?;
+                let hooks = scope.call(&bootstrap, &[ops, native])?;
                 let hook = |name: &str| scope.get(&hooks, name).map(|value| scope.persist(&value));
                 // The builtin modules and internals stay with the loader; nothing
                 // of them is published on the global object.
@@ -917,6 +926,7 @@ impl<V: Vm, H: Host> Runtime<V, H> {
         self.shared.io.borrow_mut().flush_stdout(&self.shared.host);
         self.rejections.borrow_mut().clear();
         self.registry.clear();
+        self.node.clear();
         self.workers.shutdown(&self.shared.refs);
         self.ipc.clear(&self.shared.refs);
         self.ipc.channel.close();
