@@ -366,7 +366,7 @@ fn main() {
         }
     };
     // The script may read and import files beside itself, and nothing else.
-    let roots = path.canonicalize().ok().and_then(|file| file.parent().map(Path::to_path_buf)).into_iter().collect();
+    let roots: Vec<_> = path.canonicalize().ok().and_then(|file| file.parent().map(Path::to_path_buf)).into_iter().collect();
 
     let event_loop = EventLoopBuilder::<Message>::with_user_event().build();
     let shell = Arc::new(TaoShell { proxy: Mutex::new(event_loop.create_proxy()) });
@@ -377,6 +377,7 @@ fn main() {
         restore: String::from("{}"),
         memory: Some(HEAP),
         budget: BUDGET,
+        area_roots: roots.clone(),
         roots,
         environment: Vec::new(),
         name: path.display().to_string(),

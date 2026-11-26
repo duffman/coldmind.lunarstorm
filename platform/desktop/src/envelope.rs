@@ -22,6 +22,18 @@
 //! Runtime's dispatcher checks it again and answers. A refused call is answered
 //! with a `result` carrying the same `id`, so the caller never waits for nothing.
 //!
+//! The codes a page can see in a failed `result`:
+//!
+//! | from              | codes                                                        |
+//! |-------------------|--------------------------------------------------------------|
+//! | the host          | `EREFUSED` (not in the spec or not permitted, bad arguments, duplicate id), `ERELOAD` (no backend, or it was reloaded), `ETIMEDOUT` (30 s), `EAGAIN` (64 calls in flight per form), `E2BIG` (result over [`MAX_RESULT`]), `EUNAVAIL` (a runtime without HostApi) |
+//! | the `fs` area     | `EACCES` (outside the roots, a link), `ENOENT`, `EINVAL` (bad argument, not a regular file), `ENOTDIR`, `EIO`, `E2BIG` (over 16 MiB), `EAGAIN` (the backend's job queue is full) |
+//! | the dispatcher    | `EFAIL` (the value is not JSON); its `EINVAL`/`EPERM` checks repeat the host's and a WebView cannot reach them |
+//!
+//! Limits: a `writeText` is bounded by [`MAX_MESSAGE`] (1 MiB inbound); a `result` by
+//! [`MAX_RESULT`]. Decision D11: after `ETIMEDOUT` or `ERELOAD` the operation may
+//! still have run; calls are not cancelled, as no area needs it yet.
+//!
 //! Decision: there is no second channel. Dev messages, property updates and control
 //! events share this envelope, so ordering between them is the queue order.
 
@@ -38,6 +50,15 @@ pub const QUEUE_CAPACITY: usize = 1024;
 
 /// Largest WebView message accepted, in bytes; larger ones are rejected unparsed.
 pub const MAX_MESSAGE: usize = 1 << 20;
+
+/// Largest `result` envelope sent to a WebView, in bytes (decision D6); a larger
+/// one is replaced by a failed `result` with code `E2BIG` and the same id.
+///
+/// Defect fixed (review #3): a value of any size went to the WebView (test
+/// `a_result_over_the_envelope_limit_becomes_e2big`). The `fs` text limit alone
+/// does not bound it: JSON escaping can grow text sixfold. It lives here, beside
+/// [`MAX_MESSAGE`], because the host crate knows no envelopes.
+pub const MAX_RESULT: usize = 16 << 20;
 
 /// What an envelope is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

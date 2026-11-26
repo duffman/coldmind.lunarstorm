@@ -149,6 +149,9 @@
 
   /**
    * Entry point the host calls through evaluate_script.
+   *
+   * Decision D12: it stays writable. Page and shell are one trust domain; the host
+   * is the boundary, and it checks every call. Freezing it would protect nothing.
    * @param {object} envelope
    */
   window.__zebraReceive = (envelope) => {

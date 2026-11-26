@@ -4,8 +4,13 @@
 //! The app has no backend code. The page reports by writing files through the same
 //! API, so the test only reads the filesystem.
 //!
-//! Needs a desktop session (WKWebView on macOS, WebView2 on Windows, WebKitGTK and a
-//! display on Linux).
+//! Tests: the round trip with refusals (`a_webview_call_reaches_the_fs_area_through_the_runtime_and_back`),
+//! a reloaded page against its predecessor's calls
+//! (`a_reloaded_page_does_not_inherit_the_old_pages_calls`), and the per-form call bound
+//! (`a_page_cannot_queue_more_than_max_calls`). The last two keep the backend busy for 3 s.
+//!
+//! Needs a desktop session: on macOS a logged-in session, on Windows WebView2, on Linux
+//! WebKitGTK under a display (`xvfb-run cargo test ...`).
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
@@ -90,4 +95,86 @@ fn a_webview_call_reaches_the_fs_area_through_the_runtime_and_back() {
     assert_eq!(wait_for(&data.join("denied.txt"), until), "EACCES");
     assert_eq!(wait_for(&data.join("refused.txt"), until), "EREFUSED");
     assert_eq!(std::fs::read_to_string(base.join("escape.txt")).expect("escape.txt"), "secret");
+}
+
+/// Host configuration of the busy fixture: a `Busy` button whose `onClick` keeps
+/// the backend busy for 3 s (budget 5 s), so calls stay in flight meanwhile.
+const BUSY_CONFIG: &str = r#"{
+  "schema": 1,
+  "application": { "id": "dev.lunarstorm.e2e.busy", "name": "HostApi busy e2e", "version": "0.1.0", "mainForm": "MainForm" },
+  "forms": [{ "name": "MainForm", "props": { "caption": "HostApi busy e2e", "width": 320, "height": 200 }, "events": [],
+    "controls": { "Busy": { "type": "button", "props": [], "events": ["onClick"] } } }],
+  "permissions": { "fs": [__DATA__], "hostapi": ["fs"] },
+  "limits": { "budgetMs": 5000 }
+}"#;
+
+/// The busy fixture's backend: `Busy.onClick` runs for 3 s.
+const BUSY_BACKEND: &str = "import { serve } from '@desktop/bridge';\n\
+serve((m) => { if (m.event === 'onClick') { const end = Date.now() + 3000; while (Date.now() < end) {} } });\n";
+
+/// Writes a project with the busy fixture and `page`, and starts the app on it.
+///
+/// # Arguments
+/// * `name` - the test's directory under Cargo's temp directory.
+/// * `page` - `frontend/index.html`.
+///
+/// # Returns
+/// The running app and the data root the page writes to.
+fn busy_app(name: &str, page: &str) -> (App, PathBuf) {
+    let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
+    let _ = std::fs::remove_dir_all(&base);
+    let (project, data) = (base.join("project"), base.join("data"));
+    std::fs::create_dir_all(project.join("frontend")).expect("create the project");
+    std::fs::create_dir_all(&data).expect("create the data root");
+    let data_json = format!("{:?}", data.to_string_lossy());
+    std::fs::write(project.join("zebra.json"), BUSY_CONFIG.replace("__DATA__", &data_json)).expect("write zebra.json");
+    std::fs::write(project.join("backend.js"), BUSY_BACKEND).expect("write backend.js");
+    std::fs::write(project.join("frontend/index.html"), page).expect("write index.html");
+    std::fs::write(data.join("in.txt"), "hello from disk").expect("write in.txt");
+    let app = App(Command::new(env!("CARGO_BIN_EXE_lunarstorm-debug")).arg(&project).spawn().expect("start lunarstorm-debug"));
+    (app, data)
+}
+
+/// First load: a call queued behind the busy backend, then a reload to `#two`.
+/// Second load: one write, then the value that write resolved with.
+const RELOAD_PAGE: &str = r#"<!doctype html><meta charset="utf-8"><title>e2e</title><script>
+(async () => {
+  const fs = window.lunarstorm.hostapi.fs;
+  if (location.hash !== '#two') {
+    window.zebra.emit('Busy', 'onClick');
+    fs.readText('in.txt');
+    setTimeout(() => { location.hash = 'two'; location.reload(); }, 200);
+    return;
+  }
+  let value;
+  try { value = await fs.writeText('reload.txt', 'ok'); } catch (error) { await fs.writeText('reload.txt', error.code); return; }
+  await fs.writeText('value.txt', JSON.stringify(value));
+})();
+</script>"#;
+
+#[test]
+fn a_reloaded_page_does_not_inherit_the_old_pages_calls() {
+    let (_app, data) = busy_app("e2e-hostapi-reload", RELOAD_PAGE);
+    let until = Instant::now() + Duration::from_secs(20);
+    assert_eq!(wait_for(&data.join("reload.txt"), until), "ok", "the new page's call collided with the old page's");
+    assert_eq!(wait_for(&data.join("value.txt"), until), "null", "the new page got the old page's result");
+}
+
+/// 65 reads while the backend is busy; the codes, counted, go to `codes.txt`.
+const FLOOD_PAGE: &str = r#"<!doctype html><meta charset="utf-8"><title>e2e</title><script>
+(async () => {
+  const fs = window.lunarstorm.hostapi.fs;
+  window.zebra.emit('Busy', 'onClick');
+  const codes = await Promise.all(Array.from({ length: 65 }, () => fs.readText('in.txt').then(() => 'ok', (error) => error.code)));
+  const counts = {};
+  for (const code of codes) counts[code] = (counts[code] ?? 0) + 1;
+  await fs.writeText('codes.txt', Object.entries(counts).sort().map(([code, n]) => `${code}:${n}`).join(','));
+})();
+</script>"#;
+
+#[test]
+fn a_page_cannot_queue_more_than_max_calls() {
+    let (_app, data) = busy_app("e2e-hostapi-flood", FLOOD_PAGE);
+    let until = Instant::now() + Duration::from_secs(20);
+    assert_eq!(wait_for(&data.join("codes.txt"), until), "EAGAIN:1,ok:64");
 }

@@ -111,6 +111,7 @@ fn program(epoch: u64, code: &str) -> Program {
         memory: Some(64 << 20),
         budget: Duration::from_millis(100),
         roots: Vec::new(),
+        area_roots: Vec::new(),
         environment: Vec::new(),
         name: String::from("test.app"),
         areas: Vec::new(),
@@ -337,7 +338,7 @@ fn webview_calls_reach_the_fs_area_through_the_runtime_without_backend_code() {
     std::fs::write(base.join("outside.txt"), "outside").expect("write outside");
     let (backend, lines) = backend();
     let mut program = program(1, "export {};\n");
-    program.roots = vec![root.clone()];
+    program.area_roots = vec![root.clone()];
     program.areas = vec![String::from("fs")];
     backend.load(program);
     assert_eq!(next(&lines), "loaded 1 ok");
@@ -393,4 +394,129 @@ fn the_spec_lists_the_fs_area() {
     assert_eq!(area["module"], "lunarstorm:hostapi/fs");
     let names: Vec<_> = area["functions"].as_array().expect("functions").iter().map(|f| f["name"].as_str().expect("name").to_owned()).collect();
     assert_eq!(names, ["readText", "writeText", "list"]);
+}
+
+/// A backend that writes `x` to the path an event names and shows `ok`, or the
+/// error code, in `Label.caption`.
+const WRITER: &str = "\
+import { serve, setProperty } from '@desktop/bridge';\n\
+import { writeFileSync } from 'node:fs';\n\
+serve((message) => {\n\
+  let shown = 'ok';\n\
+  try { writeFileSync(message.payload.path, 'x'); } catch (error) { shown = error.code; }\n\
+  setProperty(message.form, 'Label', 'caption', shown);\n\
+});\n";
+
+/// Starts a backend whose `node:fs` and `fs` area are both scoped to `root`.
+///
+/// # Arguments
+/// * `code` - the backend module.
+/// * `root` - the one root.
+///
+/// # Returns
+/// The backend and its recorded lines, after `loaded 1 ok`.
+fn rooted(code: &str, root: &std::path::Path) -> (Backend<Recorder>, Receiver<String>) {
+    let (backend, lines) = backend();
+    let mut program = program(1, code);
+    program.roots = vec![root.to_path_buf()];
+    program.area_roots = vec![root.to_path_buf()];
+    program.areas = vec![String::from("fs")];
+    backend.load(program);
+    assert_eq!(next(&lines), "loaded 1 ok");
+    (backend, lines)
+}
+
+/// Asserts that a recorded `result` line failed with `code`.
+///
+/// # Arguments
+/// * `line` - the line.
+/// * `code` - the expected error code.
+/// * `what` - what was attempted, for the message.
+fn refused_with(line: &str, code: &str, what: &str) {
+    let shown: String = line.chars().take(300).collect();
+    assert!(line.contains(&format!("\"ok\":false,\"error\":{{\"code\":\"{code}\"")), "{what}: expected {code}, got {shown}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_broken_symlink_inside_a_root_is_refused() {
+    let base = scratch("broken-link");
+    let root = base.join("root");
+    std::fs::create_dir_all(&root).expect("create the root");
+    std::os::unix::fs::symlink(base.join("new"), root.join("link")).expect("create the link");
+    let (backend, lines) = rooted(WRITER, &root);
+
+    backend.dispatch(1, envelope("Button.onWrite", "event", &format!("{{\"path\":{:?}}}", root.join("link").to_string_lossy())));
+    let line = next(&lines);
+    assert!(line.contains("\"caption\":\"EACCES\""), "node:fs through a dangling link must be refused: {line}");
+    backend.dispatch(1, call(1, "fs.writeText", "[\"link\",\"x\"]"));
+    refused_with(&next(&lines), "EACCES", "fs.writeText through a dangling link");
+    assert!(!base.join("new").exists(), "nothing was created outside the root");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_hard_link_inside_a_root_is_refused() {
+    let base = scratch("hard-link");
+    let root = base.join("root");
+    std::fs::create_dir_all(&root).expect("create the root");
+    std::fs::write(base.join("secret"), "secret").expect("write the secret");
+    std::fs::hard_link(base.join("secret"), root.join("hard")).expect("create the hard link");
+    let (backend, lines) = rooted("export {};\n", &root);
+
+    backend.dispatch(1, call(1, "fs.readText", "[\"hard\"]"));
+    refused_with(&next(&lines), "EACCES", "fs.readText of a hard link");
+    backend.dispatch(1, call(2, "fs.writeText", "[\"hard\",\"x\"]"));
+    refused_with(&next(&lines), "EACCES", "fs.writeText of a hard link");
+    assert_eq!(std::fs::read_to_string(base.join("secret")).expect("secret"), "secret", "the outside file is unchanged");
+}
+
+/// Opens a FIFO for writing without blocking when dropped, so a reader blocked in
+/// `open` is released and a failing test ends instead of hanging.
+#[cfg(unix)]
+struct Release(std::path::PathBuf);
+
+#[cfg(unix)]
+impl Drop for Release {
+    /// Opens and closes the write end; `ENXIO` (no reader) is ignored.
+    fn drop(&mut self) {
+        use std::os::unix::fs::OpenOptionsExt;
+        let _ = std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(&self.0);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_fifo_in_a_root_does_not_block_the_backend() {
+    let base = scratch("fifo");
+    let root = base.join("root");
+    std::fs::create_dir_all(&root).expect("create the root");
+    let made = std::process::Command::new("mkfifo").arg(root.join("pipe")).status().expect("run mkfifo");
+    assert!(made.success(), "mkfifo failed");
+    let (backend, lines) = rooted("export {};\n", &root);
+    // Declared after the backend, so it is dropped first.
+    let _release = Release(root.join("pipe"));
+
+    backend.dispatch(1, call(1, "fs.readText", "[\"pipe\"]"));
+    backend.dispatch(1, call(2, "fs.list", "[\".\"]"));
+    let first = lines.recv_timeout(Duration::from_secs(10));
+    assert!(first.is_ok(), "the backend blocked on a FIFO: no result within 10 s");
+    let second = next(&lines);
+    let mut both = [first.unwrap_or_default(), second];
+    both.sort();
+    refused_with(&both[0], "EINVAL", "fs.readText of a FIFO");
+    assert_eq!(both[1], result(2, "fs.list", "{\"ok\":true,\"value\":[\"pipe\"]}"));
+}
+
+#[test]
+fn a_file_over_the_text_limit_is_refused() {
+    let base = scratch("text-limit");
+    let root = base.join("root");
+    std::fs::create_dir_all(&root).expect("create the root");
+    // MAX_TEXT (16 MiB) + 1 byte.
+    std::fs::write(root.join("big.txt"), vec![b'a'; (16 << 20) + 1]).expect("write big.txt");
+    let (backend, lines) = rooted("export {};\n", &root);
+
+    backend.dispatch(1, call(1, "fs.readText", "[\"big.txt\"]"));
+    refused_with(&next(&lines), "E2BIG", "fs.readText of 16 MiB + 1");
 }

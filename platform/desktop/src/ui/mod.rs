@@ -40,6 +40,13 @@ pub const SHELL: &str = include_str!("../shell/shell.js");
 /// that never answers cannot leave a page waiting forever.
 const CALL_DEADLINE: Duration = Duration::from_secs(30);
 
+/// Most HostApi calls one form may have in flight; one more is answered `EAGAIN`
+/// and not forwarded.
+///
+/// Defect fixed (review #4, decision D7): a page could queue any number of calls
+/// behind a busy backend (test `a_page_cannot_queue_more_than_max_calls`).
+const MAX_CALLS: usize = 64;
+
 /// Which runtime is running.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
@@ -99,6 +106,26 @@ struct Pending {
     deadline: Instant,
 }
 
+/// A WebView HostApi call forwarded to the backend under a host id.
+///
+/// Defect fixed (review #2, decision D8): calls were keyed by the page's own id,
+/// which restarts at 1 on every page load, so a reloaded page's first call was
+/// refused as a duplicate, or settled by the old page's late result (test
+/// `a_reloaded_page_does_not_inherit_the_old_pages_calls`). Decision: the backend
+/// sees a host-unique id, mapped back to the page's id on `result`, and a page's
+/// `session.start` drops its form's calls, so an old page's result matches
+/// nothing. Per-page id prefixes were rejected: more protocol for the same effect.
+struct HostCall {
+    /// The calling form.
+    form: String,
+    /// The id the page gave the call.
+    id: u64,
+    /// `<area>.<function>`.
+    method: String,
+    /// When the host answers `ETIMEDOUT`.
+    deadline: Instant,
+}
+
 /// A host-owned `timer` component.
 struct HostTimer {
     /// Owning form.
@@ -146,9 +173,11 @@ struct App {
     mirror: Mirror,
     /// Host requests in flight.
     pending: HashMap<u64, Pending>,
-    /// WebView HostApi calls in flight: (form, call id) -> deadline. A `result` is
-    /// delivered only while its call is here.
-    calls: HashMap<(String, u64), Instant>,
+    /// WebView HostApi calls in flight, by host id. A `result` is delivered only
+    /// while its call is here.
+    calls: HashMap<u64, HostCall>,
+    /// Last host id given to a call.
+    next_call: u64,
     /// Next request id.
     next_request: u64,
     /// Menus.
@@ -317,6 +346,7 @@ impl App {
             pending: HashMap::new(),
             calls: HashMap::new(),
             next_request: 0,
+            next_call: 0,
             menus,
             trays,
             timers: Vec::new(),
@@ -607,7 +637,7 @@ impl App {
     /// * `form` - the calling form.
     /// * `id` - the call's id.
     /// * `method` - the call's method.
-    /// * `code` - `EREFUSED`, `ERELOAD` or `ETIMEDOUT`.
+    /// * `code` - `EREFUSED`, `ERELOAD`, `ETIMEDOUT` or `EAGAIN`.
     /// * `message` - why.
     fn fail_call(&self, form: &str, id: u64, method: &str, code: &str, message: &str) {
         let mut result = Envelope::new(Kind::Result, form, self.epoch, method, json!({ "ok": false, "error": { "code": code, "message": message } }));
@@ -645,6 +675,8 @@ impl App {
                 // is live; logged with the backend it now talks to.
                 let backend = if self.loaded { "loaded" } else { "not loaded" };
                 eprintln!("zebra: {form}: WebView connected over IPC (backend epoch {}, {backend}, runtime {})", self.epoch, self.runtime.name());
+                // A new page: the old page's calls have no one left to answer (D8).
+                self.calls.retain(|_, call| call.form != form);
                 let hello = Envelope::new(Kind::Hello, form, self.epoch, "session.ready", json!({ "controls": self.mirror.form(form) }));
                 self.post(form, &hello);
                 if let Some(errors) = &self.errors {
@@ -671,17 +703,25 @@ impl App {
                     self.post(form, &Envelope::new(Kind::Error, form, self.epoch, "event", json!({ "message": "backend queue is full" })));
                 }
             }
-            Ok(Inbound::Call { id, envelope }) => {
-                let key = (form.to_owned(), id);
+            // Decision D12: a call is API use, not input, so a modal does not block it.
+            Ok(Inbound::Call { id, mut envelope }) => {
+                let mine = self.calls.values().filter(|call| call.form == form);
+                let (count, duplicate) = mine.fold((0, false), |(n, dup), call| (n + 1, dup || call.id == id));
                 if !self.loaded {
                     self.fail_call(form, id, &envelope.method, "ERELOAD", "the backend is not running");
-                } else if self.calls.contains_key(&key) {
+                } else if duplicate {
                     self.fail_call(form, id, &envelope.method, "EREFUSED", "a call with this id is in flight");
+                } else if count >= MAX_CALLS {
+                    self.fail_call(form, id, &envelope.method, "EAGAIN", &format!("{MAX_CALLS} calls are already in flight"));
                 } else {
+                    self.next_call += 1;
+                    let host = self.next_call;
                     let method = envelope.method.clone();
-                    self.calls.insert(key.clone(), Instant::now() + CALL_DEADLINE);
+                    envelope.id = Some(host);
+                    let call = HostCall { form: form.to_owned(), id, method: method.clone(), deadline: Instant::now() + CALL_DEADLINE };
+                    self.calls.insert(host, call);
                     if !self.send_backend(*envelope) {
-                        self.calls.remove(&key);
+                        self.calls.remove(&host);
                         self.fail_call(form, id, &method, "ERELOAD", "the backend is not running");
                     }
                 }
@@ -734,9 +774,11 @@ impl App {
                 Kind::Response => self.on_response(&envelope),
                 // Delivered once, to the form that made the call, while it waits.
                 Kind::Result => {
-                    let key = (envelope.window_id.clone(), envelope.id.unwrap_or_default());
-                    if self.calls.remove(&key).is_some() {
-                        self.post(&key.0, &envelope);
+                    let call = envelope.id.and_then(|host| self.calls.remove(&host));
+                    if let Some(call) = call.filter(|call| call.form == envelope.window_id) {
+                        let mut envelope = envelope;
+                        envelope.id = Some(call.id);
+                        self.post(&call.form, &envelope);
                     }
                 }
                 _ => {}
@@ -1034,8 +1076,8 @@ impl App {
             self.loaded = false;
             self.pending.clear();
             // The calls' backend is gone; their callers learn it now, not at the deadline.
-            for ((form, id), _) in std::mem::take(&mut self.calls) {
-                self.fail_call(&form, id, "", "ERELOAD", "the backend was reloaded");
+            for call in std::mem::take(&mut self.calls).into_values() {
+                self.fail_call(&call.form, call.id, &call.method, "ERELOAD", "the backend was reloaded");
             }
             self.broadcast("backend.epoch", json!({ "epoch": self.epoch }));
             self.runtime.send_blocking(HostMessage::Load {
@@ -1074,10 +1116,10 @@ impl App {
             let _ = self.runtime.send(HostMessage::Envelope(cancel));
             self.finish_close(&pending.form);
         }
-        let late: Vec<(String, u64)> = self.calls.iter().filter(|(_, deadline)| **deadline <= now).map(|(key, _)| key.clone()).collect();
-        for key in late {
-            self.calls.remove(&key);
-            self.fail_call(&key.0, key.1, "", "ETIMEDOUT", "the backend did not answer in time");
+        let late: Vec<u64> = self.calls.iter().filter(|(_, call)| call.deadline <= now).map(|(host, _)| *host).collect();
+        let late: Vec<HostCall> = late.into_iter().filter_map(|host| self.calls.remove(&host)).collect();
+        for call in late {
+            self.fail_call(&call.form, call.id, &call.method, "ETIMEDOUT", "the backend did not answer in time");
         }
         let mut due = Vec::new();
         for timer in self.timers.iter_mut().filter(|t| t.enabled && t.next <= now) {
@@ -1106,7 +1148,7 @@ impl App {
             .filter(|t| t.enabled)
             .map(|t| t.next)
             .chain(self.pending.values().map(|p| p.deadline))
-            .chain(self.calls.values().copied())
+            .chain(self.calls.values().map(|call| call.deadline))
             .min();
         match next {
             Some(at) => ControlFlow::WaitUntil(at),

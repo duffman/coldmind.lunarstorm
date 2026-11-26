@@ -13,13 +13,14 @@
 //!   `version` and `epoch` here, as the host's `Shell::send` contract leaves them out.
 //! - Permissions are checked here, before any native service sees a call, against the
 //!   host configuration of the calling epoch: services never trust the backend.
-//! - The backend gets the `permissions.fs` roots (`~/` is the home directory) and the
+//! - The `permissions.fs` roots (`~/` is the home directory) scope the HostApi area
+//!   `fs` only; the backend's own `node:fs` gets no folders. The backend gets the
 //!   `permissions.hostapi` areas, no environment and no sockets.
 //! - `send` never reports a full queue: the host posts straight to the Runtime's loop,
 //!   which is unbounded. It fails only once the runtime is stopped.
 
 use super::{AppRuntime, Completer, HostMessage, NativeCall, NativeRouter, RuntimeContext, RuntimeMessage, Settle};
-use crate::envelope::{Envelope, VERSION};
+use crate::envelope::{Envelope, Kind, MAX_RESULT, VERSION};
 use crate::manifest::HostConfig;
 use lunarstorm_host_desktop::{Backend, Program, Settler, Shell};
 use serde_json::Value;
@@ -80,6 +81,12 @@ impl Shell for Bridge {
 
     fn send(&self, epoch: u64, envelope: &str) {
         let message = match stamp(epoch, envelope) {
+            // Decision D6: an oversized result still answers its call, as `E2BIG`.
+            Ok(mut stamped) if stamped.kind == Kind::Result && envelope.len() > MAX_RESULT => {
+                let message = format!("E2BIG: the result of {} is {} bytes, more than {MAX_RESULT}", stamped.method, envelope.len());
+                stamped.payload = serde_json::json!({ "ok": false, "error": { "code": "E2BIG", "message": message } });
+                RuntimeMessage::Envelope(stamped)
+            }
             Ok(envelope) => RuntimeMessage::Envelope(envelope),
             Err(e) => RuntimeMessage::Error { epoch, message: format!("bad backend envelope: {e}") },
         };
@@ -175,7 +182,10 @@ impl AppRuntime for LunarstormRuntime {
                     restore: restore.to_string(),
                     memory: Some((config.limits.heap_mb as usize) << 20),
                     budget: Duration::from_millis(config.limits.budget_ms),
-                    roots: config.permissions.fs.iter().map(|root| root_path(root)).collect(),
+                    // Defect fixed: `permissions.fs` was the backend's `node:fs` scope as
+                    // well (test `the_backend_gets_no_fs_roots_from_permissions_fs`).
+                    roots: Vec::new(),
+                    area_roots: config.permissions.fs.iter().map(|root| root_path(root)).collect(),
                     environment: Vec::new(),
                     name: config.application.id.clone(),
                     areas: config.permissions.hostapi.clone(),

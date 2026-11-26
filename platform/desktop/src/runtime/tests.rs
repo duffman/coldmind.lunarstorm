@@ -252,3 +252,67 @@ fn a_cancelled_request_gets_no_response() {
         }
     }
 }
+
+/// Creates an empty directory unique to one test under the repo's `.scratch/`.
+///
+/// # Arguments
+/// * `name` - the test's name.
+///
+/// # Returns
+/// The directory.
+fn scratch(name: &str) -> std::path::PathBuf {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.scratch/platform-runtime").join(name);
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create the test directory");
+    dir
+}
+
+#[test]
+fn the_backend_gets_no_fs_roots_from_permissions_fs() {
+    let dir = scratch("backend-fs");
+    std::fs::write(dir.join("a.txt"), "content").expect("write a.txt");
+    let mut config = config_with(&[], &[]);
+    config.permissions.fs = vec![dir.to_string_lossy().into_owned()];
+    config.permissions.hostapi = vec![String::from("fs")];
+    let h = Harness::new(&config);
+    let backend = format!(
+        "import {{ serve, setProperty }} from '@desktop/bridge';\nimport {{ readFileSync }} from 'node:fs';\n\
+         serve(() => {{ let shown; try {{ shown = readFileSync({:?}, 'utf8'); }} catch (error) {{ shown = error.code; }}\n\
+         setProperty('MainForm', 'StatusBar', 'caption', shown); }});\n",
+        dir.join("a.txt").to_string_lossy()
+    );
+    assert_eq!(h.load(&backend, &config, json!({}), 1), None);
+    h.send(Kind::Event, "SaveButton.onClick", json!({}), 1, None);
+    // permissions.fs scopes the WebView's `fs` area, not the backend's own `node:fs`.
+    let shown = loop {
+        if let RuntimeMessage::Envelope(env) = h.next() {
+            if env.kind == Kind::Update {
+                break env.payload["controls"]["StatusBar"]["caption"].clone();
+            }
+        }
+    };
+    assert_eq!(shown, json!("EACCES"), "the backend read a permissions.fs file");
+}
+
+#[test]
+fn a_result_over_the_envelope_limit_becomes_e2big() {
+    let dir = scratch("result-limit");
+    // 3 MiB passes the `fs` text limit; escaped as JSON (`\u0001`) it is ~18 MiB.
+    std::fs::write(dir.join("big.txt"), vec![1u8; 3 << 20]).expect("write big.txt");
+    let mut config = config_with(&[], &[]);
+    config.permissions.fs = vec![dir.to_string_lossy().into_owned()];
+    config.permissions.hostapi = vec![String::from("fs")];
+    let h = Harness::new(&config);
+    assert_eq!(h.load("export {};\n", &config, json!({}), 1), None);
+    h.send(Kind::Call, "fs.readText", json!({ "args": ["big.txt"] }), 1, Some(5));
+    let result = loop {
+        if let RuntimeMessage::Envelope(env) = h.next() {
+            if env.kind == Kind::Result && env.id == Some(5) {
+                break env;
+            }
+        }
+    };
+    let size = result.to_json().len();
+    assert_eq!(result.payload["error"]["code"], json!("E2BIG"), "a result of {size} bytes reached the ui");
+    assert_eq!(result.window_id, "MainForm");
+}

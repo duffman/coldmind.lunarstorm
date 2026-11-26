@@ -6,7 +6,7 @@
 //   @desktop/api     native.<namespace>.<method>(...args) -> Promise
 // and gives the host two hooks, through `ops.desktopHooks`:
 //   dispatch(json)        one envelope from the desktop process (event, request, cancel, call)
-//   settle(id, ok, json)  a native call finished
+//   settle(id, ok, json)  a native call or a `work` job finished
 //
 // Decisions:
 // - Property writes are collected per form and control and sent by a promise job
@@ -106,6 +106,19 @@ export const bridge = Object.freeze({
   restored(form) {
     return restore[form] ?? {};
   },
+});
+
+/**
+ * Runs an area function on one of the host's worker threads (`fs` so far), off
+ * the backend thread; shares the id space and `settle` of native calls.
+ * @param {string} method `<area>.<function>`
+ * @param {unknown[]} args the arguments
+ * @returns {Promise<unknown>} the value, or a rejection carrying `code`
+ */
+export const work = (method, args) => new Promise((resolve, reject) => {
+  const id = ++lastCall;
+  pending.set(id, { resolve, reject });
+  ops.desktopWork(id, method, JSON.stringify(args));
 });
 
 export const native = new Proxy({}, {
@@ -221,6 +234,8 @@ const settle = (id, ok, json) => {
   pending.delete(id);
   const value = json === '' ? undefined : JSON.parse(json);
   if (ok) call.resolve(value);
+  // A `work` job fails with {code, message}; a native call with a message.
+  else if (value !== null && typeof value === 'object') call.reject(Object.assign(new Error(String(value.message)), { code: String(value.code) }));
   else call.reject(new Error(String(value)));
 };
 
