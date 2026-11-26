@@ -9,7 +9,7 @@
 #
 # Not ignored on purpose:
 #   Cargo.lock, pnpm-lock.yaml   lockfiles are committed (apps and binaries in the repo)
-#   platform/desktop/examples/           generated platform projects, committed as source
+#   platform/examples/           generated platform projects, committed as source
 #   .cargo/config.toml, .npmrc   shared build config
 
 # ── Rust / Cargo ────────────────────────────────────────────────────────────────
