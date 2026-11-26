@@ -29,7 +29,7 @@ importers:
 
   framework/config: {}
 
-  runtime/types: {}
+  runtime/typescript-declarations: {}
 
   toolchain/react:
     devDependencies:

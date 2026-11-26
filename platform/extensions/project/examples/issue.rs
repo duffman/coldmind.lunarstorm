@@ -39,7 +39,7 @@ fn main() {
 /// # Errors
 /// The file exists or cannot be written.
 fn root(file: &str) -> Result<(), String> {
-    let signer = lunarstorm_jbn::Signer::generate().map_err(|e| e.to_string())?;
+    let signer = lunarstorm_jbn_package_format::Signer::generate().map_err(|e| e.to_string())?;
     let der = signer.to_pkcs8_der().map_err(|e| e.to_string())?;
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true);

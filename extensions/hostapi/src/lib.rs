@@ -22,8 +22,8 @@
 
 use std::marker::PhantomData;
 
-use lunarstorm_runtime::vm::{Scope, Vm};
-use lunarstorm_runtime::{Bindings, Cardinality, Extension, PluginHost, Requirement, Use};
+use lunarstorm_event_loop_runtime::vm::{Scope, Vm};
+use lunarstorm_event_loop_runtime::{Bindings, Cardinality, Extension, PluginHost, Requirement, Use};
 
 /// The extension's name, and the first segment of its module specifiers.
 pub const NAME: &str = "hostapi";
@@ -184,7 +184,7 @@ impl<V: Vm, A: AreaSet<V>> HostApi<V, A> {
     /// * `areas` - the areas this host offers, as a tuple.
     ///
     /// # Returns
-    /// The extension, for [`lunarstorm_runtime::Host::extensions`].
+    /// The extension, for [`lunarstorm_event_loop_runtime::Host::extensions`].
     pub fn new(areas: A) -> Self {
         Self { areas, engine: PhantomData }
     }

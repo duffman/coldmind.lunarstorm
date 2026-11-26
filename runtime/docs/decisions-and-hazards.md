@@ -43,12 +43,12 @@
 
 | doc | says | code |
 |---|---|---|
-| `runtime/core/README.md` | bare package specifiers rejected, no `node_modules` lookup | `runtime/modules` resolves `node_modules`, `exports`/`imports` |
-| `runtime/core/README.md` | `Source::{File, Text}`; `embed.rs` has 12 tests | `Source::Package` exists; `embed.rs` has 17 tests |
-| `runtime/vm/README.md` | "no dependencies"; `Load::{Ready, Later}`; `Limits { memory, stack }`; 13 checks | depends on `lunarstorm-debug` and `lunarstorm-jbn`; `Load::Native`; `gc_threshold`; 15 checks |
-| `runtime/engines/quickjs/README.md` | capabilities: memory limits and termination only; "no debug hooks"; 13 checks | also `bytecode_cache` and `debug_hooks`; 15 checks |
+| `runtime/event-loop-runtime/README.md` | bare package specifiers rejected, no `node_modules` lookup | `runtime/module-sources` resolves `node_modules`, `exports`/`imports` |
+| `runtime/event-loop-runtime/README.md` | `Source::{File, Text}`; `embed.rs` has 12 tests | `Source::Package` exists; `embed.rs` has 17 tests |
+| `runtime/engine-contract/README.md` | "no dependencies"; `Load::{Ready, Later}`; `Limits { memory, stack }`; 13 checks | depends on `lunarstorm-debug` and `lunarstorm-jbn-package-format`; `Load::Native`; `gc_threshold`; 15 checks |
+| `runtime/engine-quickjs-adapter/README.md` | capabilities: memory limits and termination only; "no debug hooks"; 13 checks | also `bytecode_cache` and `debug_hooks`; 15 checks |
 | `bootstrap.js:1333` | "Codes mirror `ev` in src/reactor.rs" | `ev` is in `src/runtime.rs` |
 | `worker.rs:24-26` | "this Runtime has no packages" | `.jbn` packages and `node_modules` both exist |
 | `quickjs/src/lib.rs:120` | the debugger wrapper makes the Rust compiler the context's compiler | rquickjs installs it on every context (`install_base`) |
 | `runtime/compiler` docs and constants | see compiler.md, "Stale references" | |
-| `runtime/debug/README.md` and module headers | see debugger.md, "README drift" | |
+| `runtime/debugger/README.md` and module headers | see debugger.md, "README drift" | |

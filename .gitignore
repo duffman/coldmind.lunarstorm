@@ -3,7 +3,7 @@
 #
 # Decision: every repo-wide rule lives here; nested .gitignore files exist only where
 # they ship with their payload (templates/*, scaffolded into new projects) or hold rules
-# specific to one tree (the quickjs-ng C source in runtime/engines/rquickjs/sys/quickjs,
+# specific to one tree (the quickjs-ng C source in runtime/vendor/rquickjs-binding/sys/quickjs,
 # toolchain/jetpack, toolchain/react/packages/bun). Unanchored patterns
 # (`target/`, `node_modules/`) match at any depth.
 #

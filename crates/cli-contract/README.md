@@ -15,11 +15,11 @@ The contract between the `lunarstorm` command line and the packages mounted on i
 | `Failure` | `Usage { message, hint }` (status 2), `Failed { message, status }`; constructors `usage()`, `failed()` |
 | `Run`, `Enter` | boxed handler types: `Fn(&mut Invocation) -> Result<i32, Failure>` / `Result<(), Failure>` |
 
-A package crate exports `pub fn package() -> Box<dyn Package>`; see `lunarstorm_host_cli::command::package()` (`runtime/hosts/cli/src/command.rs`) for a complete example.
+A package crate exports `pub fn package() -> Box<dyn Package>`; see `lunarstorm_host_command_line::command::package()` (`runtime/host-command-line/src/command.rs`) for a complete example.
 
 ## How it fits
 
-- Depended on by every package (`runtime/hosts/cli`, `toolchain/crates/pipeline`) and by `crates/cli-host`, which parses the command line against these specs and calls the handlers. A package never depends on another package or on the host.
+- Depended on by every package (`runtime/host-command-line`, `toolchain/crates/pipeline`) and by `crates/cli-host`, which parses the command line against these specs and calls the handlers. A package never depends on another package or on the host.
 - Not part of the runtime stack of doc/plans/main.md §5; it is the command-line layer described in `doc/cli.md` ("The contract").
 
 ## Build and test

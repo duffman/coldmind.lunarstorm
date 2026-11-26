@@ -1,0 +1,41 @@
+# The desktop app host (spec section 5, "DESKTOP HOST"): it owns a Runtime bound
+# to the QuickJS adapter and runs a desktop application's backend on it.
+#
+# Its own crate because it is the layer between the Runtime and the native
+# desktop process. The library knows nothing of windows, menus or the IPC
+# envelope types, only the `Shell` contract a desktop process implements.
+#
+# The binary `lunarstorm-desktop` is such a process: a tao event loop on the main
+# thread implementing `Shell`, with native windows a script opens and listens to.
+[package]
+name = "lunarstorm-host-desktop-backend"
+version = "0.1.0"
+edition = "2021"
+description = "Lunarstorm desktop app host: a desktop application's backend on the Runtime"
+
+[dependencies]
+lunarstorm-event-loop-runtime = { path = "../event-loop-runtime" }
+lunarstorm-engine-quickjs-adapter = { path = "../engine-quickjs-adapter" }
+libc = "0.2"
+# Used by the binary only: the windowing event loop, and JSON for the envelopes
+# and native-call arguments that cross the `Shell` contract as text.
+#
+# Decision: optional behind the default feature `shell`, which the binary requires,
+# so `lunarstorm types` (runtime/host-command-line) reads this host's declarations through
+# the library without building tao into the `lunarstorm` command line.
+tao = { version = "0.37", optional = true }
+serde_json = { version = "1", optional = true }
+
+[features]
+default = ["shell"]
+# The `lunarstorm-desktop` binary: the tao shell around the library.
+shell = ["dep:tao", "dep:serde_json"]
+
+[[bin]]
+name = "lunarstorm-desktop"
+path = "src/main.rs"
+required-features = ["shell"]
+
+[[test]]
+name = "desktop"
+required-features = ["shell"]

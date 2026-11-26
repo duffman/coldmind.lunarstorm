@@ -57,37 +57,37 @@
 # the rest, and rquickjs's former `[workspace.dependencies]` live below.
 #
 # Excluded:
-#   runtime/engines/rquickjs/wasm-test   builds only for wasm32-unknown-unknown and is
+#   runtime/vendor/rquickjs-binding/wasm-test   builds only for wasm32-unknown-unknown and is
 #                      driven by its runner.ts; its own workspace by design
 #   _trash, .archive   parked code, never built
 [workspace]
 resolver = "2"
 members = [
     "apps/lunarstorm",
-    "runtime/vm",
-    "runtime/types",
-    "runtime/engines/quickjs",
-    "runtime/engines/rquickjs",
-    "runtime/engines/rquickjs/core",
-    "runtime/engines/rquickjs/macro",
-    "runtime/engines/rquickjs/sys",
-    "runtime/engines/rquickjs/examples/native-module",
-    "runtime/engines/rquickjs/examples/module-loader",
-    "runtime/engines/rquickjs/examples/import-attributes",
-    "runtime/engines/rquickjs/examples/rquickjs-cli",
-    "runtime/engines/rquickjs/examples/class-methods",
-    "runtime/engines/rquickjs/examples/exotic",
-    "runtime/core",
-    "runtime/modules",
-    "runtime/jbn",
-    "runtime/debug",
-    "runtime/compiler/crates/qjs-ir",
-    "runtime/compiler/crates/qjs-frontend",
-    "runtime/compiler/crates/qjs-bytecode",
-    "runtime/compiler/crates/qjs-compiler-core",
-    "runtime/compiler/crates/qjs-reference",
-    "runtime/hosts/cli",
-    "runtime/hosts/desktop",
+    "runtime/engine-contract",
+    "runtime/typescript-declarations",
+    "runtime/engine-quickjs-adapter",
+    "runtime/vendor/rquickjs-binding",
+    "runtime/vendor/rquickjs-binding/core",
+    "runtime/vendor/rquickjs-binding/macro",
+    "runtime/vendor/rquickjs-binding/sys",
+    "runtime/vendor/rquickjs-binding/examples/native-module",
+    "runtime/vendor/rquickjs-binding/examples/module-loader",
+    "runtime/vendor/rquickjs-binding/examples/import-attributes",
+    "runtime/vendor/rquickjs-binding/examples/rquickjs-cli",
+    "runtime/vendor/rquickjs-binding/examples/class-methods",
+    "runtime/vendor/rquickjs-binding/examples/exotic",
+    "runtime/event-loop-runtime",
+    "runtime/module-sources",
+    "runtime/jbn-package-format",
+    "runtime/debugger",
+    "runtime/compiler/scalar-ssa-ir",
+    "runtime/compiler/js-parser-frontend",
+    "runtime/compiler/bytecode-image-verifier",
+    "runtime/compiler/bytecode-emitter",
+    "runtime/compiler/reference-engine-bridge",
+    "runtime/host-command-line",
+    "runtime/host-desktop-backend",
     "extensions/core",
     "extensions/hostapi",
     "platform/desktop",
@@ -114,7 +114,7 @@ members = [
     "toolchain/vendor/oj_graph",
     "toolchain/vendor/oj_resolver",
 ]
-exclude = ["runtime/engines/rquickjs/wasm-test", "_trash", ".archive"]
+exclude = ["runtime/vendor/rquickjs-binding/wasm-test", "_trash", ".archive"]
 
 # Inherited by the toolchain crates (`version.workspace = true` etc.); the runtime
 # crates set their own package fields.
@@ -133,9 +133,9 @@ oj_graph = { path = "toolchain/vendor/oj_graph" }
 oj_resolver = { path = "toolchain/vendor/oj_resolver" }
 # The engine binding's crates, inherited by rquickjs, rquickjs-core and rquickjs-macro
 # (moved from the former rquickjs workspace; features stay opt-in per dependent).
-rquickjs-core = { version = "0.14.0", path = "runtime/engines/rquickjs/core", default-features = false }
-rquickjs-macro = { version = "0.14.0", path = "runtime/engines/rquickjs/macro", default-features = false }
-rquickjs-sys = { version = "0.14.0", path = "runtime/engines/rquickjs/sys", default-features = false }
+rquickjs-core = { version = "0.14.0", path = "runtime/vendor/rquickjs-binding/core", default-features = false }
+rquickjs-macro = { version = "0.14.0", path = "runtime/vendor/rquickjs-binding/macro", default-features = false }
+rquickjs-sys = { version = "0.14.0", path = "runtime/vendor/rquickjs-binding/sys", default-features = false }
 devtools_core = { path = "toolchain/crates/core" }
 devtools_server = { path = "toolchain/crates/server" }
 devtools_bundler = { path = "toolchain/crates/bundler" }

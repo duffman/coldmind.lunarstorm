@@ -3141,8 +3141,8 @@ dependencies = [
 name = "lunar-extension-hostapi"
 version = "0.1.0"
 dependencies = [
- "lunarstorm-runtime",
- "lunarstorm-vm-quickjs",
+ "lunarstorm-engine-quickjs-adapter",
+ "lunarstorm-event-loop-runtime",
  "serde_json",
 ]
 
@@ -3152,7 +3152,7 @@ version = "0.1.0"
 dependencies = [
  "devtools-cli",
  "lunarstorm-cli-host",
- "lunarstorm-host-cli",
+ "lunarstorm-host-command-line",
  "lunarstorm-pipeline",
  "lunarstorm-project",
 ]
@@ -3164,7 +3164,7 @@ dependencies = [
  "devtools-cli",
  "libc",
  "lunarstorm-cli-host",
- "lunarstorm-host-cli",
+ "lunarstorm-host-command-line",
  "lunarstorm-pipeline",
  "lunarstorm-project",
  "serde_json",
@@ -3191,14 +3191,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "lunarstorm-debug"
+name = "lunarstorm-debugger"
 version = "0.1.0"
 dependencies = [
  "cap-std",
  "loom",
- "qjs-bytecode",
- "qjs-compiler-core",
- "qjs-frontend",
+ "qjs-bytecode-emitter",
+ "qjs-bytecode-image-verifier",
+ "qjs-js-parser-frontend",
  "rquickjs-core",
  "rquickjs-sys",
  "serde",
@@ -3210,27 +3210,62 @@ dependencies = [
 ]
 
 [[package]]
-name = "lunarstorm-host-cli"
+name = "lunarstorm-engine-contract"
+version = "0.1.0"
+dependencies = [
+ "lunarstorm-debugger",
+ "lunarstorm-jbn-package-format",
+]
+
+[[package]]
+name = "lunarstorm-engine-quickjs-adapter"
+version = "0.1.0"
+dependencies = [
+ "lunarstorm-debugger",
+ "lunarstorm-engine-contract",
+ "rquickjs",
+]
+
+[[package]]
+name = "lunarstorm-event-loop-runtime"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "crossbeam-channel",
+ "libc",
+ "lunar-extension",
+ "lunarstorm-engine-contract",
+ "lunarstorm-engine-quickjs-adapter",
+ "lunarstorm-http1",
+ "lunarstorm-jbn-package-format",
+ "lunarstorm-module-sources",
+ "mio",
+ "slab",
+ "tempfile",
+]
+
+[[package]]
+name = "lunarstorm-host-command-line"
 version = "0.1.0"
 dependencies = [
  "libc",
  "lunar-extension-hostapi",
  "lunarstorm-cli-contract",
  "lunarstorm-cliui",
- "lunarstorm-host-desktop",
- "lunarstorm-jbn",
- "lunarstorm-runtime",
- "lunarstorm-types",
- "lunarstorm-vm-quickjs",
+ "lunarstorm-engine-quickjs-adapter",
+ "lunarstorm-event-loop-runtime",
+ "lunarstorm-host-desktop-backend",
+ "lunarstorm-jbn-package-format",
+ "lunarstorm-typescript-declarations",
 ]
 
 [[package]]
-name = "lunarstorm-host-desktop"
+name = "lunarstorm-host-desktop-backend"
 version = "0.1.0"
 dependencies = [
  "libc",
- "lunarstorm-runtime",
- "lunarstorm-vm-quickjs",
+ "lunarstorm-engine-quickjs-adapter",
+ "lunarstorm-event-loop-runtime",
  "serde_json",
  "tao",
 ]
@@ -3243,7 +3278,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "lunarstorm-jbn"
+name = "lunarstorm-jbn-package-format"
 version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
@@ -3269,7 +3304,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "lunarstorm-modules"
+name = "lunarstorm-module-sources"
 version = "0.1.0"
 dependencies = [
  "oxc_allocator",
@@ -3316,7 +3351,7 @@ dependencies = [
  "crossbeam-channel",
  "dirs 6.0.0",
  "image",
- "lunarstorm-host-desktop",
+ "lunarstorm-host-desktop-backend",
  "muda",
  "notify",
  "notify-rust",
@@ -3337,53 +3372,18 @@ dependencies = [
  "ed25519-dalek",
  "lunarstorm-cli-contract",
  "lunarstorm-cli-host",
- "lunarstorm-host-cli",
- "lunarstorm-jbn",
+ "lunarstorm-host-command-line",
+ "lunarstorm-jbn-package-format",
  "serde_json",
  "tempfile",
 ]
 
 [[package]]
-name = "lunarstorm-runtime"
+name = "lunarstorm-typescript-declarations"
 version = "0.1.0"
 dependencies = [
- "bytes",
- "crossbeam-channel",
- "libc",
- "lunar-extension",
- "lunarstorm-http1",
- "lunarstorm-jbn",
- "lunarstorm-modules",
- "lunarstorm-vm",
- "lunarstorm-vm-quickjs",
- "mio",
- "slab",
- "tempfile",
-]
-
-[[package]]
-name = "lunarstorm-types"
-version = "0.1.0"
-dependencies = [
- "lunarstorm-host-cli",
- "lunarstorm-vm",
-]
-
-[[package]]
-name = "lunarstorm-vm"
-version = "0.1.0"
-dependencies = [
- "lunarstorm-debug",
- "lunarstorm-jbn",
-]
-
-[[package]]
-name = "lunarstorm-vm-quickjs"
-version = "0.1.0"
-dependencies = [
- "lunarstorm-debug",
- "lunarstorm-vm",
- "rquickjs",
+ "lunarstorm-engine-contract",
+ "lunarstorm-host-command-line",
 ]
 
 [[package]]
@@ -5145,23 +5145,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
 
 [[package]]
-name = "qjs-bytecode"
+name = "qjs-bytecode-emitter"
+version = "0.1.0"
+dependencies = [
+ "qjs-bytecode-image-verifier",
+ "qjs-js-parser-frontend",
+ "qjs-scalar-ssa-ir",
+]
+
+[[package]]
+name = "qjs-bytecode-image-verifier"
 version = "0.1.0"
 dependencies = [
  "sha2 0.10.9",
 ]
 
 [[package]]
-name = "qjs-compiler-core"
-version = "0.1.0"
-dependencies = [
- "qjs-bytecode",
- "qjs-frontend",
- "qjs-ir",
-]
-
-[[package]]
-name = "qjs-frontend"
+name = "qjs-js-parser-frontend"
 version = "0.1.0"
 dependencies = [
  "oxc_allocator",
@@ -5173,17 +5173,17 @@ dependencies = [
  "oxc_semantic",
  "oxc_span",
  "oxc_syntax",
- "qjs-ir",
- "qjs-reference",
+ "qjs-reference-engine-bridge",
+ "qjs-scalar-ssa-ir",
  "sha2 0.10.9",
 ]
 
 [[package]]
-name = "qjs-ir"
+name = "qjs-reference-engine-bridge"
 version = "0.1.0"
 
 [[package]]
-name = "qjs-reference"
+name = "qjs-scalar-ssa-ir"
 version = "0.1.0"
 
 [[package]]
@@ -5973,9 +5973,9 @@ dependencies = [
  "hashbrown 0.17.2",
  "indexmap 2.14.2",
  "phf 0.14.0",
- "qjs-bytecode",
- "qjs-compiler-core",
- "qjs-frontend",
+ "qjs-bytecode-emitter",
+ "qjs-bytecode-image-verifier",
+ "qjs-js-parser-frontend",
  "relative-path",
  "rquickjs",
  "rquickjs-sys",

@@ -46,7 +46,7 @@
 | **Shell** | what the desktop process implements for the backend thread | `hosts/desktop/src/lib.rs` |
 | **worker** | `lunarstorm:worker`: a full Runtime on its own thread and VM | `core/src/worker.rs` |
 | **facade** / **body** | a CommonJS file's `#esm` re-export module / the module holding its code | `modules/src/transform.rs` |
-| **`.jbn`** | signed package: CBOR manifest + Ed25519 signature + bytecode blobs + import table | `runtime/jbn` |
+| **`.jbn`** | signed package: CBOR manifest + Ed25519 signature + bytecode blobs + import table | `runtime/jbn-package-format` |
 | **trust store** | JSON of signer keys, the package names each may sign, and minimum releases | `jbn/src/trust.rs` |
 | **base compiler** | the Rust compiler installed on every context by the patched engine | `engines/rquickjs/sys/quickjs/PATCHES.md` |
 | **jetbunny** | the predecessor project much of this was ported from; the prefix of its engine patches and symbols | everywhere |

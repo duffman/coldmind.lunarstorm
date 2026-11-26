@@ -1,4 +1,4 @@
-# The debugger (`runtime/debug`, crate `lunarstorm-debug`)
+# The debugger (`runtime/debugger`, crate `lunarstorm-debug`)
 
 This is jetbunny's debugger, copied whole and marked `lunarstorm patch` where it was changed. It
 has four parts:
@@ -7,7 +7,7 @@ has four parts:
 - a source registry with Source Map v3;
 - a QuickJS-ng backend over a private C bridge (`jbq_*`, ABI 14) compiled into `rquickjs-sys`.
 
-**The one production caller is `lunar debug <script>`** (`runtime/hosts/cli/src/cli.rs`). The
+**The one production caller is `lunar debug <script>`** (`runtime/host-command-line/src/cli.rs`). The
 desktop binary also called `lunarstorm-debug` (`platform/desktop`) is a different thing: the dev
 runtime.
 
@@ -21,8 +21,8 @@ contract hooks:
 | `debug_service` | loop phase 0 | serves requests; `true` = client asked to stop |
 | `debug_checkpoint` | after each microtask drain (`settle`) | qualifies rejections as unhandled |
 
-`lunarstorm-vm` re-exports the crate (`pub use lunarstorm_debug`), which is why hosts write
-`lunarstorm_runtime::vm::lunarstorm_debug::...`.
+`lunarstorm-engine-contract` re-exports the crate (`pub use lunarstorm_debugger`), which is why hosts write
+`lunarstorm_event_loop_runtime::vm::lunarstorm_debugger::...`.
 
 ## Threads
 
@@ -68,7 +68,7 @@ and sets the native Signal flag the statement hook checks.
 ## Source maps and TypeScript
 
 ```
-runtime/modules strip_types_mapped → map (sources: file name relative to <file>.js)
+runtime/module-sources strip_types_mapped → map (sources: file name relative to <file>.js)
 Modules::source_map TAKES it (once) → ModuleSource.source_map
 quickjs adapter declare(): session open → Debugger::stage(text, name, module, map)  (one-slot staging)
 Rust compiler CompileObserver → register_source: takes the staged entry only if the SHA of the exact text matches
@@ -114,10 +114,10 @@ compiled before attach have no statement markers.
 
 ## README drift
 
-- `runtime/debug/README.md` describes `Debugger::EVAL_FLAG`, which does not exist; the real flow
+- `runtime/debugger/README.md` describes `Debugger::EVAL_FLAG`, which does not exist; the real flow
   is stage, then the compiler observer.
 - It says jetbunny's VM and its acceptance tests were archived. They are compiled under
-  `cfg(test)` and mounted, and `.archive/2026-11-24/runtime/debug/` does not exist. The same
+  `cfg(test)` and mounted, and `.archive/2026-11-24/runtime/debugger/` does not exist. The same
   missing archive is cited in `quickjs_ng/mod.rs:690` and `compiler.rs:14`.
 - The `quickjs_ng/mod.rs` header still says stock QuickJS-ng has no interactive backend.
 - `PATCHES.md` (debugger-v1) says `BC_VERSION` is `29|0x40`; the engine has `30|0x40`.
@@ -125,5 +125,5 @@ compiled before attach have no statement markers.
 ## Test
 
 ```sh
-cargo test -q -p lunarstorm-debug      # lib tests (~40 jetbunny files mounted as modules) + jetbunny_copy_alloc
+cargo test -q -p lunarstorm-debugger      # lib tests (~40 jetbunny files mounted as modules) + jetbunny_copy_alloc
 ```

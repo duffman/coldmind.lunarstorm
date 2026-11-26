@@ -1,7 +1,7 @@
 # Modules: what a specifier becomes
 
-Source: `runtime/core/src/modules.rs` (the VM callbacks), `runtime/modules` (`lunarstorm-modules`:
-files, packages, TypeScript, CommonJS), `runtime/jbn` (`lunarstorm-jbn`: signed packages).
+Source: `runtime/event-loop-runtime/src/modules.rs` (the VM callbacks), `runtime/module-sources` (`lunarstorm-module-sources`:
+files, packages, TypeScript, CommonJS), `runtime/jbn-package-format` (`lunarstorm-jbn-package-format`: signed packages).
 
 Every module is an ES module to the engine. `Loader<V, H>` (modules.rs:156) implements
 `Callbacks::resolve`/`load`, and it holds only the shared loop state, never the Runtime.
@@ -18,7 +18,7 @@ Every module is an ES module to the engine. `Loader<V, H>` (modules.rs:156) impl
       lunarstorm:worker  (only when H::WORKERS)
       a host module      exact specifier from Bindings::module (lunarstorm:ui, @desktop/api, ...)
       a builtin          events net http fs fs/promises path process buffer timers, bare or node:
-5. files and packages (lunarstorm-modules)
+5. files and packages (lunarstorm-module-sources)
 ```
 
 Host modules and builtins win over a `node_modules` package of the same name, as in Node.
@@ -34,7 +34,7 @@ Host modules and builtins win over a `node_modules` package of the same name, as
 | `lunarstorm:internal` | `Native`: `ops` and `live` from the glue |
 | `node:<name>` | `Native`: `default` is the glue's object, each own key a named export |
 | a module of the `.jbn` package | `Ready(image)`: bytecode, no source |
-| a file | `Ready(source + import.meta + source map)` after `lunarstorm-modules` transforms it |
+| a file | `Ready(source + import.meta + source map)` after `lunarstorm-module-sources` transforms it |
 
 ### Builtins have no global
 
@@ -53,7 +53,7 @@ Only a **host module**, one whose canonical name is a specifier registered throu
 `Bindings::module`, may import `lunarstorm:internal`. A file importing it gets "module not
 found". So the API a host exposes is always a JS module wrapping `ops.*` calls.
 
-## Files and packages (`runtime/modules`)
+## Files and packages (`runtime/module-sources`)
 
 | file | becomes |
 |---|---|
@@ -77,7 +77,7 @@ found". So the API a host exposes is always a JS module wrapping `ops.*` calls.
 - **One `Modules` per Runtime** caches manifests and the *kind* of each file. A file that changes
   on disk keeps the kind it was first given.
 
-## `.jbn` packages (`runtime/jbn`)
+## `.jbn` packages (`runtime/jbn-package-format`)
 
 A signed container of compiled modules, resources and the import table that links them. The
 layout is in `jbn/src/lib.rs`: the `JBNY` magic, a canonical-CBOR manifest, an Ed25519 signature

@@ -19,7 +19,7 @@ all four:
 
 | feature | package (crate) | commands |
 |---|---|---|
-| `runtime` | `lunarstorm-host-cli` | `run` (default command), `debug` (DAP on stdio), `jbn key`, `jbn build` |
+| `runtime` | `lunarstorm-host-command-line` | `run` (default command), `debug` (DAP on stdio), `jbn key`, `jbn build` |
 | `build` | `lunarstorm-pipeline` | `build [-p dir] [-o dir]`, `build types`, `build check` |
 | `frontend` | `devtools-cli` | `serve`, `bundle`, `preview`, `transpile` |
 | `project` | `lunarstorm-project` (`platform/extensions/project`) | `project init`, `project insight`, `project compile`, `project sign` |
@@ -42,7 +42,7 @@ How a crate adds commands: `crates/cli-contract` (`trait Package`, `Command`, `A
   - `lunarstorm-release` reads the archive attached to its own executable.
 - **Threads.**
   - UI: tao, wry, muda menus, tray, dialogs. All routing happens here.
-  - The backend thread, in `runtime/hosts/desktop`.
+  - The backend thread, in `runtime/host-desktop-backend`.
   - A 4-thread pool.
 - **Native calls** `native.<ns>.<method>` (`src/native.rs`).
 
@@ -74,17 +74,17 @@ How a crate adds commands: `crates/cli-contract` (`trait Package`, `Command`, `A
 - **Build-time switch** `LUNARSTORM_APP_RUNTIME`: `lunarstorm` (default), `mock`, or a `.rs` path.
 - **Release build:** `cargo build --profile platform --no-default-features --bin lunarstorm-release`. The `platform` profile unwinds on panic and drops devtools.
 
-**Split with `runtime/hosts/desktop`.**
-- `runtime/hosts/desktop` (`lunarstorm-host-desktop`) owns the JS side: `Backend<S: Shell>`, one Runtime per epoch, a watchdog on `PULSE`, the `@desktop/bridge` and `@desktop/api` modules (`js/desktop.js`), and a JSON-only `Shell`.
+**Split with `runtime/host-desktop-backend`.**
+- `runtime/host-desktop-backend` (`lunarstorm-host-desktop-backend`) owns the JS side: `Backend<S: Shell>`, one Runtime per epoch, a watchdog on `PULSE`, the `@desktop/bridge` and `@desktop/api` modules (`js/desktop.js`), and a JSON-only `Shell`.
 - `platform/desktop` implements `Shell` (`src/runtime/lunarstorm.rs`) and owns windows, natives, the envelope and permissions.
-- `_build/lunarstorm-desktop` (from `runtime/hosts/desktop/src/main.rs`) is a minimal tao shell with no WebView that runs one script.
+- `_build/lunarstorm-desktop` (from `runtime/host-desktop-backend/src/main.rs`) is a minimal tao shell with no WebView that runs one script.
 
 ## Browser host (`platform/web`, `lunarstorm-web <dir> [--port n]`)
 
 - Serves an output dir on loopback, built once with no watcher.
 - Injects `src/host.js` (the in-page host: it answers `os.info` and refuses every other native call).
 - The backend runs in `src/worker.js`.
-- **Hazard:** the bridge exists twice, in `runtime/hosts/desktop/js/desktop.js` and `platform/web/src/worker.js`. Change both.
+- **Hazard:** the bridge exists twice, in `runtime/host-desktop-backend/js/desktop.js` and `platform/web/src/worker.js`. Change both.
 
 ## Packager (`platform/pack`, `lunarstorm-pack`)
 

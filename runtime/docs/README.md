@@ -19,13 +19,13 @@ churn, because it is an interpreter.
 | [decisions-and-hazards.md](decisions-and-hazards.md) | before any change that "looks safe"; also lists docs that contradict the code |
 | [glossary.md](glossary.md) | a word in the code means something specific here |
 
-The concept docs `runtime/core/doc/hosts.md` and `runtime/core/doc/extensions.md` remain the
+The concept docs `runtime/event-loop-runtime/doc/hosts.md` and `runtime/event-loop-runtime/doc/extensions.md` remain the
 design rationale for hosts and extensions. Package READMEs cover build and test commands, and
 several are stale (see decisions-and-hazards.md).
 
 ## Five minutes with a new hire
 
-Start in `runtime/core/src/runtime.rs`. Everything else hangs off `Runtime<V: Vm, H: Host>`.
+Start in `runtime/event-loop-runtime/src/runtime.rs`. Everything else hangs off `Runtime<V: Vm, H: Host>`.
 `V` is the engine and `H` is the program that owns the runtime. Both are type parameters, never
 trait objects. In the whole repo there are only two places that choose them: the CLI
 (`Runtime<QuickJs, CliHost>`) and the desktop backend (`type Engine = QuickJs`).
@@ -66,5 +66,5 @@ backend, not a debugger evaluate. Nothing falls back, because the C parser is go
 only survives in `.redundant-legacy/`). Restoring the C parser would also break the debugger's
 statement markers and the verifier-based trust model `Image` relies on.
 
-Runner-up is `runtime/vm`. Its removal breaks compilation of core, the adapter and both hosts,
+Runner-up is `runtime/engine-contract`. Its removal breaks compilation of core, the adapter and both hosts,
 but that is a compile error with an obvious shape, not a silent loss of the language.

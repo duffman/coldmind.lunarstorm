@@ -1,10 +1,10 @@
 # Hosts, bindings, extensions, IPC and workers
 
 How a program the user starts owns a Runtime and gives it capabilities. The concepts doc
-`runtime/core/doc/hosts.md` and the extension design `runtime/core/doc/extensions.md` stay the
+`runtime/event-loop-runtime/doc/hosts.md` and the extension design `runtime/event-loop-runtime/doc/extensions.md` stay the
 long-form explanation. This file is how the code does it.
 
-## The Host trait (`runtime/core/src/host.rs`)
+## The Host trait (`runtime/event-loop-runtime/src/host.rs`)
 
 `Runtime<V, H: Host>` calls up only through `H`, and it touches the process directly nowhere
 else. `H` is a type parameter, so a host's answers are inlined into the loop.
@@ -31,7 +31,7 @@ only decides what they may touch.
 
 ## The two production hosts
 
-| | CLI (`runtime/hosts/cli`, `CliHost`) | desktop backend (`runtime/hosts/desktop`, `DesktopHost`) |
+| | CLI (`runtime/host-command-line`, `CliHost`) | desktop backend (`runtime/host-desktop-backend`, `DesktopHost`) |
 |---|---|---|
 | owner | `lunar run` / `lunar debug` / `lunar jbn build` (`cli.rs`) | `Backend<S: Shell>` on one backend thread, driven by `platform/desktop` |
 | loop | `runtime.run()` | `hold(true)`; events are posted tasks; reload/stop over a control channel |
@@ -44,7 +44,7 @@ only decides what they may touch.
 | isolation | one Runtime per process | **one Runtime per epoch**: a reload is a new Runtime (new heap, jobs, timers) |
 
 **No product host turns on `lunarstorm:ipc` or `lunarstorm:worker`.** Only the tests
-(`runtime/core/tests/{ipc,worker,extensions}.rs`) and `runtime/core/examples/ipc-demo.rs` set
+(`runtime/event-loop-runtime/tests/{ipc,worker,extensions}.rs`) and `runtime/event-loop-runtime/examples/ipc-demo.rs` set
 `IPC`/`WORKERS`. The desktop backend talks to its process through its own natives
 (`ops.desktopSend`, `desktopNative`, `desktopError`, `desktopRestore`, `desktopHooks`), and
 `js/desktop.js` wraps them as `@desktop/*`. The glue keeps its `dispatch`/`settle` hooks in a
@@ -99,7 +99,7 @@ Runtime::start
 - An unused extension installs nothing, so its specifiers do not resolve.
 - HostApi (`extensions/hostapi`) is the extension through which a host exposes its own API as
   plugins ("areas"), fenced to `lunarstorm:hostapi/<area>`. The CLI's terminal UI is area `ui`
-  (`runtime/hosts/cli/src/ui.rs`).
+  (`runtime/host-command-line/src/ui.rs`).
 - `Runtime::register` bindings are **not** installed in workers. A worker gets only what its
   host's `extensions()` returns.
 

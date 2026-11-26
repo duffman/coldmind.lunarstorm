@@ -56,7 +56,7 @@ and answer every `request`.
 
 | value         | runtime                                                              |
 |---------------|----------------------------------------------------------------------|
-| `lunarstorm`  | default: the backend on the Lunarstorm Runtime, through the desktop app host (`runtime/hosts/desktop`) |
+| `lunarstorm`  | default: the backend on the Lunarstorm Runtime, through the desktop app host (`runtime/host-desktop-backend`) |
 | `mock`        | `MockRuntime`: logs every IPC message to stderr as `[mock-runtime] {…}` |
 | `<path>.rs`   | that file; it defines `pub fn create(ctx: crate::runtime::RuntimeContext) -> Box<dyn crate::runtime::AppRuntime>` |
 

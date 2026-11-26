@@ -16,8 +16,8 @@ Spec: `doc/plans/main.md`. Understanding notes, if present: `.omx/understanding/
 | new CLI command | the crate that owns the function; see skill `lunarstorm-cli` |
 | parse rules, model errors | `toolchain/crates/model` (spec 4a, 2.2) |
 | generated frontend/backend/host config | `toolchain/crates/pipeline` (4b-4e) |
-| event loop, timers, modules, fs/net | `runtime/core`; engine contract `runtime/vm`; QuickJS `runtime/engines/quickjs` |
-| desktop backend host | `runtime/hosts/desktop`; CLI host `runtime/hosts/cli` |
+| event loop, timers, modules, fs/net | `runtime/event-loop-runtime`; engine contract `runtime/engine-contract`; QuickJS `runtime/engine-quickjs-adapter` |
+| desktop backend host | `runtime/host-desktop-backend`; CLI host `runtime/host-command-line` |
 | windows, IPC, assets, dev change table | `platform/desktop` (`changes.rs`, `envelope.rs`, `manifest.rs`) |
 | packaging/signing; browser host | `platform/pack`; `platform/web` |
 | backend form/control runtime | `framework/desktop/forms.js` |
@@ -34,7 +34,7 @@ Spec: `doc/plans/main.md`. Understanding notes, if present: `.omx/understanding/
 - Long runs (full workspace test) go in the background.
 
 ## Add or move a package
-1. Rust: add the path to `[workspace] members` in the root `Cargo.toml` (and the header comment table); `rust-version`/`edition` via `workspace = true` where the toolchain crates do. Excluded on purpose: `runtime/engines/rquickjs/wasm-test`.
+1. Rust: add the path to `[workspace] members` in the root `Cargo.toml` (and the header comment table); `rust-version`/`edition` via `workspace = true` where the toolchain crates do. Excluded on purpose: `runtime/vendor/rquickjs-binding/wasm-test`.
 2. JS: add a glob (or path) to `pnpm-workspace.yaml`; extend `@coldmind/config/tsconfig.base.json`; use `@coldmind/config/vitest`.
 3. Depend by name, not by relative path, when a path leaves the package. Rust `include_str!` across packages is the exception that exists today (see hazards); do not add more.
 4. Write `README.md`: what/why, public surface with real names, how it fits (dependents, spec section), build/test commands, decisions and hazards. Delete any sentence that fits any crate.

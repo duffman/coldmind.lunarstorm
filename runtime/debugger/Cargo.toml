@@ -1,0 +1,53 @@
+# The debugger: jetbunny's debug coordinator, Debug Adapter Protocol translator,
+# source registry and source maps (from coldmind.jetbunny `src/debug`, ced69b3),
+# with the engine types it speaks in. Engine-neutral: an engine adapter implements
+# `DebugBackend` on its native hooks.
+[package]
+name = "lunarstorm-debugger"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+license.workspace = true
+description = "Debugger for the Lunarstorm Runtime: DAP, breakpoints, stepping, inspection, source maps"
+# The files in tests/ are jetbunny's, compiled into the library's unit tests through
+# `#[path]` (as in jetbunny); they are not standalone integration tests.
+autotests = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { workspace = true, features = ["raw_value"] }
+sha2 = "0.10.9"
+url = "2"
+rquickjs-sys = { path = "../vendor/rquickjs-binding/sys", optional = true }
+# lunarstorm patch: `std` carries `rquickjs_core::compiler`, the Rust compiler.
+rquickjs-core = { path = "../vendor/rquickjs-binding/core", optional = true, features = ["std", "loader", "dyn-load", "futures"] }
+# jetbunny's Rust compiler: `engines::quickjs_ng::compiler` registers it on every context.
+qjs-bytecode-emitter = { path = "../compiler/bytecode-emitter", optional = true }
+qjs-js-parser-frontend = { path = "../compiler/js-parser-frontend", optional = true }
+qjs-bytecode-image-verifier = { path = "../compiler/bytecode-image-verifier", optional = true }
+
+# jetbunny's allocator test needs its own binary; see the file.
+[[test]]
+name = "jetbunny_copy_alloc"
+path = "tests/jetbunny_copy_alloc.rs"
+
+[features]
+default = ["quickjs-ng"]
+# jetbunny's QuickJS-NG adapter and debug backend (`engines::quickjs_ng`) over the
+# vendored engine and its `jbq_*` bridge, both compiled by `rquickjs-sys`.
+quickjs-ng = ["dep:rquickjs-sys", "dep:rquickjs-core", "dep:qjs-bytecode-emitter", "dep:qjs-js-parser-frontend", "dep:qjs-bytecode-image-verifier"]
+# jetbunny's builtin facades; not taken, declared so its cfg names stay known.
+builtin-facades = []
+# jetbunny's `.jbn` packaging hooks in the adapter; Lunarstorm packages live in `lunarstorm-jbn-package-format`.
+jbn = []
+
+# jetbunny's VM and its tests (unit-test build only; see src/lib.rs `vm`), with
+# jetbunny's own dev-dependencies.
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "net", "time", "sync", "macros", "io-util"] }
+loom = "0.7.2"
+static_assertions = "1.1.0"
+cap-std = "3"
+
+[build-dependencies]
+sha2 = "0.10.9"

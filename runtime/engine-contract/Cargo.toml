@@ -1,0 +1,12 @@
+[package]
+name = "lunarstorm-engine-contract"
+version = "0.1.0"
+edition = "2021"
+description = "The VM interface of the Lunarstorm runtime: the contract a JavaScript engine adapter implements"
+
+[dependencies]
+# The debugger protocol types an engine adapter hands out (`VmDebugHandle`), without
+# any engine: the QuickJS backend is enabled by the adapter, not here.
+lunarstorm-debugger = { path = "../debugger", default-features = false }
+# `Image::from_package`: bytecode reaches an engine only from a verified package.
+lunarstorm-jbn-package-format = { path = "../jbn-package-format" }

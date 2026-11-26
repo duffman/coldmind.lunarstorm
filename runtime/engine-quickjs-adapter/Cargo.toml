@@ -1,0 +1,14 @@
+[package]
+name = "lunarstorm-engine-quickjs-adapter"
+version = "0.1.0"
+edition = "2021"
+description = "VM adapter: QuickJS (quickjs-ng through rquickjs) behind the Lunarstorm VM interface"
+
+[dependencies]
+lunarstorm-engine-contract = { path = "../engine-contract" }
+# The engine binding is adopted into this repository (runtime/vendor/rquickjs-binding, a member
+# of the root workspace), not taken from crates.io, so the adapter and the engine are
+# changed together.
+rquickjs = { path = "../vendor/rquickjs-binding", features = ["loader"] }
+# jetbunny's debugger with its QuickJS backend (`engines::quickjs_ng::Debugger`).
+lunarstorm-debugger = { path = "../debugger" }

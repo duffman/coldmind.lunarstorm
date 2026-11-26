@@ -6,7 +6,7 @@
 //! active. [`check`] compares the two before any script runs and reports every
 //! mismatch at once.
 //!
-//! The crate has no VM dependency: the runtime level (`lunarstorm-runtime`) and the
+//! The crate has no VM dependency: the runtime level (`lunarstorm-event-loop-runtime`) and the
 //! platform level apply the same rules and the same messages.
 
 use std::collections::BTreeMap;

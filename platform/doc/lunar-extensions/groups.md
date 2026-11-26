@@ -75,7 +75,7 @@ state it keys by namespace.
 ## The JS side
 
 - `native` today is a `Proxy` returning a function for `native.<ns>.<method>`
-  (`runtime/hosts/desktop/js/desktop.js`). It becomes a proxy that accumulates the property path and sends on
+  (`runtime/host-desktop-backend/js/desktop.js`). It becomes a proxy that accumulates the property path and sends on
   **call**: the last segment is the method, the rest joined by `.` is the namespace. `native.window.create(...)`
   is unchanged: namespace `window`, method `create`.
 - A call with fewer than two segments (`native.media()`, `native.window()`) throws
@@ -122,7 +122,7 @@ state it keys by namespace.
 
 | where | change |
 |---|---|
-| `runtime/hosts/desktop/js/desktop.js` | `native` accumulates the path and sends on call |
+| `runtime/host-desktop-backend/js/desktop.js` | `native` accumulates the path and sends on call |
 | `platform/desktop/src/manifest.rs` `allows_native` | the `<prefix>.*` rule |
 | `platform/desktop/src/native.rs` | the plugin map is keyed by full namespace |
 | `lunar-extension` | `Group`, `Context::namespace()` |

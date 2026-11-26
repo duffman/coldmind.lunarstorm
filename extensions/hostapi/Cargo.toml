@@ -9,11 +9,11 @@ publish = false
 description = "Lunarstorm HostApi extension: a host's API areas as plugins"
 
 [dependencies]
-lunarstorm-runtime = { path = "../../runtime/core" }
+lunarstorm-event-loop-runtime = { path = "../../runtime/event-loop-runtime" }
 # `HostApi::spec`, the API as JSON.
 serde_json.workspace = true
 
 [dev-dependencies]
 # Tests need a real engine; the library itself names none.
-lunarstorm-vm-quickjs = { path = "../../runtime/engines/quickjs" }
+lunarstorm-engine-quickjs-adapter = { path = "../../runtime/engine-quickjs-adapter" }
 serde_json.workspace = true

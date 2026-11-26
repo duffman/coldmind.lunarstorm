@@ -24,7 +24,7 @@ cargo run -p lunarstorm-project --example issue -- developer <root.der> <id> <da
 ## Decisions
 
 - `compile` signs with a per-project development key (`.lunar/dev.der`, owner-only, made on first use): a `.jbn` cannot be unsigned.
-- `compile` and `sign` build through `lunarstorm_host_cli::compile`, the path `jbn build` uses, so packages link on the Runtime and host modules `run` provides.
+- `compile` and `sign` build through `lunarstorm_host_command_line::compile`, the path `jbn build` uses, so packages link on the Runtime and host modules `run` provides.
 - `sign` recompiles rather than re-signing the built file; builds are deterministic, so the result is the same.
 
 ## Build and test

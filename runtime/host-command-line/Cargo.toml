@@ -1,0 +1,32 @@
+# The CLI app host, as a package of the `lunarstorm` command line.
+#
+# It owns a Runtime bound to the QuickJS adapter, implements the host services
+# with the process's own argv, stdio, environment and exit, and registers the
+# terminal bindings behind the `lunarstorm:ui` module. It exports the `run` command
+# (the default command, so `lunarstorm app.js` still runs a script); the binary that
+# mounts it is `apps/lunarstorm`.
+#
+# Decision: a library, not a binary. The former `lunarstorm` binary of this crate is
+# archived in `.archive/2026-11-24/runtime/host-command-line/src/main.rs` and its end-to-end
+# tests now run against `apps/lunarstorm`, which keeps its command line unchanged.
+[package]
+name = "lunarstorm-host-command-line"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Lunarstorm runtime CLI host: the `run`, `debug`, `jbn` and `types` commands of the lunarstorm command line"
+
+[dependencies]
+lunarstorm-event-loop-runtime = { path = "../event-loop-runtime" }
+# HostApi: the terminal API is its area `ui` (src/ui.rs).
+lunar-extension-hostapi = { path = "../../extensions/hostapi" }
+# `.jbn` packages: `jbn key`, `jbn build`, and `run` of a package.
+lunarstorm-jbn-package-format = { path = "../jbn-package-format" }
+lunarstorm-engine-quickjs-adapter = { path = "../engine-quickjs-adapter" }
+lunarstorm-cliui = { path = "../../crates/cliui" }
+lunarstorm-cli-contract = { path = "../../crates/cli-contract" }
+# `lunarstorm types`: the emitter, and the desktop host's declarations (without its
+# tao shell, which only the `lunarstorm-desktop` binary needs).
+lunarstorm-typescript-declarations = { path = "../typescript-declarations" }
+lunarstorm-host-desktop-backend = { path = "../host-desktop-backend", default-features = false }
+libc = "0.2"

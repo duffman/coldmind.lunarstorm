@@ -22,7 +22,7 @@ packages:
   - toolchain/react
   - toolchain/react/packages/*
   # lunartypes: generated .d.ts of the runtime; the same folder is the Cargo crate
-  # lunarstorm-types (the emitter).
-  - runtime/types
+  # lunarstorm-typescript-declarations (the emitter).
+  - runtime/typescript-declarations
 allowBuilds:
   esbuild: true

@@ -4,7 +4,7 @@
 #   lunarstorm-debug    debug runtime: embedded pipeline, file watcher, in-memory asset store
 #   lunarstorm-release  release runtime: serves the archive attached to its own executable
 #
-# The app's backend runs on the desktop app host (`runtime/hosts/desktop`), i.e. on the
+# The app's backend runs on the desktop app host (`runtime/host-desktop-backend`), i.e. on the
 # Lunarstorm Runtime; this crate never touches the JS engine itself.
 #
 # Release builds use the `platform` profile (root Cargo.toml), not `release`: the
@@ -35,7 +35,7 @@ default = ["devtools"]
 devtools = ["wry/devtools"]
 
 [dependencies]
-lunarstorm-host-desktop = { path = "../../runtime/hosts/desktop" }
+lunarstorm-host-desktop-backend = { path = "../../runtime/host-desktop-backend" }
 tao = "0.37"
 wry = "0.57"
 muda = "0.20"

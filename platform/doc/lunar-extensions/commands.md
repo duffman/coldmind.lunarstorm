@@ -82,7 +82,7 @@ so there is no global event name to collide on and no listener to forget to remo
 ## The JS module
 
 `Extension::guest()` returns the source of an ES module. The platform registers it through
-`Bindings::module("@extension/store", source)` (`runtime/core/src/bindings.rs`), compiled on first import. It
+`Bindings::module("@extension/store", source)` (`runtime/event-loop-runtime/src/bindings.rs`), compiled on first import. It
 wraps `native.<extension>` with names and types:
 
 ```js

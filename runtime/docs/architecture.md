@@ -5,23 +5,23 @@
 ```
                         apps/lunarstorm (lunar)     platform/desktop (lunarstorm-debug/-release)
                                │                                 │
-HOSTS        runtime/hosts/cli  lunarstorm-host-cli      runtime/hosts/desktop  lunarstorm-host-desktop
+HOSTS        runtime/host-command-line  lunarstorm-host-command-line      runtime/host-desktop-backend  lunarstorm-host-desktop-backend
                  │  CliHost, cli.rs (run, debug, jbn)          │  DesktopHost, Backend<S: Shell>, watchdog
                  └───────────────┬─────────────────────────────┘
-RUNTIME      runtime/core  lunarstorm-runtime     Runtime<V, H>: loop, ops, glue, loader, ipc, workers
+RUNTIME      runtime/event-loop-runtime  lunarstorm-event-loop-runtime     Runtime<V, H>: loop, ops, glue, loader, ipc, workers
                  │ uses                  │ uses                      │ uses
-             runtime/modules         runtime/jbn                 extensions/core (lunar-extension)
-             lunarstorm-modules      lunarstorm-jbn              crates/http1 (lunarstorm-http1)
+             runtime/module-sources         runtime/jbn-package-format                 extensions/core (lunar-extension)
+             lunarstorm-module-sources      lunarstorm-jbn-package-format              crates/http1 (lunarstorm-http1)
                  │ (oxc)
-VM CONTRACT  runtime/vm  lunarstorm-vm  ──depends on──▶ runtime/debug (protocol types), runtime/jbn (Image)
-ENGINE       runtime/engines/quickjs  lunarstorm-vm-quickjs
-             runtime/engines/rquickjs  rquickjs + rquickjs-sys (patched quickjs-ng 0.17.0, C)
+VM CONTRACT  runtime/engine-contract  lunarstorm-engine-contract  ──depends on──▶ runtime/debugger (protocol types), runtime/jbn-package-format (Image)
+ENGINE       runtime/engine-quickjs-adapter  lunarstorm-engine-quickjs-adapter
+             runtime/vendor/rquickjs-binding  rquickjs + rquickjs-sys (patched quickjs-ng 0.17.0, C)
 COMPILER     runtime/compiler/crates/qjs-*   the only JS → bytecode compiler, called from C through rquickjs_core::compiler
-DEBUGGER     runtime/debug  lunarstorm-debug  DAP adapter + engine bridge (QuickJS-ng FFI)
-BENCH        runtime/bench   http/tcp/loop benchmarks against node and bun
+DEBUGGER     runtime/debugger  lunarstorm-debug  DAP adapter + engine bridge (QuickJS-ng FFI)
+BENCH        runtime/benchmarks   http/tcp/loop benchmarks against node and bun
 ```
 
-The rule at both of `runtime/core`'s boundaries: it names no engine type and no host type.
+The rule at both of `runtime/event-loop-runtime`'s boundaries: it names no engine type and no host type.
 `Runtime<V: Vm, H: Host>` is monomorphized, so a call into the engine or the host is a direct
 call. Engines and hosts are chosen in exactly two places: `Runtime::<QuickJs, CliHost>` in
 `hosts/cli/src/cli.rs`, and `pub type Engine = QuickJs` in `hosts/desktop/src/lib.rs`.
@@ -34,7 +34,7 @@ came from".
 ## Flow 1: `lunar run app.ts`
 
 ```
-apps/lunarstorm main → cli-host parses argv → package lunarstorm-host-cli, command run (cli.rs:128)
+apps/lunarstorm main → cli-host parses argv → package lunarstorm-host-command-line, command run (cli.rs:128)
   execute(Source::File, argv)
     Runtime::<QuickJs, CliHost>::new(host)       mio Poll + Waker, Shared{io, host, refs...}, Ipc, Workers,
                                                  Modules (reads gated by Host::allow)
@@ -97,7 +97,7 @@ lunar run --trust trust.json app.jbn
 ## Flow 5: `lunar debug app.js` (DAP over stdio)
 
 ```
-cli.rs debug → lunarstorm_debug::debug::host::run(owner closure on its own thread)
+cli.rs debug → lunarstorm_debugger::debug::host::run(owner closure on its own thread)
   Runtime::new(CliHost::for_debugger)       script stdout → stderr (stdout is the DAP channel)
   start → runtime.debug(break_on_start: true) → VmDebugHandle to the DAP adapter
   load → loop poll(Block): phase 0 serves debugger requests; entry() holds the first JS entry

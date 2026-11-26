@@ -4,8 +4,8 @@ The native desktop process of the Lunarstorm platform (spec section 6, `doc/plan
 One library holds everything the two runtimes share: the TAO event loop and WRY WebViews
 (one window per form), the IPC envelope, the asset store behind the custom protocol, native
 services, the dev change table and the release archive. The two binaries are thin. The app's
-backend does not run here: it runs on the Lunarstorm Runtime through `runtime/hosts/desktop`
-(`lunarstorm-host-desktop`), and this crate never touches the JS engine.
+backend does not run here: it runs on the Lunarstorm Runtime through `runtime/host-desktop-backend`
+(`lunarstorm-host-desktop-backend`), and this crate never touches the JS engine.
 
 ## Public surface
 
@@ -27,7 +27,7 @@ backend does not run here: it runs on the Lunarstorm Runtime through `runtime/ho
 ## How it fits
 
 Depended on by `platform/pack` and `platform/web` (they reuse `pipeline` and `assets`).
-Depends on `runtime/hosts/desktop`. The compiler side is behind the `Pipeline` trait: today
+Depends on `runtime/host-desktop-backend`. The compiler side is behind the `Pipeline` trait: today
 only `OutputDirPipeline` ships, which loads a generated directory (`zebra.json`,
 `backend.js`, `frontend/**`, optional `package.json`); `platform/examples/app` is one.
 Spec: section 6 (6.1 change table, 6.2 backend reload, 6.3 debug/release/browser).

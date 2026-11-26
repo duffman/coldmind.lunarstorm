@@ -19,8 +19,8 @@ path = "src/main.rs"
 
 [features]
 default = ["runtime", "build", "frontend", "project"]
-# `run`: scripts on the Lunarstorm runtime (runtime/hosts/cli).
-runtime = ["dep:lunarstorm-host-cli"]
+# `run`: scripts on the Lunarstorm runtime (runtime/host-command-line).
+runtime = ["dep:lunarstorm-host-command-line"]
 # `build`: the desktop build pipeline (toolchain/crates/pipeline).
 build = ["dep:lunarstorm-pipeline"]
 # `serve`, `bundle`, `preview`, `transpile`: the frontend tools (toolchain/crates/cli).
@@ -30,7 +30,7 @@ project = ["dep:lunarstorm-project"]
 
 [dependencies]
 lunarstorm-cli-host = { path = "../../crates/cli-host" }
-lunarstorm-host-cli = { path = "../../runtime/hosts/cli", optional = true }
+lunarstorm-host-command-line = { path = "../../runtime/host-command-line", optional = true }
 lunarstorm-pipeline = { path = "../../toolchain/crates/pipeline", optional = true }
 devtools-cli = { path = "../../toolchain/crates/cli", optional = true }
 lunarstorm-project = { path = "../extensions/project", optional = true }

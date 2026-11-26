@@ -1,6 +1,6 @@
 # The event loop
 
-Source: `runtime/core/src/runtime.rs` (the loop), `io.rs` (sockets, timers), `pool.rs` (blocking
+Source: `runtime/event-loop-runtime/src/runtime.rs` (the loop), `io.rs` (sockets, timers), `pool.rs` (blocking
 work), `js/bootstrap.js` (the JS side of every event).
 
 One `Runtime<V, H>` is one thread, one VM instance and one mio reactor. JS runs on that thread
@@ -125,7 +125,7 @@ or through `httpHead`, `httpChunk` and `httpEnd` when streamed.
 | `hold(bool)` | keep a loop with no handles alive for posted work |
 | `pulse()` + `interrupt()` | a watchdog thread reads the pulse; an odd value twice, a budget apart, means one entry ran too long |
 
-## Measured (runtime/bench/results.txt, Apple M1)
+## Measured (runtime/benchmarks/results.txt, Apple M1)
 
 | | lunarstorm | node 24 | bun 1.4 |
 |---|---|---|---|

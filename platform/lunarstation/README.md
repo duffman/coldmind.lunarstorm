@@ -9,7 +9,7 @@ packages enabled by Cargo features, and exits with `cli.run(args)`.
 
 | feature   | crate                 | commands |
 |-----------|-----------------------|----------|
-| `runtime` | `lunarstorm-host-cli` | `run` (default) |
+| `runtime` | `lunarstorm-host-command-line` | `run` (default) |
 | `build`   | `lunarstorm-pipeline` | `build`, `build types`, `build check` |
 | `frontend`| `devtools-cli`        | `serve`, `bundle`, `preview`, `transpile` |
 | `project` | `lunarstorm-project`  | `project init`, `insight`, `compile`, `sign` |
