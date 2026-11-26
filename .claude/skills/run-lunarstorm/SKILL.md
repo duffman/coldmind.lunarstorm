@@ -38,7 +38,7 @@ The smoke run does this:
 | `build [--fresh]` | debug build of the three binaries; `--fresh` rebuilds from this checkout (see Gotchas) |
 | `cli` | runtime smoke: `--version`, `-e`, a script using `node:fs` |
 | `runtime-ipc` | workers + `lunarstorm:ipc`; the CLI host has them off, the `ipc-demo` host turns them on |
-| `project` | `lunar project init` → `compile` (signed `.jbn`) → `run --trust` |
+| `project` | `lunar project program create` → `compile` (signed `.jbn`) → `run --trust` |
 | `pipeline <project> [out]` | `lunar build` into an output dir |
 | `web <dir> [steps…]` | serve an output dir and drive it; keeps running until `stop` |
 | `desktop <dir> [png]` | real window plus capture |
@@ -79,7 +79,7 @@ across `open`s.
 .claude/skills/run-lunarstorm/driver.sh runtime-ipc
 .claude/skills/run-lunarstorm/driver.sh project
 ~/.cargo-target/debug/lunar -e 'import ui from "lunarstorm:ui"; import { areas } from "lunarstorm:hostapi"; console.log(Object.keys(ui), areas)'
-.claude/skills/run-lunarstorm/driver.sh pipeline platform/desktop/templates/app .scratch/run-lunarstorm/dist
+.claude/skills/run-lunarstorm/driver.sh pipeline platform/desktop/types/app .scratch/run-lunarstorm/dist
 .claude/skills/run-lunarstorm/driver.sh desktop platform/desktop/examples/app .scratch/run-lunarstorm/desktop.png
 .claude/skills/run-lunarstorm/driver.sh stop
 ```
@@ -99,7 +99,7 @@ cargo test -q -p lunarstorm --test ui --test cli --test commands
 - **One shared target, several checkouts.** `~/.cargo-target` is shared by `main` and every worktree in `.worktrees/`, and they write the same artifacts. Cargo then takes another branch's build as fresh, so a plain `cargo build` does not relink.
   - Seen: `lunar --help` on `main` showed the `cli-package-help` worktree's RUNTIME/BUILD sections, and `top_help_lists_every_package_and_the_host_commands` failed with `missing "COMMANDS"`.
   - Fix: `driver.sh build --fresh` (16 s), which touches every crate root and rebuilds.
-- **Hosts take output dirs, not source projects.** `lunarstorm-web` and `lunarstorm-debug` need a directory holding `zebra.json`. Given `platform/desktop/templates/app` they fail with `platform/desktop/templates/app/zebra.json: No such file or directory`. Build first.
+- **Hosts take output dirs, not source projects.** `lunarstorm-web` and `lunarstorm-debug` need a directory holding `zebra.json`. Given `platform/desktop/types/app` they fail with `platform/desktop/types/app/zebra.json: No such file or directory`. Build first.
 - **Built projects render blank.** The pipeline embeds a dummy WebView runtime (`e59dce6`) whose `mount` is `_load => {}`. Drive the UI on `platform/desktop/examples/app`.
 - **The CLI has no workers, IPC, `fetch` or `http.request`.** `lunarstorm:worker` and `lunarstorm:ipc` are "module not found" under `lunar`; use `driver.sh runtime-ipc`. See runtime.md for the builtins.
 - **Desktop capture needs Screen Recording permission** for the terminal (System Settings > Privacy & Security > Screen & System Audio Recording). Without it, `screencapture` says `could not create image from window`, even with the sandbox off. `driver.sh desktop` then exits 3 after confirming the window opened.

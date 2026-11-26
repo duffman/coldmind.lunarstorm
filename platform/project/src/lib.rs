@@ -1,4 +1,5 @@
-//! Lunarstorm projects: create, inspect, compile and sign them.
+//! Lunarstorm projects: the project types products register with their actions,
+//! and inspecting, compiling and signing a project.
 //!
 //! | module        | role                                                                  |
 //! |---------------|-----------------------------------------------------------------------|
@@ -8,4 +9,4 @@
 pub mod command;
 pub mod developer;
 
-pub use command::{package, Templates};
+pub use command::{create, package, Registration, Type};

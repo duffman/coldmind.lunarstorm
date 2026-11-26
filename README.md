@@ -25,7 +25,7 @@ One Cargo workspace (`Cargo.toml`) and one pnpm workspace (`pnpm-workspace.yaml`
 cargo build --workspace          # builds into ~/.cargo-target (see .cargo/config.toml)
 cargo test --workspace
 pnpm install && pnpm typecheck   # pnpm test:js also runs; several packages have no test script
-cargo run --bin lunarstorm -- build -p platform/desktop/templates/app
+cargo run --bin lunarstorm -- build -p platform/desktop/types/app
 cargo run --bin lunarstorm-debug -- platform/desktop/examples/app
 ```
 

@@ -1,5 +1,0 @@
-{
-  "description": "a program lunar runs",
-  "type": "program",
-  "main": "src/main.ts"
-}

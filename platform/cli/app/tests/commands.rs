@@ -50,10 +50,10 @@ fn scratch(name: &str) -> PathBuf {
 /// The desktop starter project.
 ///
 /// # Returns
-/// `platform/desktop/templates/app` in the repository.
+/// `platform/desktop/types/app` in the repository.
 #[cfg(feature = "build")]
 fn starter() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../desktop/templates/app")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../desktop/types/app")
 }
 
 #[cfg(all(feature = "runtime", feature = "build"))]

@@ -90,7 +90,7 @@ impl Package for BuildPackage {
                 |invocation| Ok(write_types("lunarstorm", &invocation.context.require::<Target>()?.project)),
             ))
             .child(Command::new("check", "check the project's model and report compile errors; writes nothing").run(check))
-            .example("lunar build -p platform/desktop/templates/app")
+            .example("lunar build -p platform/desktop/types/app")
             .example("lunar build -p app -o out")
             .example("lunar build types -p app")]
     }

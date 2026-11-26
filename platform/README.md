@@ -18,20 +18,20 @@ package.json    optional; a change forces a restart
 
 ## Crates
 
-Each product owns its host, its binaries and its project templates.
+Each product owns its host, its binaries and the project types it registers.
 
 | product | crate | path | binaries / role |
 |---|---|---|---|
 | cli | `lunarstorm-host-cli` | `cli/host/` | CLI app host; the `run`, `debug`, `jbn` commands |
 | cli | `lunarstorm` | `cli/app/` | `lunar` |
 | cli | `lunarstation` | `cli/lunarstation/` | `lunarstation` |
-| cli | `lunarstorm-cli-templates` | `cli/templates/` | `cli/program`, `cli/module` |
+| cli | `lunarstorm-cli-types` | `cli/types/` | project types `program`, `module` |
 | desktop | `lunarstorm-host-desktop` | `desktop/host/` | desktop app host (backend thread, epochs) |
 | desktop | `lunarstorm-platform` | `desktop/app/` | `lunarstorm-debug`, `lunarstorm-release` |
 | desktop | `lunarstorm-pack` | `desktop/pack/` | `lunarstorm-pack` |
 | desktop | `lunarstorm-web` | `desktop/web/` | `lunarstorm-web` |
-| desktop | `lunarstorm-desktop-templates` | `desktop/templates/` | `desktop/app` (also the desktop starter) |
-| both | `lunarstorm-project` | `project/` | `lunar project`: init from templates, insight, compile, sign |
+| desktop | `lunarstorm-desktop-types` | `desktop/types/` | project type `app` (`app/` is also the desktop starter) |
+| both | `lunarstorm-project` | `project/` | `lunar project`: registered types and their actions, insight, compile, sign |
 
 | binary               | use                                                                                   |
 |----------------------|---------------------------------------------------------------------------------------|

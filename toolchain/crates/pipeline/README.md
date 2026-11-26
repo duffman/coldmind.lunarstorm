@@ -31,7 +31,7 @@ embeds three files from elsewhere in the repo via `include_str!`: `framework/des
 ## Build, test, run
 
 ```bash
-cargo run -p lunarstorm-pipeline --bin lunarstorm-build -- platform/desktop/templates/app _build/out
+cargo run -p lunarstorm-pipeline --bin lunarstorm-build -- platform/desktop/types/app _build/out
 cargo test -p lunarstorm-pipeline
 ```
 

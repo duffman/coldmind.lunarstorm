@@ -1,9 +1,0 @@
-# The cli product's project templates for `lunar project init`: `program` and
-# `module`. Each folder holding a `template.json` is one template; `build.rs` embeds
-# them. No dependencies: the binary hands `FILES` to `lunarstorm-project`.
-[package]
-name = "lunarstorm-cli-templates"
-version = "0.1.0"
-edition = "2021"
-publish = false
-description = "Lunarstorm cli project templates: program, module"

@@ -3,35 +3,32 @@
 The `project` package of the `lunar` command line, mounted by `platform/cli/app` behind the `project` feature (on by default).
 
 ```text
-lunar project init [dir] --type module|program --mode lunar|node
-lunar project init [dir] --template <product/name|folder>   e.g. desktop/app
-lunar project templates                         the templates init can use
+lunar project types                             the registered types and their actions
+lunar project <type> <action> [args]            e.g. lunar project program create hello
 lunar project insight [dir]                     description, dependencies, files and lines per extension, build
 lunar project compile [dir]                     build/<name>.jbn (runtime bytecode) + build/trust.json
 lunar project sign [dir] --key <developer.json> build/<name>.jbn signed with an issued developer key
 ```
 
-## Templates
+## Types and actions
 
-The products own their templates; the binary passes them in:
-`lunarstorm_project::command::package(&[("cli", lunarstorm_cli_templates::FILES), ("desktop", lunarstorm_desktop_templates::FILES)])`.
+The products register project types; the binary passes their registrations in:
+`lunarstorm_project::package(vec![lunarstorm_cli_types::types, lunarstorm_desktop_types::types])`.
 
-| template | crate (folder) | `lunar.type` |
+| type | crate (folder) | actions |
 |---|---|---|
-| `cli/program`, `cli/module` | `lunarstorm-cli-templates` (`platform/cli/templates`) | `program`, `module` |
-| `desktop/app` | `lunarstorm-desktop-templates` (`platform/desktop/templates`) | `desktop` |
+| `program`, `module` | `lunarstorm-cli-types` (`platform/cli/types`) | `create` |
+| `app` | `lunarstorm-desktop-types` (`platform/desktop/types`) | `create` |
 
-A template is a folder: `template.json` plus the files to write.
-
-```json
-{ "description": "a program lunar runs", "type": "program", "main": "src/main.ts" }
+```rust
+pub fn types() -> Vec<Type> {
+    vec![Type::new("program", "a program lunar runs").action(create("program", "src/main.ts", &["lunar", "node"], FILES))]
+}
 ```
 
-- `type` is `program`, `module` or `desktop`; `main` must name a file of the template.
-- `{{name}}` in a UTF-8 file becomes the package name; `gitignore` is written as `.gitignore` (a default is written when the template has none); names starting with `.` are never copied.
-- `init` writes `package.json` itself from `type`, `main` and `--mode`, so templates hold no conditionals.
-- `--type` picks `cli/<type>`; `--template` overrides it with a mounted name or a folder on disk.
-- Adding a template: a new folder with a `template.json` in a templates crate; `build.rs` embeds it, no Rust edit.
+- A type is a name, one line about it and its actions; an action is a plain cli-contract `Command` (own arguments, own handler), mounted as `lunar project <type> <action>`.
+- A type must not be named `types`, `insight`, `compile` or `sign`.
+- `create(kind, main, modes, files)` is the action that makes a project: `package.json` with `lunar.type` = the type's name, then the type's files (`"<kind>/<path>"` in `files`). `{{name}}` in a UTF-8 file becomes the package name; `gitignore` is written as `.gitignore` (a default when the type has none); it never overwrites a file and refuses a directory that already has a `package.json`. `--mode` takes `modes`, the first being the default.
 
 ## Developer keys
 
@@ -47,7 +44,8 @@ cargo run -p lunarstorm-project --example issue -- developer <root.der> <id> <da
 
 ## Decisions
 
-- A `desktop` project is built by `lunar build -p` (lunarstorm-pipeline): `compile` and `sign` refuse it, and `init` refuses `--mode node` for it.
+- `compile` and `sign` take only a `program` or `module` project; another type has its own build (an `app` is built by `lunar build -p`, lunarstorm-pipeline).
+- Types are registered by the products, not listed here: the binary decides which products' types it mounts.
 
 - `compile` signs with a per-project development key (`.lunar/dev.der`, owner-only, made on first use): a `.jbn` cannot be unsigned.
 - `compile` and `sign` build through `lunarstorm_host_cli::compile`, the path `jbn build` uses, so packages link on the Runtime and host modules `run` provides.

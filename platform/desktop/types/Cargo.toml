@@ -1,0 +1,13 @@
+# The desktop product's project types: `app`, with the action `create`. Each
+# top-level folder except `src` holds one type's files; `build.rs` (the same script
+# as lunarstorm-cli-types) embeds them. The binary passes `types` to
+# `lunarstorm-project`.
+[package]
+name = "lunarstorm-desktop-types"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Lunarstorm desktop project types: app"
+
+[dependencies]
+lunarstorm-project = { path = "../../project" }

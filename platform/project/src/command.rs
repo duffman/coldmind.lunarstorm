@@ -1,5 +1,5 @@
-//! The `project` package of the `lunar` command line: `project init`, `insight`,
-//! `compile` and `sign`.
+//! The `project` package of the `lunar` command line: the registered project types
+//! with their actions, and `insight`, `compile` and `sign`.
 //!
 //! Every crate that adds commands to `lunar` exposes them from `src/command.rs` as
 //! `command::package()`; `platform/cli/app/src/main.rs` mounts this one behind the
@@ -7,27 +7,25 @@
 //! renders help and dispatches; this module holds the specs and the handlers.
 //!
 //! ```text
-//! lunar project init [dir] --type module|program --mode lunar|node
-//! lunar project init [dir] --template desktop/app | <folder>
-//! lunar project templates
+//! lunar project types                       every registered type and its actions
+//! lunar project <type> <action> [args]      e.g. lunar project program create hello
 //! lunar project insight [dir]
-//! lunar project compile [dir]            build/<name>.jbn, development key
+//! lunar project compile [dir]               build/<name>.jbn, development key
 //! lunar project sign [dir] --key <developer.json>
 //! ```
 //!
 //! Decisions:
 //! - The project description is `package.json`: `name`, `version`, `main` (the
 //!   entry) and a `lunar` object with `type` and `mode`. No other file is needed.
-//! - Templates come from the products, not from this crate: the binary passes each
-//!   product's embedded files ([`Templates`]) to [`package`], so this crate names no
-//!   product and a binary mounts only the templates it ships. A template folder is
-//!   `template.json` (`description`, `type`, `main`) plus the files to write;
-//!   `{{name}}` in a UTF-8 file becomes the package name, and `gitignore` is written
-//!   as `.gitignore`. `init` writes `package.json` itself from `type`, `main` and
-//!   `--mode`, so templates carry no conditionals. `--type` picks `cli/<type>`;
-//!   `--template` overrides it with a mounted name or a folder on disk.
-//! - A `desktop` project is built by `lunar build -p` (lunarstorm-pipeline), so
-//!   `compile` and `sign` refuse it, and `init` refuses `--mode node` for it.
+//! - Project types come from the products, not from this crate: each product crate
+//!   exports a [`Registration`] returning its [`Type`]s, and the binary passes them to
+//!   [`package`], so this crate names no product. A type is a name, a line about it
+//!   and its actions; an action is a plain [`Command`] with its own arguments and
+//!   handler, mounted as `lunar project <type> <action>`.
+//! - [`create`] is the action products register to make a project of a type: it
+//!   writes `package.json` (`lunar.type` is the type's name) and the type's files.
+//! - `compile` and `sign` take only a `program` or `module` project; a project of
+//!   another type is built by its own tools (an `app` by `lunar build -p`).
 //! - `compile` signs with a per-project development key (`.lunar/dev.der`, made on
 //!   first use, owner-only) and writes `build/trust.json` naming it, so
 //!   `lunar run --trust build/trust.json build/<name>.jbn` runs the build. A `.jbn`
@@ -38,34 +36,81 @@
 //!   against [`developer::ROOT`].
 
 use crate::developer;
-use lunarstorm_cli_contract::{Arg, Command, Failure, Invocation, Package};
+use lunarstorm_cli_contract::{Arg, Command, Failure, Invocation, Package, ValueType};
 use lunarstorm_jbn::{Signer, TrustStore, Trusted};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// One product's embedded templates, as its templates crate exports them:
-/// `(product, files)`, each file `("<template>/<path>", bytes)`. A template is named
-/// `<product>/<template>` on the command line.
-pub type Templates = (&'static str, &'static [(&'static str, &'static [u8])]);
+/// A project type a product registers: its name, a line about it, and its actions.
+pub struct Type {
+    /// The name: `lunar project <name> ...`, and `lunar.type` in `package.json`.
+    name: &'static str,
+    /// One line for `lunar project types` and the help screen.
+    about: &'static str,
+    /// The actions, each mounted as `lunar project <name> <action>`.
+    actions: Vec<Command>,
+}
+
+impl Type {
+    /// Starts a type with no actions.
+    ///
+    /// # Arguments
+    /// * `name` - the type's name; it must not be `types`, `insight`, `compile` or
+    ///   `sign`, the commands `project` has itself.
+    /// * `about` - one line about it.
+    ///
+    /// # Returns
+    /// The type.
+    pub fn new(name: &'static str, about: &'static str) -> Type {
+        Type { name, about, actions: Vec::new() }
+    }
+
+    /// Registers an action.
+    ///
+    /// # Arguments
+    /// * `action` - the command run as `lunar project <type> <action name>`.
+    ///
+    /// # Returns
+    /// The type with the action added.
+    pub fn action(mut self, action: Command) -> Type {
+        self.actions.push(action);
+        self
+    }
+}
+
+/// What a product crate exports: a function returning its types. A function rather
+/// than a value because a [`Command`] holds its handler and cannot be copied, and
+/// the specs are built each time the package's commands are asked for.
+pub type Registration = fn() -> Vec<Type>;
 
 /// The project package.
 struct ProjectPackage {
-    /// The templates `init` can use, per product.
-    templates: &'static [Templates],
+    /// The products' registrations.
+    registrations: Vec<Registration>,
 }
 
 /// Returns the project package for mounting on the command line.
 ///
 /// # Arguments
-/// * `templates` - the products' templates `init` offers; `--type` needs `cli/program`
-///   and `cli/module` among them.
+/// * `registrations` - each mounted product's types.
 ///
 /// # Returns
 /// The package; it exports `project`.
-pub fn package(templates: &'static [Templates]) -> Box<dyn Package> {
-    Box::new(ProjectPackage { templates })
+pub fn package(registrations: Vec<Registration>) -> Box<dyn Package> {
+    Box::new(ProjectPackage { registrations })
+}
+
+/// Every registered type, in registration order.
+///
+/// # Arguments
+/// * `registrations` - the products' registrations.
+///
+/// # Returns
+/// The types.
+fn types(registrations: &[Registration]) -> Vec<Type> {
+    registrations.iter().flat_map(|register| register()).collect()
 }
 
 impl Package for ProjectPackage {
@@ -82,23 +127,18 @@ impl Package for ProjectPackage {
     }
 
     /// # Returns
-    /// `project` with `init`, `insight`, `compile` and `sign`.
+    /// `project` with `types`, one command per registered type holding its actions,
+    /// `insight`, `compile` and `sign`.
     fn commands(&self) -> Vec<Command> {
-        let directory = || Arg::positional("dir").value(lunarstorm_cli_contract::ValueType::Path).default(".").about("the project directory");
-        let templates = self.templates;
-        let release = || Arg::option("release").value(lunarstorm_cli_contract::ValueType::Int).default("1").about("release number trust stores compare");
-        vec![Command::new("project", "create, inspect, compile and sign a Lunarstorm project")
-            .child(
-                Command::new("init", "create a project: package.json, an entry file and .gitignore")
-                    .arg(directory())
-                    .arg(Arg::option("type").choices(&["module", "program"]).default("program").about("a program to run, or a module to import"))
-                    .arg(Arg::option("mode").choices(&["lunar", "node"]).default("lunar").about("the runtime it targets"))
-                    .arg(Arg::option("template").placeholder("<product/name|folder>").about("a template from `lunar project templates`, or a template folder; overrides --type"))
-                    .run(move |invocation| init(invocation, templates))
-                    .example("lunar project init hello --type program --mode lunar")
-                    .example("lunar project init notes --template desktop/app"),
-            )
-            .child(Command::new("templates", "list the templates init can use").run(move |_| list(templates)))
+        let directory = || Arg::positional("dir").value(ValueType::Path).default(".").about("the project directory");
+        let release = || Arg::option("release").value(ValueType::Int).default("1").about("release number trust stores compare");
+        let registrations = self.registrations.clone();
+        let mut project = Command::new("project", "project types and their actions; inspect, compile and sign a Lunarstorm project")
+            .child(Command::new("types", "list the registered project types and their actions").run(move |_| list(&registrations)));
+        for kind in types(&self.registrations) {
+            project = project.child(kind.actions.into_iter().fold(Command::new(kind.name, kind.about), Command::child));
+        }
+        vec![project
             .child(Command::new("insight", "summarize a project: description, dependencies, files and build").arg(directory()).run(insight))
             .child(
                 Command::new("compile", "compile to runtime bytecode: build/<name>.jbn, signed with a development key")
@@ -111,146 +151,27 @@ impl Package for ProjectPackage {
                 Command::new("sign", "compile and sign build/<name>.jbn with a developer key issued by Lunarstorm")
                     .arg(directory())
                     .arg(release())
-                    .arg(Arg::option("key").value(lunarstorm_cli_contract::ValueType::Path).placeholder("<developer.json>").env("LUNARSTORM_DEVELOPER_KEY").required().about("your issued developer key"))
+                    .arg(Arg::option("key").value(ValueType::Path).placeholder("<developer.json>").env("LUNARSTORM_DEVELOPER_KEY").required().about("your issued developer key"))
                     .run(sign)
                     .example("lunar project sign --key ~/.lunarstorm/developer.json"),
             )]
     }
 }
 
-/// A project template: what `init` writes besides `package.json`.
-struct Template {
-    /// `program`, `module` or `desktop`: `lunar.type` in `package.json`.
-    kind: String,
-    /// The entry file: `main` in `package.json`.
-    main: String,
-    /// The files to write, by path relative to the project; `template.json` left out.
-    files: Vec<(String, Vec<u8>)>,
-}
-
-impl Template {
-    /// Builds a template from its files.
-    ///
-    /// # Arguments
-    /// * `files` - every file of the template folder, `template.json` included.
-    /// * `origin` - the template's name or folder, for errors.
-    ///
-    /// # Returns
-    /// The template.
-    ///
-    /// # Errors
-    /// No or malformed `template.json`, an unknown `type`, or no file for `main`.
-    fn parse(files: Vec<(String, Vec<u8>)>, origin: &str) -> Result<Template, Failure> {
-        let (meta, files): (Vec<_>, Vec<_>) = files.into_iter().partition(|(path, _)| path == "template.json");
-        let (_, meta) = meta.into_iter().next().ok_or_else(|| Failure::failed(format!("{origin}: no template.json")))?;
-        let json: Value = serde_json::from_slice(&meta).map_err(|e| Failure::failed(format!("{origin}/template.json: {e}")))?;
-        let field = |key: &str| json.get(key).and_then(Value::as_str).map(str::to_owned).ok_or_else(|| Failure::failed(format!("{origin}/template.json has no \"{key}\"")));
-        let (kind, main) = (field("type")?, field("main")?);
-        if !matches!(kind.as_str(), "program" | "module" | "desktop") {
-            return Err(Failure::failed(format!("{origin}/template.json: type {kind:?} is not program, module or desktop")));
-        }
-        if !files.iter().any(|(path, _)| *path == main) {
-            return Err(Failure::failed(format!("{origin}: no file {main} for \"main\"")));
-        }
-        Ok(Template { kind, main, files })
-    }
-
-    /// Finds a mounted template.
-    ///
-    /// # Arguments
-    /// * `templates` - the mounted products' templates.
-    /// * `name` - `<product>/<template>`.
-    ///
-    /// # Returns
-    /// The template.
-    ///
-    /// # Errors
-    /// No such template (the error lists the mounted ones), or a broken one.
-    fn mounted(templates: &[Templates], name: &str) -> Result<Template, Failure> {
-        let found = name.split_once('/').and_then(|(product, template)| {
-            let (_, files) = templates.iter().find(|(p, _)| *p == product)?;
-            let prefix = format!("{template}/");
-            let files: Vec<(String, Vec<u8>)> = files.iter().filter_map(|(path, bytes)| path.strip_prefix(prefix.as_str()).map(|p| (p.to_owned(), bytes.to_vec()))).collect();
-            (!files.is_empty()).then_some(files)
-        });
-        match found {
-            Some(files) => Template::parse(files, name),
-            None => {
-                let names: Vec<String> = catalog(templates).into_iter().map(|(name, _)| name).collect();
-                Err(Failure::failed(format!("no template {name}; available: {}", if names.is_empty() { String::from("none") } else { names.join(", ") })))
-            }
-        }
-    }
-
-    /// Reads a template folder from disk; names starting with `.` are skipped, as
-    /// the templates crates' `build.rs` skips them.
-    ///
-    /// # Arguments
-    /// * `folder` - the template folder.
-    ///
-    /// # Returns
-    /// The template.
-    ///
-    /// # Errors
-    /// An unreadable file, or a broken template.
-    fn folder(folder: &Path) -> Result<Template, Failure> {
-        /// Collects the files under `dir` as paths relative to `root`.
-        fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, Vec<u8>)>) -> Result<(), Failure> {
-            for entry in fs::read_dir(dir).map_err(io(dir))?.flatten() {
-                let path = entry.path();
-                if entry.file_name().to_string_lossy().starts_with('.') {
-                    continue;
-                }
-                if path.is_dir() {
-                    walk(root, &path, out)?;
-                } else {
-                    let relative = path.strip_prefix(root).expect("under the folder").to_string_lossy().replace('\\', "/");
-                    out.push((relative, fs::read(&path).map_err(io(&path))?));
-                }
-            }
-            Ok(())
-        }
-        let mut files = Vec::new();
-        walk(folder, folder, &mut files)?;
-        Template::parse(files, &folder.display().to_string())
-    }
-}
-
-/// Lists the mounted templates.
+/// The `types` handler: prints each registered type, its line and its actions.
 ///
 /// # Arguments
-/// * `templates` - the mounted products' templates.
-///
-/// # Returns
-/// `(<product>/<template>, description)` per template, sorted by name.
-fn catalog(templates: &[Templates]) -> Vec<(String, String)> {
-    let mut list: Vec<(String, String)> = templates
-        .iter()
-        .flat_map(|(product, files)| {
-            files.iter().filter_map(move |(path, bytes)| {
-                let template = path.strip_suffix("/template.json").filter(|t| !t.contains('/'))?;
-                let json: Value = serde_json::from_slice(bytes).ok()?;
-                Some((format!("{product}/{template}"), json.get("description").and_then(Value::as_str).unwrap_or("").to_owned()))
-            })
-        })
-        .collect();
-    list.sort();
-    list
-}
-
-/// The `templates` handler: prints each mounted template and its description.
-///
-/// # Arguments
-/// * `templates` - the mounted products' templates.
+/// * `registrations` - the products' registrations.
 ///
 /// # Returns
 /// `0`.
 ///
 /// # Errors
 /// None; the signature is the handler's.
-fn list(templates: &[Templates]) -> Result<i32, Failure> {
-    for (name, description) in catalog(templates) {
-        println!("{name:<16}{description}");
+fn list(registrations: &[Registration]) -> Result<i32, Failure> {
+    for kind in types(registrations) {
+        let actions: Vec<&str> = kind.actions.iter().map(|action| action.name.as_str()).collect();
+        println!("{:<10}{:<12}{}", kind.name, actions.join(", "), kind.about);
     }
     Ok(0)
 }
@@ -276,7 +197,7 @@ impl Project {
     /// No `package.json`, or not JSON.
     fn open(root: &Path) -> Result<Project, Failure> {
         let file = root.join("package.json");
-        let text = fs::read(&file).map_err(|_| Failure::failed(format!("no package.json in {}; create one with `lunar project init`", root.display())))?;
+        let text = fs::read(&file).map_err(|_| Failure::failed(format!("no package.json in {}; create one with `lunar project <type> create`", root.display())))?;
         let json = serde_json::from_slice(&text).map_err(|e| Failure::failed(format!("{}: {e}", file.display())))?;
         Ok(Project { root: root.to_path_buf(), json })
     }
@@ -290,13 +211,14 @@ impl Project {
         self.json.get(key).and_then(Value::as_str)
     }
 
-    /// Refuses a desktop project, which `lunar build` builds instead of `compile`.
+    /// Refuses a project that is not a `program` or `module`: its type has its own
+    /// build (an `app` is built by `lunar build -p`).
     ///
     /// # Errors
-    /// `lunar.type` is `desktop`.
+    /// `lunar.type` is set to another type.
     fn packable(&self) -> Result<(), Failure> {
         match self.json.get("lunar").and_then(|l| l.get("type")).and_then(Value::as_str) {
-            Some("desktop") => Err(Failure::failed(format!("{} is a desktop project; build it with `lunar build -p {}`", self.root.display(), self.root.display()))),
+            Some(kind) if !matches!(kind, "program" | "module") => Err(Failure::failed(format!("{} is an {kind} project; compile and sign take a program or module", self.root.display()))),
             _ => Ok(()),
         }
     }
@@ -345,67 +267,86 @@ fn package_name(root: &Path) -> String {
     if name.is_empty() { String::from("app") } else { name }
 }
 
-/// The `init` handler: writes `package.json` and the template's files, and a default
-/// `.gitignore` when the template has none.
+/// The `create` action a product registers on a type: makes a project of that type.
 ///
-/// Decision: it refuses a directory that already has a `package.json` rather than
-/// merging into it, and never overwrites a file that exists.
+/// `lunar project <kind> create [dir] --mode <mode>` writes `package.json` and the
+/// type's files, and a default `.gitignore` when the type ships none.
 ///
 /// # Arguments
-/// * `invocation` - `dir`, `type`, `mode` and `template`.
-/// * `templates` - the mounted products' templates.
+/// * `kind` - the type's name: `lunar.type` in `package.json`, and the folder of
+///   `files` that holds this type's files.
+/// * `main` - the entry file: `main` in `package.json`; it must be one of the files.
+/// * `modes` - the runtimes the type targets, `lunar` or `node`; the first is the
+///   default.
+/// * `files` - the product's embedded files, `("<kind>/<path>", bytes)`.
+///
+/// # Returns
+/// The action.
+pub fn create(kind: &'static str, main: &'static str, modes: &'static [&'static str], files: &'static [(&'static str, &'static [u8])]) -> Command {
+    Command::new("create", "create the project: package.json, the type's files and .gitignore")
+        .arg(Arg::positional("dir").value(ValueType::Path).default(".").about("the project directory"))
+        .arg(Arg::option("mode").choices(modes).default(modes[0]).about("the runtime it targets"))
+        .run(move |invocation| write(invocation, kind, main, files))
+        .example(format!("lunar project {kind} create hello"))
+}
+
+/// The `create` handler.
+///
+/// Decision: `{{name}}` in a UTF-8 file becomes the package name and `gitignore` is
+/// written as `.gitignore`; it refuses a directory that already has a `package.json`
+/// rather than merging into it, and never overwrites a file that exists.
+///
+/// # Arguments
+/// * `invocation` - `dir` and `mode`.
+/// * `kind`, `main`, `files` - as given to [`create`].
+///
+/// # Returns
+/// `0`.
 ///
 /// # Errors
-/// An existing project, an unknown or broken template, `--mode node` for a desktop
-/// project, or an unwritable directory.
-fn init(invocation: &mut Invocation, templates: &[Templates]) -> Result<i32, Failure> {
+/// An existing project, no file for `main`, or an unwritable directory.
+fn write(invocation: &mut Invocation, kind: &str, main: &str, files: &[(&str, &[u8])]) -> Result<i32, Failure> {
     let values = &invocation.values;
     let root = values.path("dir").unwrap_or_else(|| PathBuf::from("."));
     let mode = values.text("mode").unwrap_or("lunar").to_owned();
-    let template = match values.text("template") {
-        Some(folder) if Path::new(folder).is_dir() => Template::folder(Path::new(folder))?,
-        Some(name) => Template::mounted(templates, name)?,
-        None => Template::mounted(templates, &format!("cli/{}", values.text("type").unwrap_or("program")))?,
-    };
+    let prefix = format!("{kind}/");
+    let own: Vec<(&str, &[u8])> = files.iter().filter_map(|(path, bytes)| path.strip_prefix(prefix.as_str()).map(|p| (p, *bytes))).collect();
+    if !own.iter().any(|(path, _)| *path == main) {
+        return Err(Failure::failed(format!("type {kind} has no file {main} for \"main\"")));
+    }
     if root.join("package.json").exists() {
         return Err(Failure::failed(format!("{} already has a package.json", root.display())));
     }
-    if template.kind == "desktop" && mode == "node" {
-        return Err(Failure::failed("a desktop project runs on lunar; drop --mode node"));
-    }
     fs::create_dir_all(&root).map_err(io(&root))?;
     let name = package_name(&root);
-    let kind = template.kind.clone();
-    let program = kind == "program";
-    let entry = template.main.as_str();
     let mut description = json!({
         "name": name,
         "version": "0.1.0",
         "type": "module",
-        "main": entry,
+        "main": main,
         "lunar": { "type": kind, "mode": mode },
     });
-    if program {
+    if kind == "program" {
         // `node` runs TypeScript by stripping types (Node 22.18 and later).
         let runner = if mode == "node" { "node" } else { "lunar" };
-        description["scripts"] = json!({ "start": format!("{runner} {entry}") });
+        description["scripts"] = json!({ "start": format!("{runner} {main}") });
     }
     if mode == "node" {
         description["engines"] = json!({ "node": ">=22.18" });
     }
-    let mut files: Vec<(String, Vec<u8>)> = vec![(String::from("package.json"), (serde_json::to_string_pretty(&description).expect("JSON") + "\n").into_bytes())];
-    for (path, bytes) in &template.files {
-        let path = if path == "gitignore" { String::from(".gitignore") } else { path.clone() };
+    let mut out: Vec<(String, Vec<u8>)> = vec![(String::from("package.json"), (serde_json::to_string_pretty(&description).expect("JSON") + "\n").into_bytes())];
+    for (path, bytes) in own {
+        let path = if path == "gitignore" { String::from(".gitignore") } else { path.to_owned() };
         let bytes = match std::str::from_utf8(bytes) {
             Ok(text) => text.replace("{{name}}", &name).into_bytes(),
-            Err(_) => bytes.clone(),
+            Err(_) => bytes.to_vec(),
         };
-        files.push((path, bytes));
+        out.push((path, bytes));
     }
-    if !files.iter().any(|(path, _)| path == ".gitignore") {
-        files.push((String::from(".gitignore"), b"build/\n.lunar/\nnode_modules/\n".to_vec()));
+    if !out.iter().any(|(path, _)| path == ".gitignore") {
+        out.push((String::from(".gitignore"), b"build/\n.lunar/\nnode_modules/\n".to_vec()));
     }
-    for (path, bytes) in &files {
+    for (path, bytes) in &out {
         let path = root.join(path);
         if !path.exists() {
             if let Some(parent) = path.parent() {
@@ -414,7 +355,7 @@ fn init(invocation: &mut Invocation, templates: &[Templates]) -> Result<i32, Fai
             fs::write(&path, bytes).map_err(io(&path))?;
         }
     }
-    eprintln!("{}: {kind} '{name}' for {mode}, entry {entry}", root.display());
+    eprintln!("{}: {kind} '{name}' for {mode}, entry {main}", root.display());
     Ok(0)
 }
 
