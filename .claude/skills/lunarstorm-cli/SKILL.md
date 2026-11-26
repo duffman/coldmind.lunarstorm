@@ -1,11 +1,11 @@
 ---
 name: lunarstorm-cli
-description: Add or change commands on the `lunarstorm` command line. Covers mounting a crate as a package, declaring commands, subcommands, flags, options and positionals, passing context between command levels, and testing the result. Use whenever someone wants a crate's functionality reachable as `lunarstorm <something>`, asks to add a subcommand, option or flag, or touches crates/cli-contract, crates/cli-host, apps/lunarstorm, runtime/hosts/cli/src/command.rs, platform/extensions/project/src/command.rs, toolchain/crates/pipeline/src/command.rs or toolchain/crates/cli/src/command.rs — even if they only say "expose X on the CLI" or "add a flag to build".
+description: Add or change commands on the `lunarstorm` command line. Covers mounting a crate as a package, declaring commands, subcommands, flags, options and positionals, passing context between command levels, and testing the result. Use whenever someone wants a crate's functionality reachable as `lunarstorm <something>`, asks to add a subcommand, option or flag, or touches crates/cli-contract, crates/cli-host, platform/cli/app, platform/cli/host/src/command.rs, platform/project/src/command.rs, toolchain/crates/pipeline/src/command.rs or toolchain/crates/cli/src/command.rs — even if they only say "expose X on the CLI" or "add a flag to build".
 ---
 
 # Lunarstorm CLI packages
 
-The `lunarstorm` binary (`apps/lunarstorm`) mounts **packages**. A package describes
+The `lunarstorm` binary (`platform/cli/app`) mounts **packages**. A package describes
 its commands as data (`lunarstorm-cli-contract`); the host (`lunarstorm-cli-host`)
 parses, renders help, validates the mount and dispatches. Full reference: `doc/cli.md`.
 
@@ -14,7 +14,7 @@ Read these before editing:
 - `crates/cli-contract/src/invocation.rs`: `Invocation`, `Values`, `Context`
 - `toolchain/crates/pipeline/src/command.rs`: a worked package with a context level and subcommands
 - `toolchain/crates/cli/src/command.rs`: flat commands whose handlers add checks a value type cannot express
-- `runtime/hosts/cli/src/command.rs`: a default command with Node-style option handling
+- `platform/cli/host/src/command.rs`: a default command with Node-style option handling
 
 ## Add a package (a crate that has no commands yet)
 
@@ -28,10 +28,10 @@ Read these before editing:
    the crate's existing library function, prints the result, and returns `Ok(status)`.
    If the crate already has a standalone `main.rs`, move the shared reporting into the
    module and call it from both, as `pipeline` does with `report` and `write_types`.
-4. **Mount.** In `apps/lunarstorm/Cargo.toml`, add the crate as an
+4. **Mount.** In `platform/cli/app/Cargo.toml`, add the crate as an
    `optional = true` dependency and a feature named after the package
    (`<id> = ["dep:<crate>"]`). Add the feature to `default` unless the user says
-   otherwise. In `apps/lunarstorm/src/main.rs`, add
+   otherwise. In `platform/cli/app/src/main.rs`, add
    `#[cfg(feature = "<id>")] let cli = cli.package(<crate>::command::package());` and a
    row in the module doc table.
 5. **Test** (see Verify), then **document**: add a row to the package table and the
@@ -94,7 +94,7 @@ cargo clippy -p lunarstorm --all-targets -- -D warnings
 cargo build -p lunarstorm --no-default-features --features <id>   # the package mounts alone
 ```
 
-Add a test to `apps/lunarstorm/tests/commands.rs` that runs the real binary
+Add a test to `platform/cli/app/tests/commands.rs` that runs the real binary
 (`env!("CARGO_BIN_EXE_lunarstorm")`). Write scratch output under
 `env!("CARGO_TARGET_TMPDIR")` and assert all of these:
 - the command appears in `lunarstorm --help` and `lunarstorm <cmd> --help`;

@@ -28,7 +28,7 @@ cargo build -p lunarstorm-http1
 cargo test -p lunarstorm-http1
 ```
 
-The crate has no unit tests; the framing, keep-alive, pipelining and smuggling rejections are exercised through the real binary in `apps/lunarstorm/tests/cli.rs` (`http_keep_alive_pipelining_bodies_and_streaming`, `http_rejects_malformed_and_smuggling_requests`: `cargo test -p lunarstorm --test cli http_`).
+The crate has no unit tests; the framing, keep-alive, pipelining and smuggling rejections are exercised through the real binary in `platform/cli/app/tests/cli.rs` (`http_keep_alive_pipelining_bodies_and_streaming`, `http_rejects_malformed_and_smuggling_requests`: `cargo test -p lunarstorm --test cli http_`).
 
 ## Decisions and hazards
 

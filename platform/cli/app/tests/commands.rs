@@ -1,0 +1,508 @@
+//! End-to-end tests of the unified command line: the real `lunarstorm` binary with
+//! both packages mounted. The runtime's own behaviour is covered by `cli.rs` and
+//! `ui.rs` in this directory.
+
+// Each test is gated on the packages it drives, so every feature set runs the
+// tests its binary can pass (`unknown_commands_...` needs none).
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+/// Runs `lunarstorm` with piped output and no color variables.
+///
+/// # Arguments
+/// * `args` - command-line arguments.
+/// * `path` - a directory to put first on `PATH`, if any.
+///
+/// # Returns
+/// `(exit status, stdout, stderr)`.
+fn run(args: &[&str], path: Option<&Path>) -> (i32, String, String) {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_lunar"));
+    command.args(args).env_remove("NO_COLOR").env_remove("FORCE_COLOR").env_remove("COLORTERM");
+    if let Some(dir) = path {
+        let inherited = std::env::var_os("PATH").unwrap_or_default();
+        let paths = std::iter::once(dir.to_path_buf()).chain(std::env::split_paths(&inherited));
+        command.env("PATH", std::env::join_paths(paths).expect("PATH joins"));
+    }
+    let output = command.output().expect("spawn lunarstorm");
+    (
+        output.status.code().expect("exit status"),
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+    )
+}
+
+/// Creates an empty directory unique to one test, under Cargo's per-target temp
+/// directory.
+///
+/// # Arguments
+/// * `name` - test name.
+///
+/// # Returns
+/// The directory.
+fn scratch(name: &str) -> PathBuf {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("lunarstorm-commands-{name}"));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create scratch dir");
+    dir
+}
+
+/// The desktop starter project.
+///
+/// # Returns
+/// `platform/desktop/types/app` in the repository.
+#[cfg(feature = "build")]
+fn starter() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../desktop/types/app")
+}
+
+#[cfg(all(feature = "runtime", feature = "build"))]
+#[test]
+fn top_help_lists_every_package_and_the_host_commands() {
+    let (status, out, _) = run(&["--help"], None);
+    assert_eq!(status, 0);
+    for part in [
+        "RUNTIME — run and debug JavaScript on the Lunarstorm runtime",
+        "BUILD — build desktop projects for the native host",
+        "run a script",
+        "(default)",
+        "build a desktop project",
+        "describe",
+        "completions",
+    ] {
+        assert!(out.contains(part), "missing {part:?} in {out}");
+    }
+    for gone in ["OPTIONS", "ENVIRONMENT", "MODULES"] {
+        assert!(!out.contains(gone), "{gone:?} is not on the top-level screen: {out}");
+    }
+    // Each command row is a three-column table row: name, arguments, description, with
+    // the description column starting at the same place in every block.
+    let row = |name: &str| out.lines().find(|line| line.trim_start().starts_with(&format!("{name} "))).unwrap_or_default().to_owned();
+    let (run_row, build_row, help_row) = (row("run"), row("build"), row("help"));
+    assert!(build_row.contains("[options] [<command>]"), "{build_row}");
+    assert!(help_row.contains("<command>..."), "{help_row}");
+    let column = |line: &str, text: &str| line.find(text).unwrap_or_else(|| panic!("{text:?} not in {line:?}"));
+    assert_eq!(column(&run_row, "run a script"), column(&build_row, "build a desktop project"), "{out}");
+    assert_eq!(column(&run_row, "run a script"), column(&help_row, "print the help"), "{out}");
+    let (status, out, _) = run(&["build", "--help"], None);
+    assert_eq!(status, 0);
+    for part in ["lunar build [options] [<command>]", "types", "check", "-p, --project <dir>", "[default: .]", "--color <when>"] {
+        assert!(out.contains(part), "missing {part:?} in {out}");
+    }
+}
+
+#[cfg(feature = "build")]
+#[test]
+fn build_check_and_types_run_the_pipeline() {
+    let out = scratch("build");
+    let project = starter();
+    let (status, stdout, stderr) = run(&["build", "-p", project.to_str().unwrap(), "-o", out.to_str().unwrap()], None);
+    assert_eq!(status, 0, "{stderr}");
+    assert!(stdout.starts_with("built ") && out.join("backend.js").is_file() && out.join("zebra.json").is_file(), "{stdout}");
+
+    // `--project` is global: after the subcommand it reaches `check` through the context.
+    let (status, stdout, _) = run(&["build", "check", "--project", project.to_str().unwrap()], None);
+    assert_eq!((status, stdout.starts_with("ok: ")), (0, true), "{stdout}");
+
+    let empty = scratch("check-empty");
+    let (status, _, stderr) = run(&["build", "-p", empty.to_str().unwrap(), "check"], None);
+    assert_eq!((status, stderr.contains("error(s)")), (1, true), "{stderr}");
+
+    let typed = scratch("types");
+    std::fs::create_dir_all(typed.join("src")).unwrap();
+    let (status, stdout, _) = run(&["build", "-p", typed.to_str().unwrap(), "types"], None);
+    assert_eq!(status, 0);
+    assert!(stdout.starts_with("wrote "), "{stdout}");
+    assert!(std::fs::read_to_string(typed.join("src/desktop.d.ts")).unwrap().starts_with("// Generated by"));
+}
+
+#[cfg(all(feature = "runtime", feature = "build"))]
+#[test]
+fn usage_errors_name_the_path_the_user_typed() {
+    let (status, _, err) = run(&["biuld"], None);
+    assert_eq!(status, 2);
+    assert_eq!(err, "error: unknown command 'biuld'\n  hint: did you mean 'build'?\n  usage: lunar --help\n");
+
+    let (status, _, err) = run(&["build", "--projet", "x"], None);
+    assert_eq!(status, 2);
+    assert_eq!(err, "error: unknown option '--projet'\n  hint: did you mean '--project'?\n  usage: lunar build --help\n");
+
+    let (status, _, err) = run(&["run"], None);
+    assert_eq!(status, 2);
+    assert!(err.contains("run needs <file.js> or -e <code>") && err.contains("usage: lunar run --help"), "{err}");
+}
+
+#[cfg(all(feature = "runtime", feature = "build"))]
+#[test]
+fn describe_prints_the_whole_tree() {
+    let (status, out, _) = run(&["describe"], None);
+    assert_eq!(status, 0);
+    let tree: serde_json::Value = serde_json::from_str(&out).expect("describe prints JSON");
+    let commands = tree["commands"].as_array().unwrap();
+    let named = |name: &str| commands.iter().find(|command| command["name"] == name).unwrap_or_else(|| panic!("no {name}"));
+    assert_eq!(named("run")["default"], true);
+    let children: Vec<&str> = named("build")["commands"].as_array().unwrap().iter().map(|child| child["name"].as_str().unwrap()).collect();
+    assert_eq!(children, ["types", "check"]);
+    assert_eq!(named("build")["args"][0]["global"], true);
+    assert_eq!(tree["options"][0]["choices"], serde_json::json!(["auto", "always", "never"]));
+}
+
+#[cfg(feature = "build")]
+#[test]
+fn completion_follows_the_tree() {
+    let (_, script, _) = run(&["completions", "bash"], None);
+    assert!(script.contains("complete -o default -F _lunar lunar"), "{script}");
+    let (_, script, _) = run(&["completions", "zsh"], None);
+    assert!(script.starts_with("autoload -U +X bashcompinit"), "{script}");
+
+    assert_eq!(run(&["__complete", "bui"], None).1, "build\n");
+    assert_eq!(run(&["__complete", "build", ""], None).1, "types\ncheck\n");
+    assert_eq!(run(&["__complete", "build", "types", "--pro"], None).1, "--project\n");
+    assert_eq!(run(&["__complete", "--color", ""], None).1, "auto\nalways\nnever\n");
+    assert_eq!(run(&["__complete", "build", "-p", ""], None).1, "");
+}
+
+#[test]
+fn unknown_commands_run_external_programs_from_path() {
+    let bin = scratch("external");
+    let program = bin.join("lunarstorm-hello");
+    std::fs::write(&program, "#!/bin/sh\necho \"hello $*\"\nexit 5\n").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let (status, out, _) = run(&["hello", "a", "--b"], Some(&bin));
+    assert_eq!((status, out.as_str()), (5, "hello a --b\n"));
+    let (_, help, _) = run(&["--help"], Some(&bin));
+    assert!(help.contains("external: lunarstorm-hello"), "{help}");
+}
+
+#[cfg(feature = "runtime")]
+#[test]
+fn jbn_packages_are_built_signed_and_run_only_when_trusted() {
+    let dir = scratch("jbn");
+    let source = dir.join("src");
+    std::fs::create_dir_all(&source).expect("src");
+    std::fs::write(source.join("main.ts"), "import { greet } from './greet.js';\nconsole.log(greet(process.argv[2] ?? 'nobody'));\n").expect("main");
+    std::fs::write(source.join("greet.ts"), "export const greet = (who: string): string => `hello ${who}`;\n").expect("greet");
+    let (key, trust, package) = (dir.join("signing.der"), dir.join("trust.json"), dir.join("app.jbn"));
+    let text = |p: &Path| p.to_str().expect("utf-8 path").to_owned();
+
+    let (status, trust_file, err) = run(&["jbn", "key", &text(&key)], None);
+    assert_eq!(status, 0, "{err}");
+    std::fs::write(&trust, &trust_file).expect("trust file");
+    let (status, _, err) = run(&["jbn", "key", &text(&key)], None);
+    assert_ne!(status, 0, "an existing key is never overwritten");
+    assert!(err.contains("signing.der"), "{err}");
+
+    let (status, _, err) = run(&["jbn", "build", &text(&source.join("main.ts")), "-o", &text(&package), "--key", &text(&key)], None);
+    assert_eq!(status, 0, "{err}");
+    // The package carries everything: its sources may go away.
+    std::fs::rename(&source, dir.join("moved")).expect("move sources");
+
+    let (status, out, err) = run(&["run", "--trust", &text(&trust), &text(&package), "world"], None);
+    assert_eq!((status, out.as_str()), (0, "hello world\n"), "{err}");
+
+    let (status, _, err) = run(&["run", &text(&package)], None);
+    assert_eq!(status, 2, "{err}");
+    assert!(err.contains("needs --trust"), "{err}");
+
+    let (status, stranger, _) = run(&["jbn", "key", &text(&dir.join("other.der"))], None);
+    assert_eq!(status, 0);
+    std::fs::write(&trust, stranger).expect("trust file");
+    let (status, _, err) = run(&["run", "--trust", &text(&trust), &text(&package)], None);
+    assert_eq!(status, 1, "{err}");
+    assert!(err.contains("untrusted package"), "{err}");
+}
+
+/// A package whose bytecode was altered after signing is refused by `run` before
+/// any of it is loaded: the blob digest no longer matches the signed manifest.
+/// Plan step 9 (bytecode trust): the engine does not validate bytecode, so the
+/// package check is the only thing between a file and `Module::load`.
+#[cfg(feature = "runtime")]
+#[test]
+fn a_package_with_a_flipped_bytecode_byte_is_refused_before_it_runs() {
+    let dir = scratch("jbn-tampered");
+    let source = dir.join("src");
+    std::fs::create_dir_all(&source).expect("src");
+    std::fs::write(source.join("main.js"), "console.log('ran');\n").expect("main");
+    let (key, trust, package) = (dir.join("signing.der"), dir.join("trust.json"), dir.join("app.jbn"));
+    let text = |p: &Path| p.to_str().expect("utf-8 path").to_owned();
+    let (status, trust_file, err) = run(&["jbn", "key", &text(&key)], None);
+    assert_eq!(status, 0, "{err}");
+    std::fs::write(&trust, &trust_file).expect("trust file");
+    let (status, _, err) = run(&["jbn", "build", &text(&source.join("main.js")), "-o", &text(&package), "--key", &text(&key)], None);
+    assert_eq!(status, 0, "{err}");
+    let (status, out, err) = run(&["run", "--trust", &text(&trust), &text(&package)], None);
+    assert_eq!((status, out.as_str()), (0, "ran\n"), "the untampered package runs: {err}");
+
+    // Container layout (runtime/jbn): a 64-byte header with the manifest and
+    // signature lengths at 8 and 16, then manifest, signature, zero padding to 8,
+    // and the payload, whose first blob is the entry module's bytecode.
+    let mut bytes = std::fs::read(&package).expect("package");
+    let length = |at: usize| u64::from_le_bytes(bytes[at..at + 8].try_into().expect("8 bytes")) as usize;
+    let payload = (64 + length(8) + length(16)).next_multiple_of(8);
+    assert!(payload < bytes.len(), "the package has a payload");
+    bytes[payload] ^= 0x01;
+    std::fs::write(&package, &bytes).expect("tampered package");
+
+    let (status, out, err) = run(&["run", "--trust", &text(&trust), &text(&package)], None);
+    assert_ne!(status, 0, "a tampered package must not run: {out}{err}");
+    assert_eq!(out, "", "nothing of the tampered package ran");
+    assert!(err.contains("digest does not match"), "{err}");
+}
+
+/// One DAP message on the wire: `Content-Length` framing around JSON.
+///
+/// # Arguments
+/// * `seq` - the request's sequence number.
+/// * `command` - the request.
+/// * `arguments` - its arguments, as JSON text.
+///
+/// # Returns
+/// The framed bytes.
+#[cfg(feature = "runtime")]
+fn dap(seq: u32, command: &str, arguments: &str) -> Vec<u8> {
+    let body = format!(r#"{{"seq":{seq},"type":"request","command":"{command}","arguments":{arguments}}}"#);
+    format!("Content-Length: {}\r\n\r\n{body}", body.len()).into_bytes()
+}
+
+#[cfg(feature = "runtime")]
+#[test]
+fn debug_stops_at_a_typescript_breakpoint_on_its_original_line() {
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::process::Stdio;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let dir = scratch("debug");
+    let main = dir.join("main.ts");
+    std::fs::write(
+        &main,
+        "const add = (a: number, b: number): number => a + b;\nlet total: number = 0;\ntotal = add(total, 2);\nconsole.log(`total ${total}`);\n",
+    )
+    .expect("main");
+    let path = main.to_str().expect("utf-8 path").replace('\\', "\\\\");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lunar"))
+        .args(["debug", main.to_str().expect("utf-8 path")])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn lunarstorm debug");
+    let mut stdin = child.stdin.take().expect("stdin");
+    let stdout = child.stdout.take().expect("stdout");
+    let (sender, messages) = mpsc::channel::<String>();
+    std::thread::spawn(move || {
+        let mut reader = BufReader::new(stdout);
+        loop {
+            let mut length = 0usize;
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).unwrap_or(0) == 0 {
+                    return;
+                }
+                let line = line.trim_end();
+                if line.is_empty() {
+                    break;
+                }
+                if let Some(value) = line.strip_prefix("Content-Length: ") {
+                    length = value.parse().expect("length");
+                }
+            }
+            let mut body = vec![0; length];
+            if reader.read_exact(&mut body).is_err() {
+                return;
+            }
+            if sender.send(String::from_utf8_lossy(&body).into_owned()).is_err() {
+                return;
+            }
+        }
+    });
+    // Reads messages until one contains every needle.
+    let until = |needles: &[&str]| -> String {
+        loop {
+            let message = messages.recv_timeout(Duration::from_secs(30)).unwrap_or_else(|_| panic!("no message with {needles:?}"));
+            if needles.iter().all(|needle| message.contains(needle)) {
+                return message;
+            }
+        }
+    };
+
+    stdin.write_all(&dap(1, "initialize", r#"{"adapterID":"lunarstorm","linesStartAt1":true,"columnsStartAt1":true,"pathFormat":"path"}"#)).expect("write");
+    until(&[r#""command":"initialize""#, r#""success":true"#]);
+    stdin.write_all(&dap(2, "attach", "{}")).expect("write");
+    stdin
+        .write_all(&dap(3, "setBreakpoints", &format!(r#"{{"source":{{"path":"{path}"}},"breakpoints":[{{"line":3}}]}}"#)))
+        .expect("write");
+    until(&[r#""command":"setBreakpoints""#, r#""success":true"#]);
+    stdin.write_all(&dap(4, "configurationDone", "{}")).expect("write");
+    let stopped = until(&[r#""event":"stopped""#]);
+    assert!(stopped.contains(r#""reason":"breakpoint""#), "{stopped}");
+    let thread = stopped
+        .split(r#""threadId":"#)
+        .nth(1)
+        .and_then(|rest| rest.split(|c: char| !c.is_ascii_digit()).next())
+        .expect("threadId")
+        .to_owned();
+    stdin.write_all(&dap(5, "stackTrace", &format!(r#"{{"threadId":{thread}}}"#))).expect("write");
+    let trace = until(&[r#""command":"stackTrace""#]);
+    assert!(trace.contains(r#""success":true"#), "{trace}");
+    assert!(trace.contains(r#"main.ts""#) && trace.contains(r#""line":3"#), "top frame is not main.ts:3: {trace}");
+    stdin.write_all(&dap(6, "continue", &format!(r#"{{"threadId":{thread}}}"#))).expect("write");
+    until(&[r#""command":"continue""#]);
+    drop(stdin);
+
+    let mut status = None;
+    for _ in 0..300 {
+        if let Some(exit) = child.try_wait().expect("wait") {
+            status = Some(exit);
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let Some(status) = status else {
+        let _ = child.kill();
+        panic!("lunarstorm debug did not exit");
+    };
+    let mut stderr = String::new();
+    child.stderr.take().expect("stderr").read_to_string(&mut stderr).expect("stderr");
+    assert!(stderr.contains("total 2"), "script output goes to stderr: {stderr}");
+    assert_eq!(status.code(), Some(0), "{stderr}");
+}
+
+/// Runs `lunarstorm debug` on a TypeScript program with one exception filter set, and
+/// continues past every stop until the program ends.
+///
+/// # Arguments
+/// * `name` - scratch directory name.
+/// * `source` - the program's `main.ts`.
+/// * `filter` - the DAP exception filter: `all` or `uncaught`.
+///
+/// # Returns
+/// The `stopped` events in order, the program's stderr and its exit code (`None` when a
+/// signal ended it).
+#[cfg(feature = "runtime")]
+fn debug_with_exception_filter(name: &str, source: &str, filter: &str) -> (Vec<String>, String, Option<i32>) {
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::process::Stdio;
+    use std::sync::mpsc::{self, RecvTimeoutError};
+    use std::time::Duration;
+
+    let dir = scratch(name);
+    let main = dir.join("main.ts");
+    std::fs::write(&main, source).expect("main");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lunar"))
+        .args(["debug", main.to_str().expect("utf-8 path")])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn lunarstorm debug");
+    let mut stdin = child.stdin.take().expect("stdin");
+    let stdout = child.stdout.take().expect("stdout");
+    let (sender, messages) = mpsc::channel::<String>();
+    std::thread::spawn(move || {
+        let mut reader = BufReader::new(stdout);
+        loop {
+            let mut length = 0usize;
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).unwrap_or(0) == 0 {
+                    return;
+                }
+                let line = line.trim_end();
+                if line.is_empty() {
+                    break;
+                }
+                if let Some(value) = line.strip_prefix("Content-Length: ") {
+                    length = value.parse().expect("length");
+                }
+            }
+            let mut body = vec![0; length];
+            if reader.read_exact(&mut body).is_err() {
+                return;
+            }
+            if sender.send(String::from_utf8_lossy(&body).into_owned()).is_err() {
+                return;
+            }
+        }
+    });
+    // Reads messages until one contains every needle.
+    let until = |needles: &[&str]| -> String {
+        loop {
+            let message = messages.recv_timeout(Duration::from_secs(30)).unwrap_or_else(|_| panic!("no message with {needles:?}"));
+            if needles.iter().all(|needle| message.contains(needle)) {
+                return message;
+            }
+        }
+    };
+
+    stdin.write_all(&dap(1, "initialize", r#"{"adapterID":"lunarstorm","linesStartAt1":true,"columnsStartAt1":true,"pathFormat":"path"}"#)).expect("write");
+    until(&[r#""command":"initialize""#, r#""success":true"#]);
+    stdin.write_all(&dap(2, "attach", "{}")).expect("write");
+    stdin.write_all(&dap(3, "setExceptionBreakpoints", &format!(r#"{{"filters":["{filter}"]}}"#))).expect("write");
+    until(&[r#""command":"setExceptionBreakpoints""#, r#""success":true"#]);
+    stdin.write_all(&dap(4, "configurationDone", "{}")).expect("write");
+    let mut stops = Vec::new();
+    let mut seq = 5;
+    // Every message until the adapter closes its output; each stop is continued.
+    loop {
+        match messages.recv_timeout(Duration::from_secs(30)) {
+            Ok(message) if message.contains(r#""event":"stopped""#) => {
+                let thread = message
+                    .split(r#""threadId":"#)
+                    .nth(1)
+                    .and_then(|rest| rest.split(|c: char| !c.is_ascii_digit()).next())
+                    .expect("threadId")
+                    .to_owned();
+                stops.push(message);
+                // The adapter may already be gone; the exit status below reports that.
+                let _ = stdin.write_all(&dap(seq, "continue", &format!(r#"{{"threadId":{thread}}}"#)));
+                seq += 1;
+            }
+            Ok(_) => {}
+            Err(RecvTimeoutError::Disconnected) => break,
+            Err(RecvTimeoutError::Timeout) => {
+                let _ = child.kill();
+                panic!("lunarstorm debug neither stopped nor exited");
+            }
+        }
+    }
+    drop(stdin);
+    let status = child.wait().expect("wait");
+    let mut stderr = String::new();
+    child.stderr.take().expect("stderr").read_to_string(&mut stderr).expect("stderr");
+    (stops, stderr, status.code())
+}
+
+/// A program whose only throw is handled by a `try`/`catch`.
+#[cfg(feature = "runtime")]
+const HANDLED_THROW: &str = "function risky(): void {\n  throw new Error(\"handled\");\n}\ntry {\n  risky();\n} catch (error) {\n  console.log(`caught ${(error as Error).message}`);\n}\nconsole.log(\"done\");\n";
+
+/// Under the "uncaught" filter a throw that a `try`/`catch` handles is not a stop.
+/// Runs the real binary.
+#[cfg(feature = "runtime")]
+#[test]
+fn debug_uncaught_filter_does_not_stop_at_a_caught_throw() {
+    let (stops, stderr, code) = debug_with_exception_filter("debug-caught", HANDLED_THROW, "uncaught");
+    assert!(stops.is_empty(), "stopped at a handled throw: {stops:?}");
+    assert!(stderr.contains("caught handled") && stderr.contains("done"), "script output goes to stderr: {stderr}");
+    assert_eq!(code, Some(0), "{stderr}");
+}
+
+/// Defect: with the "all" exception filter set, `lunarstorm debug` died with SIGSEGV
+/// before the program printed anything, on any program.
+///
+/// Runs the real binary: a handled throw stops once with reason `exception`, and after
+/// `continue` the program finishes normally.
+#[cfg(feature = "runtime")]
+#[test]
+fn debug_all_filter_stops_at_a_caught_throw_and_continues() {
+    let (stops, stderr, code) = debug_with_exception_filter("debug-all", HANDLED_THROW, "all");
+    assert_eq!(code, Some(0), "lunarstorm debug did not exit normally (stops: {stops:?}): {stderr}");
+    assert_eq!(stops.len(), 1, "{stops:?}");
+    assert!(stops[0].contains(r#""reason":"exception""#), "{stops:?}");
+    assert!(stderr.contains("caught handled") && stderr.contains("done"), "script output goes to stderr: {stderr}");
+}

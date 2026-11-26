@@ -18,7 +18,6 @@ packages:
   - framework/vcl/*
   - framework/vcl/contract/*
   - templates/lsapp
-  - templates/starters/*
   - toolchain/react
   - toolchain/react/packages/*
 allowBuilds:

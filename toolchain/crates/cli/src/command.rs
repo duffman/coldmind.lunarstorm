@@ -2,7 +2,7 @@
 //! and `transpile`.
 //!
 //! Every crate that adds commands to `lunar` exposes them from `src/command.rs` as
-//! `command::package()`; `apps/lunarstorm/src/main.rs` mounts this one behind the
+//! `command::package()`; `platform/cli/app/src/main.rs` mounts this one behind the
 //! `frontend` feature. The host (`lunarstorm-cli-host`) parses the command line,
 //! renders help and dispatches; this module holds the specs and the handlers.
 //!

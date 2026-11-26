@@ -50,7 +50,7 @@ that stack end to end: Rust server to React shell over real HTTP and WebSocket
 
 ## Hazards found in the code
 
-- The CLI under test is the `lunarstorm` binary (`apps/lunarstorm`, feature `frontend`);
+- The CLI under test is the `lunarstorm` binary (`platform/cli/app`, feature `frontend`);
   the runner reads its path from Cargo's build messages and hands it to `packages/shell`
   as `DEVTOOLS_TEST_CLI`. The former `jetbunny`/`devtools` binary names no longer exist.
 - The runner requires real Tailwind: `node_modules/{@tailwindcss/node,@tailwindcss/oxide,tailwindcss}`

@@ -3,10 +3,10 @@
 ## Layers and crates
 
 ```
-                        apps/lunarstorm (lunar)     platform/desktop (lunarstorm-debug/-release)
+                        platform/cli/app (lunar)     platform/desktop/app (lunarstorm-debug/-release)
                                │                                 │
-HOSTS        runtime/hosts/cli  lunarstorm-host-cli      runtime/hosts/desktop  lunarstorm-host-desktop
-                 │  CliHost, cli.rs (run, debug, jbn)          │  DesktopHost, Backend<S: Shell>, watchdog
+HOSTS        platform/cli/host  lunarstorm-host-cli      platform/desktop/host  lunarstorm-host-desktop
+                 │  CliHost, command.rs (run, debug, jbn)      │  DesktopHost, Backend<S: Shell>, watchdog
                  └───────────────┬─────────────────────────────┘
 RUNTIME      runtime/core  lunarstorm-runtime     Runtime<V, H>: loop, ops, glue, loader, ipc, workers
                  │ uses                  │ uses                      │ uses
@@ -24,7 +24,7 @@ BENCH        runtime/bench   http/tcp/loop benchmarks against node and bun
 The rule at both of `runtime/core`'s boundaries: it names no engine type and no host type.
 `Runtime<V: Vm, H: Host>` is monomorphized, so a call into the engine or the host is a direct
 call. Engines and hosts are chosen in exactly two places: `Runtime::<QuickJs, CliHost>` in
-`hosts/cli/src/cli.rs`, and `pub type Engine = QuickJs` in `hosts/desktop/src/lib.rs`.
+`platform/cli/host/src/command.rs`, and `pub type Engine = QuickJs` in `platform/desktop/host/src/lib.rs`.
 
 Much of this was ported from an earlier project, *jetbunny*, and the name survives in the
 engine patches (`jetbunny-*-v1`), in `JS_Jetbunny*` symbols, in `debug/tests/jetbunny_*`, and
@@ -34,7 +34,7 @@ came from".
 ## Flow 1: `lunar run app.ts`
 
 ```
-apps/lunarstorm main → cli-host parses argv → package lunarstorm-host-cli, command run (cli.rs:128)
+platform/cli/app main → cli-host parses argv → package lunarstorm-host-cli, command run (command.rs:124)
   execute(Source::File, argv)
     Runtime::<QuickJs, CliHost>::new(host)       mio Poll + Waker, Shared{io, host, refs...}, Ipc, Workers,
                                                  Modules (reads gated by Host::allow)
@@ -73,7 +73,7 @@ socket readable (edge) → on_event → http_readable → http_pump
 ## Flow 3: the desktop backend
 
 ```
-platform/desktop UI thread ─ Backend::load(Program{epoch, code, roots, budget, ...}) ─▶ backend thread
+platform/desktop/app UI thread ─ Backend::load(Program{epoch, code, roots, budget, ...}) ─▶ backend thread
   start(): DesktopHost{shell, epoch, roots} → Runtime → register(desktop bindings) → start
            hold(true) → watchdog(pulse, interrupt, budget) → load(Source::Text "backend.js")
   envelope from a WebView ─ Backend::dispatch(epoch, json) ─ poster.post(task) ─▶ glue dispatch(json)
@@ -97,7 +97,7 @@ lunar run --trust trust.json app.jbn
 ## Flow 5: `lunar debug app.js` (DAP over stdio)
 
 ```
-cli.rs debug → lunarstorm_debug::debug::host::run(owner closure on its own thread)
+command.rs debug → lunarstorm_debug::debug::host::run(owner closure on its own thread)
   Runtime::new(CliHost::for_debugger)       script stdout → stderr (stdout is the DAP channel)
   start → runtime.debug(break_on_start: true) → VmDebugHandle to the DAP adapter
   load → loop poll(Block): phase 0 serves debugger requests; entry() holds the first JS entry

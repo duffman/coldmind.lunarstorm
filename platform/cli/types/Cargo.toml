@@ -1,0 +1,12 @@
+# The cli product's project types: `program` and `module`, each with the action
+# `create`. Each top-level folder except `src` holds one type's files; `build.rs`
+# embeds them. The binary passes `types` to `lunarstorm-project`.
+[package]
+name = "lunarstorm-cli-types"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Lunarstorm cli project types: program, module"
+
+[dependencies]
+lunarstorm-project = { path = "../../project" }

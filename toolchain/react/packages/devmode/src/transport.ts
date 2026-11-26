@@ -1,7 +1,7 @@
 /**
  * Byte transports for RESP. The client only needs an ordered byte stream in both directions:
  * - `ws://…` / `wss://…`: RESP frames in binary WebSocket messages (browser dev, the Vite mock at `/resp`).
- * - `ipc://<method>`: the TAO/wry WebView IPC of the Lunarstorm desktop host (platform/desktop), using its one envelope
+ * - `ipc://<method>`: the TAO/wry WebView IPC of the Lunarstorm desktop host (platform/desktop/app), using its one envelope
  *   `{version, kind, id, windowId, epoch, method, payload}`: out through `window.ipc.postMessage(json)`, in through
  *   `window.__zebraReceive(envelope)`, which the host calls with `evaluate_script`.
  *
@@ -52,7 +52,7 @@ export interface RespTransport {
   close(): void;
 }
 
-/** The desktop host's envelope (platform/desktop/src/envelope.rs). */
+/** The desktop host's envelope (platform/desktop/app/src/envelope.rs). */
 export interface IpcEnvelope {
   /** Envelope version; see `IPC_VERSION`. */
   version: number;

@@ -7,10 +7,10 @@ the **host** parses the command line against their descriptions, renders help an
 errors, and calls the handlers.
 
 ```text
-apps/lunarstorm                 the binary: picks packages (one Cargo feature each)
+platform/cli/app                 the binary: picks packages (one Cargo feature each)
   ├─ crates/cli-host            lunarstorm-cli-host: parse, help, describe, completions, dispatch
   │    └─ crates/cliui          lunarstorm-cliui: colors, help layout, error frames
-  ├─ runtime/hosts/cli          lunarstorm-host-cli: package "runtime" → `run`, `debug`, `jbn key`, `jbn build`
+  ├─ platform/cli/host          lunarstorm-host-cli: package "runtime" → `run`, `debug`, `jbn key`, `jbn build`
   ├─ toolchain/crates/pipeline  lunarstorm-pipeline: package "build"  → `build`, `build types`, `build check`
   └─ toolchain/crates/cli       devtools-cli: package "frontend" → `serve`, `bundle`, `preview`, `transpile`
            all packages depend on
@@ -32,7 +32,7 @@ lunar jbn key signing.der > trust.json     # new signing key, and a trust file f
 lunar jbn build src/main.ts -o app.jbn --key signing.der
 lunar run --trust trust.json app.jbn       # run a signed package (or LUNARSTORM_TRUST)
 lunar debug app.ts --port 8080             # Debug Adapter Protocol on stdin/stdout; script stdout → stderr
-lunar build -p templates/starters/desktop  # build into <project>/dist
+lunar build -p platform/desktop/types/app  # build into <project>/dist
 lunar build -p app -o out                  # build into out/
 lunar build types -p app                   # write app/src/desktop.d.ts
 lunar build check -p app                   # report compile errors, write nothing
@@ -71,14 +71,14 @@ pub trait Package {
 ```
 
 A crate exports it as `pub fn package() -> Box<dyn Package>` from `src/command.rs`,
-always that file, and `apps/lunarstorm` mounts it as `<crate>::command::package()`:
+always that file, and `platform/cli/app` mounts it as `<crate>::command::package()`:
 
 | package    | file                                         |
 |------------|----------------------------------------------|
-| `runtime`  | `runtime/hosts/cli/src/command.rs`           |
+| `runtime`  | `platform/cli/host/src/command.rs`           |
 | `build`    | `toolchain/crates/pipeline/src/command.rs`   |
 | `frontend` | `toolchain/crates/cli/src/command.rs`        |
-| `project`  | `platform/extensions/project/src/command.rs` |
+| `project`  | `platform/project/src/command.rs` |
 
 The package names its
 own top-level commands. For a namespace (`runtime eval`), use a command with children.
@@ -229,7 +229,7 @@ up as `lunarstorm pack`, `lunarstorm web`, ….
 
 ## Choosing packages
 
-`apps/lunarstorm/Cargo.toml` has one feature per package (`runtime`, `build`, `frontend`,
+`platform/cli/app/Cargo.toml` has one feature per package (`runtime`, `build`, `frontend`,
 all on by default):
 
 ```sh
@@ -245,15 +245,15 @@ The `lunarstorm-cli` skill in `.claude/skills/lunarstorm-cli/SKILL.md` has the
 step-by-step procedure and checklist. In short:
 1. Depend on `lunarstorm-cli-contract`. Add a `command` module (or `cli.rs`) with a
    `Package` impl and `pub fn package()`.
-2. Add the crate to `apps/lunarstorm` as an optional dependency with a feature, and
+2. Add the crate to `platform/cli/app` as an optional dependency with a feature, and
    add one `.package(...)` line to `main.rs`.
-3. Test the real binary in `apps/lunarstorm/tests/`.
+3. Test the real binary in `platform/cli/app/tests/`.
 
 ## Tests
 
 | Suite | Covers |
 |---|---|
 | `crates/cli-host/tests/host.rs` | parsing rules, context chain, value checks, env/defaults, statuses, mount validation (probe package) |
-| `apps/lunarstorm/tests/commands.rs` | real binary: help, `build`/`types`/`check` on the starter, usage errors, `describe`, completion, externals |
-| `apps/lunarstorm/tests/frontend_commands.rs`, `frontend_transpile.rs` | real binary: `serve`, `bundle`, `preview`, `transpile` (moved from `toolchain/crates/cli`, interface rewritten from `--serve`-style flags) |
-| `apps/lunarstorm/tests/cli.rs`, `ui.rs` | the runtime's `run`: event loop, net, fs, modules, exit codes, color, help, usage errors (moved unchanged from `runtime/hosts/cli`) |
+| `platform/cli/app/tests/commands.rs` | real binary: help, `build`/`types`/`check` on the starter, usage errors, `describe`, completion, externals |
+| `platform/cli/app/tests/frontend_commands.rs`, `frontend_transpile.rs` | real binary: `serve`, `bundle`, `preview`, `transpile` (moved from `toolchain/crates/cli`, interface rewritten from `--serve`-style flags) |
+| `platform/cli/app/tests/cli.rs`, `ui.rs` | the runtime's `run`: event loop, net, fs, modules, exit codes, color, help, usage errors (moved unchanged from the CLI host crate) |

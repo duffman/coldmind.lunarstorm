@@ -24,7 +24,7 @@ HostApi area `ui`. The existing end-to-end tests of that feature, unchanged, are
 | `lunar-extension` | `extensions/core/` | names, manifest, plugin host rules, load-time checks. No VM dependency, shared with the platform level |
 | `lunarstorm-runtime` | `runtime/core/` | `Extension<V>`, `ExtensionSet<V>`, `Host::Extensions`, extension setup in `Runtime::start` |
 | `lunar-extension-hostapi` | `extensions/hostapi/` | `HostApi<V, A>`, the `Area<V>` contract, `lunarstorm:hostapi` |
-| `lunarstorm-host-cli` | `runtime/hosts/cli/` | the area `ui`, the host's manifest, HostApi installed |
+| `lunarstorm-host-cli` | `platform/cli/host/` | the area `ui`, the host's manifest, HostApi installed |
 
 ```
 lunarstorm-host-cli ──> lunar-extension-hostapi ──> lunarstorm-runtime ──> lunarstorm-vm
@@ -124,7 +124,7 @@ application writes (the desktop host). The CLI host's manifest is written by the
 
 ### The area `ui`
 
-`runtime/hosts/cli/src/ui.rs` holds the CLI host's terminal API, since that API is specific to the host.
+`platform/cli/host/src/ui.rs` holds the CLI host's terminal API, since that API is specific to the host.
 
 | binding | owner after the change | reason |
 |---|---|---|
@@ -135,7 +135,7 @@ application writes (the desktop host). The CLI host's manifest is written by the
 
 ### The CLI host's manifest
 
-`runtime/hosts/cli/manifest.json` holds `{ "extensions": { "hostapi": { "plugins": ["ui"] } } }`. It is
+`platform/cli/host/manifest.json` holds `{ "extensions": { "hostapi": { "plugins": ["ui"] } } }`. It is
 embedded with `include_str!`, parsed once into a `OnceLock`, and returned by `CliHost::manifest`. A unit
 test in the crate parses it, so a malformed manifest fails the build's tests, not a user's run.
 
@@ -147,9 +147,9 @@ same tests pass, and the documentation follows. Sizes are added lines, tests inc
 | # | step | files | tests | size |
 |---|---|---|---|---|
 | 1 | `lunar-extension`: `Name` (`[a-z][a-z0-9]{0,31}`, reserved `ipc`, `worker`, `internal`), `Manifest` (serde, `Manifest::empty()`), `PluginHost`, `Cardinality`, `Requirement`, `Offer`, `Use`, `check` | `extensions/core/{Cargo.toml,src/lib.rs,README.md}`; root `Cargo.toml` members and header | unit tests: valid, invalid and reserved names; each load-time message; the empty manifest passes against any offer | 250 |
-| 2 | Runtime: `Extension<V>`, `ExtensionSet<V>` for tuples up to 8, the `Host` members, the checked merge in `Bindings`, extension setup in `start`, two lines in each of the 7 `impl Host` | `runtime/core/src/{extension.rs,host.rs,bindings.rs,runtime.rs,lib.rs}`, the 4 test hosts, `examples/ipc-demo.rs`, `runtime/hosts/{cli,desktop}/src/*` | `runtime/core/tests/extensions.rs` (see below) | 280 |
+| 2 | Runtime: `Extension<V>`, `ExtensionSet<V>` for tuples up to 8, the `Host` members, the checked merge in `Bindings`, extension setup in `start`, two lines in each of the 7 `impl Host` | `runtime/core/src/{extension.rs,host.rs,bindings.rs,runtime.rs,lib.rs}`, the 4 test hosts, `examples/ipc-demo.rs`, `platform/{cli,desktop}/host/src/*` | `runtime/core/tests/extensions.rs` (see below) | 280 |
 | 3 | HostApi: `HostApi<V, A>`, `Area<V>`, `AreaSet<V>` for tuples, `lunarstorm:hostapi` | `extensions/hostapi/{Cargo.toml,src/lib.rs,js/hostapi.js,README.md}` | `extensions/hostapi/tests/hostapi.rs` (see below) | 220 |
-| 4 | The CLI host adopts HostApi: `src/ui.rs`, `manifest.json`, `type Extensions<V: Vm> = (HostApi<V, (Ui,)>,)`, the alias, `lunarstorm:hostapi` in the help's module list (`cli.rs:104`) | `runtime/hosts/cli/{Cargo.toml,manifest.json,src/ui.rs,src/host.rs,src/cli.rs}` | `apps/lunarstorm/tests/ui.rs` unchanged and green, plus two new cases (see below); manifest parse test in `host.rs` | 110 |
+| 4 | The CLI host adopts HostApi: `src/ui.rs`, `manifest.json`, `type Extensions<V: Vm> = (HostApi<V, (Ui,)>,)`, the alias, `lunarstorm:hostapi` in the help's module list (`cli.rs:104`) | `platform/cli/host/{Cargo.toml,manifest.json,src/ui.rs,src/host.rs,src/cli.rs}` | `platform/cli/app/tests/ui.rs` unchanged and green, plus two new cases (see below); manifest parse test in `host.rs` | 110 |
 | 5 | Documentation | READMEs of the four packages; `runtime/core/doc/extensions.md` (built parts marked built, the open module-name and CLI-manifest questions answered); `runtime/core/doc/hosts.md` (register step and worker note); root README table | | 120 |
 
 Total about 980 lines.
@@ -182,7 +182,7 @@ Two test areas, `alpha` and `beta`.
 | `no_areas_is_valid` | `hostapi` used with no plugins: `areas` is empty |
 | `unknown_area_is_a_load_error` | manifest `["gamma"]`: `manifest: extension hostapi has no plugin gamma` |
 
-### Tests in step 4: `apps/lunarstorm/tests/ui.rs`
+### Tests in step 4: `platform/cli/app/tests/ui.rs`
 
 | test | asserts |
 |---|---|
@@ -220,5 +220,5 @@ still compile only on first import.
 | runtime-level permissions | per plugin (use); per-export grants and scopes come with the desktop host's adoption |
 | `ops.color`, `ops.tty` | stay host bindings, because the core console uses them |
 | `lunarstorm:ui` | a re-export of `lunarstorm:hostapi/ui`, so both specifiers share one instance |
-| CLI host manifest | `runtime/hosts/cli/manifest.json`, embedded and parsed once |
+| CLI host manifest | `platform/cli/host/manifest.json`, embedded and parsed once |
 | the desktop host | builds with the empty set `()`; adopting HostApi there is a separate plan |

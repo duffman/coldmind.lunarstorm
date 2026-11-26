@@ -33,7 +33,7 @@ cargo test -p lunarstorm-model
 
 Integration tests in `tests/`: `rules.rs` (parse rules, nesting, handler checks, one per
 rule), `controls.rs` (`the_element_table_is_the_spec_table` pins the table against the
-spec), `starter.rs` (extracts `templates/starters/desktop` and expects no errors).
+spec), `starter.rs` (extracts `platform/desktop/types/app` and expects no errors).
 
 ## Decisions and hazards
 

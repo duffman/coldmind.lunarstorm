@@ -6,7 +6,7 @@
 #   driver.sh cli                       lunar smoke: --version, -e, a script file using node:fs
 #   driver.sh pipeline <project> [out]  lunar build -p <project> -o <out> (default .scratch/run-lunarstorm/dist)
 #   driver.sh runtime-ipc               workers + lunarstorm:ipc through runtime/core/examples/ipc-demo.rs
-#   driver.sh project                   lunar project init -> compile (.jbn) -> run --trust
+#   driver.sh project                   lunar project program create -> compile (.jbn) -> run --trust
 #   driver.sh web <dir> [steps...]     serve a built dir (zebra.json) with lunarstorm-web, keep it
 #                                       running, and run driver.mjs steps against it (open is implied)
 #   driver.sh desktop <dir> [png]       open <dir> in lunarstorm-debug, wait for its window, capture it
@@ -73,7 +73,7 @@ case "$cmd" in
   project)
     # init -> compile (signed .jbn with a per-project dev key) -> run it trusted.
     rm -rf "$state/hello"
-    "$bin/lunar" project init "$state/hello"
+    "$bin/lunar" project program create "$state/hello"
     "$bin/lunar" project compile "$state/hello"
     "$bin/lunar" run --trust "$state/hello/build/trust.json" "$state/hello/build/hello.jbn"
     ;;
@@ -107,13 +107,13 @@ case "$cmd" in
   smoke)
     "$0" build
     "$0" cli
-    "$0" pipeline templates/starters/desktop
-    "$0" web platform/examples/app \
+    "$0" pipeline platform/desktop/types/app
+    "$0" web platform/desktop/examples/app \
       wait .vcl-statusbar Ready shot "$state/web-before.png" \
       type input.vcl-edit ' 2' wait .vcl-statusbar Modified \
       click text=Save wait .vcl-statusbar Saved shot "$state/web-after.png"
     "$0" stop
-    "$0" desktop platform/examples/app || echo "desktop: exit $?"
+    "$0" desktop platform/desktop/examples/app || echo "desktop: exit $?"
     "$0" stop
     ;;
   stop)

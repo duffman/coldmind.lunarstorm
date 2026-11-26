@@ -83,7 +83,7 @@ the ones it leaves off cost nothing at run time.
 
 ## How a host runs a program
 
-The CLI host's `run` command (`runtime/hosts/cli/src/command.rs`) shows the full sequence:
+The CLI host's `run` command (`platform/cli/host/src/command.rs`) shows the full sequence:
 
 ```rust
 let mut runtime = Runtime::<QuickJs, CliHost>::new(CliHost::new(argv))?;  // 1. host + Runtime
@@ -110,20 +110,14 @@ runtime.run()                                                             // 5. 
 
 Hosts depend on the Runtime; the Runtime's crates depend on the VM contract and the engines. This keeps
 one Runtime usable by every host, including hosts written outside this repository. The hosts themselves
-are used by `apps/lunarstorm` (CLI host) and `platform/desktop` (desktop host).
+are used by `platform/cli/app` (CLI host) and `platform/desktop/app` (desktop host).
 
-Target layout, with the hosts beside the Runtime:
+Each product owns its host, beside the binaries that use it:
 
 ```
-runtime/          VM contract, engines, compiler, debugger, lunarstorm-runtime
-hosts/cli/        lunarstorm-host-cli
-hosts/desktop/    lunarstorm-host-desktop
+platform/cli/host/        lunarstorm-host-cli
+platform/desktop/host/    lunarstorm-host-desktop
 ```
-
-The host crates are at `runtime/hosts/cli` and `runtime/hosts/desktop` today. Moving them updates the root
-`Cargo.toml` (workspace members and header comment), the dependency paths in `apps/lunarstorm/Cargo.toml`
-and `platform/desktop/Cargo.toml`, the relative paths inside both host crates, and the documents that name
-`runtime/hosts/`.
 
 ## Isolation and workers
 

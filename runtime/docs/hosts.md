@@ -31,9 +31,9 @@ only decides what they may touch.
 
 ## The two production hosts
 
-| | CLI (`runtime/hosts/cli`, `CliHost`) | desktop backend (`runtime/hosts/desktop`, `DesktopHost`) |
+| | CLI (`platform/cli/host`, `CliHost`) | desktop backend (`platform/desktop/host`, `DesktopHost`) |
 |---|---|---|
-| owner | `lunar run` / `lunar debug` / `lunar jbn build` (`cli.rs`) | `Backend<S: Shell>` on one backend thread, driven by `platform/desktop` |
+| owner | `lunar run` / `lunar debug` / `lunar jbn build` (`command.rs`) | `Backend<S: Shell>` on one backend thread, driven by `platform/desktop/app` |
 | loop | `runtime.run()` | `hold(true)`; events are posted tasks; reload/stop over a control channel |
 | policy | allow everything | fs only under `Program::roots`; `Listen` and `Connect` refused |
 | uncaught | framed report on stderr, `exit(1)` | `Shell::error(epoch, text)`, keeps going |
@@ -99,7 +99,7 @@ Runtime::start
 - An unused extension installs nothing, so its specifiers do not resolve.
 - HostApi (`extensions/hostapi`) is the extension through which a host exposes its own API as
   plugins ("areas"), fenced to `lunarstorm:hostapi/<area>`. The CLI's terminal UI is area `ui`
-  (`runtime/hosts/cli/src/ui.rs`).
+  (`platform/cli/host/src/ui.rs`).
 - `Runtime::register` bindings are **not** installed in workers. A worker gets only what its
   host's `extensions()` returns.
 

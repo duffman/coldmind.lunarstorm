@@ -3,7 +3,7 @@
 | term | means here | lives in |
 |---|---|---|
 | **Runtime** | one VM instance + its event loop + module loader + fs/net, on one thread; `Runtime<V, H>` | `core/src/runtime.rs` |
-| **host** | the program that owns a Runtime and answers `Host` (stdio, exit, policy, clocks) | `core/src/host.rs`, `hosts/*` |
+| **host** | the program that owns a Runtime and answers `Host` (stdio, exit, policy, clocks) | `core/src/host.rs`, `platform/*/host` |
 | **VM** / **engine** | the contract (`Vm` marker type) / the thing behind it (quickjs-ng) | `vm/src/lib.rs` |
 | **adapter** | the crate implementing the contract for one engine | `engines/quickjs` |
 | **Instance** | engine heap + GC + job queue + limits + interrupt (`JSRuntime`) | contract |
@@ -27,7 +27,7 @@
 | **Bindings** | a set of `ops` functions, `ops` value installers and host modules | `bindings.rs` |
 | **extension** | a named `Bindings` provider selected by the host's manifest, fenced to `lunarstorm:<name>[/...]` | `core/src/extension.rs`, `extensions/core` |
 | **plugin host** / **plugin** / **area** | a slot an extension opens / what fills it / HostApi's name for a plugin | `extensions/hostapi` |
-| **manifest** | `{"extensions": {...}}`, which extensions/plugins are active; embedded per host | `hosts/cli/manifest.json` |
+| **manifest** | `{"extensions": {...}}`, which extensions/plugins are active; embedded per host | `platform/cli/host/manifest.json` |
 | **Turn** | the loop's per-scope-entry state; `Turn::step` is one loop iteration | `runtime.rs:980` |
 | **entry** (JS entry) | one call from the loop into JS, bracketed by beat/settle | `runtime.rs` |
 | **settle** | drain nextTicks and promise jobs until both empty, then report rejections | `runtime.rs:1175` |
@@ -42,8 +42,8 @@
 | **refs** | native references that keep the loop alive (ipc receiver, unreported worker exits) | `io.rs:330` |
 | **hold** | host keeps an idle loop alive for posted work | `Runtime::hold` |
 | **pulse** | counter, odd while JS runs; read by a budget watchdog | `Runtime::pulse`, `Host::PULSE` |
-| **epoch** | one desktop backend instance; reload = new Runtime with the next epoch | `hosts/desktop` |
-| **Shell** | what the desktop process implements for the backend thread | `hosts/desktop/src/lib.rs` |
+| **epoch** | one desktop backend instance; reload = new Runtime with the next epoch | `platform/desktop/host` |
+| **Shell** | what the desktop process implements for the backend thread | `platform/desktop/host/src/lib.rs` |
 | **worker** | `lunarstorm:worker`: a full Runtime on its own thread and VM | `core/src/worker.rs` |
 | **facade** / **body** | a CommonJS file's `#esm` re-export module / the module holding its code | `modules/src/transform.rs` |
 | **`.jbn`** | signed package: CBOR manifest + Ed25519 signature + bytecode blobs + import table | `runtime/jbn` |

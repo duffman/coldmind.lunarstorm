@@ -3,7 +3,7 @@
 //! `lunarstorm-build` binary.
 //!
 //! Every crate that adds commands to `lunar` exposes them from `src/command.rs` as
-//! `command::package()`; `apps/lunarstorm/src/main.rs` mounts this one behind the
+//! `command::package()`; `platform/cli/app/src/main.rs` mounts this one behind the
 //! `build` feature. The host (`lunarstorm-cli-host`) parses the command line,
 //! renders help and dispatches; this module holds the specs and the handlers.
 //!
@@ -90,7 +90,7 @@ impl Package for BuildPackage {
                 |invocation| Ok(write_types("lunarstorm", &invocation.context.require::<Target>()?.project)),
             ))
             .child(Command::new("check", "check the project's model and report compile errors; writes nothing").run(check))
-            .example("lunar build -p templates/starters/desktop")
+            .example("lunar build -p platform/desktop/types/app")
             .example("lunar build -p app -o out")
             .example("lunar build types -p app")]
     }

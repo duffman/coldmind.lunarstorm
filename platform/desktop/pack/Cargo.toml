@@ -1,0 +1,20 @@
+# Release step of spec 6.3: pipeline -> archive -> attach to the prebuilt
+# `lunarstorm-release` -> package and sign per OS. A developer tool; the shipped
+# desktop process never links it.
+[package]
+name = "lunarstorm-pack"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Lunarstorm platform: packages an application for macOS, Windows and Linux"
+
+[[bin]]
+name = "lunarstorm-pack"
+path = "src/main.rs"
+
+[dependencies]
+lunarstorm-platform = { path = "../app", default-features = false }
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[dev-dependencies]
+serde_json = "1"

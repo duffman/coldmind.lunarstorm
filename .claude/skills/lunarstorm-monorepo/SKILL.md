@@ -17,16 +17,16 @@ Spec: `doc/plans/main.md`. Understanding notes, if present: `.omx/understanding/
 | parse rules, model errors | `toolchain/crates/model` (spec 4a, 2.2) |
 | generated frontend/backend/host config | `toolchain/crates/pipeline` (4b-4e) |
 | event loop, timers, modules, fs/net | `runtime/core`; engine contract `runtime/vm`; QuickJS `runtime/engines/quickjs` |
-| desktop backend host | `runtime/hosts/desktop`; CLI host `runtime/hosts/cli` |
-| windows, IPC, assets, dev change table | `platform/desktop` (`changes.rs`, `envelope.rs`, `manifest.rs`) |
-| packaging/signing; browser host | `platform/pack`; `platform/web` |
+| desktop backend host | `platform/desktop/host`; CLI host `platform/cli/host` |
+| windows, IPC, assets, dev change table | `platform/desktop/app` (`changes.rs`, `envelope.rs`, `manifest.rs`) |
+| packaging/signing; browser host | `platform/desktop/pack`; `platform/desktop/web` |
 | backend form/control runtime | `framework/desktop/forms.js` |
 | React controls and shell | `framework/vcl/react` then rebuild `templates/zebra.framework/dist/vcl.js` |
 
 ## Commands
 - All Rust: `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace --all-targets`.
   One crate: `-p <name>` (names differ from folders: `cargo metadata --no-deps --offline`).
-  `apps/lunarstorm` has one Cargo feature per package; test every feature set (`runtime`, `build`, `frontend`, all, none).
+  `platform/cli/app` has one Cargo feature per package; test every feature set (`runtime`, `build`, `frontend`, all, none).
 - JS: `pnpm install`, `pnpm typecheck`, `pnpm --filter <name> test`. `pnpm test:js` skips packages without a `test` script.
 - Rebuild the WebView runtime: `cd templates/zebra.framework && bun run build`.
 - Run a project: `cargo run --bin lunarstorm -- build -p <project>`, then `cargo run --bin lunarstorm-debug -- <project>/dist`.
@@ -44,11 +44,11 @@ Spec: `doc/plans/main.md`. Understanding notes, if present: `.omx/understanding/
 ## Hazards
 - Embedded across the Rust/JS line: `framework/desktop/forms.js`, `framework/vcl/react/src/vcl.css`, `templates/zebra.framework/dist/vcl.js` (committed on purpose; test `toolchain/crates/pipeline/tests/embedded_inputs.rs` guards the git-ignore), `toolchain/react/packages/shell/src/*`. After editing, rebuild the embedder.
 - No integer values in root `[profile.*]`: they live in `.cargo/config.toml` (trybuild + serde_json `arbitrary_precision`).
-- `platform/examples/app` is hand-written; Rust tests name its controls. Do not regenerate.
+- `platform/desktop/examples/app` is hand-written; Rust tests name its controls. Do not regenerate.
 - `cli-contract` has zero dependencies; Runtime/VM/Host calls are static (no `dyn`).
 - A failed `pipeline::build` must leave the previous output untouched.
 - Scratch files go in `<repo>/.scratch/` (gitignored), never `/tmp`.
-- The toolchain "devtools" crates (`core`, `server`, `bundler`, `cli`, `tauri`, `build-server`) are an older product; `devtools-cli` is mounted on `lunarstorm` (feature `frontend`: `serve`, `bundle`, `preview`, `transpile`) and its end-to-end tests are `apps/lunarstorm/tests/frontend_*.rs`. See their READMEs before relying on the rest.
+- The toolchain "devtools" crates (`core`, `server`, `bundler`, `cli`, `tauri`, `build-server`) are an older product; `devtools-cli` is mounted on `lunarstorm` (feature `frontend`: `serve`, `bundle`, `preview`, `transpile`) and its end-to-end tests are `platform/cli/app/tests/frontend_*.rs`. See their READMEs before relying on the rest.
 
 ## Verify
 State which suites ran and their counts; 0 tests is not a pass; name any feature set or engine not run.

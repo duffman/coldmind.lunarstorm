@@ -1,7 +1,7 @@
 /**
  * Runs the product's cross-runtime contract checks without silently skipping a host.
  *
- * The CLI is the `lunarstorm` binary (apps/lunarstorm), whose `serve`, `bundle`, `preview` and
+ * The CLI is the `lunarstorm` binary (platform/cli/app), whose `serve`, `bundle`, `preview` and
  * `transpile` commands come from devtools-cli. CLI artifacts come from Cargo's build messages, not an assumed global target path.
  * Each phase has a deadline and its own process group; interruption or failure reaps
  * that phase's descendants. Installed project Tailwind dependencies are a prerequisite,

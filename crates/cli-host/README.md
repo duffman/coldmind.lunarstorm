@@ -18,7 +18,7 @@ Modules: `parse` (command line against the tree), `help` (screens from the specs
 
 ## How it fits
 
-- Depends on `lunarstorm-cli-contract`, `lunarstorm-cliui`, `serde_json`. Used by `apps/lunarstorm` only.
+- Depends on `lunarstorm-cli-contract`, `lunarstorm-cliui`, `serde_json`. Used by `platform/cli/app` only.
 - Rules and examples are specified in `doc/cli.md` ("Parsing rules", "Mount validation", "`describe` JSON", "Completion"). No section of doc/plans/main.md; this is the command-line layer around its §5 CLI host.
 
 ## Build and test
