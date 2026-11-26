@@ -12,6 +12,8 @@
 #   platform/examples/           generated platform projects, committed as source
 #   .cargo/config.toml, .npmrc   shared build config
 
+platform/uisystem
+
 # ── Rust / Cargo ────────────────────────────────────────────────────────────────
 # Builds normally go to the shared ~/.cargo-target; this catches local target dirs.
 target/
