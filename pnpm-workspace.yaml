@@ -21,5 +21,8 @@ packages:
   - templates/starters/*
   - toolchain/react
   - toolchain/react/packages/*
+  # lunartypes: generated .d.ts of the runtime; the same folder is the Cargo crate
+  # lunarstorm-types (the emitter).
+  - runtime/types
 allowBuilds:
   esbuild: true

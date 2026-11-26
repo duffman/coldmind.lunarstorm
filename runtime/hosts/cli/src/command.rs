@@ -7,7 +7,8 @@
 //!
 //! `run` runs a script, a `.jbn` package, or code given with `-e`, on a Runtime this
 //! host owns; `jbn key` / `jbn build` make signing keys and compile an entry into a
-//! signed `.jbn` package. The former hand-written parser is archived in
+//! signed `.jbn` package; `types` writes the TypeScript declarations of every host
+//! (the npm package `lunartypes`, `runtime/types`). The former hand-written parser is archived in
 //! `.archive/2026-11-24/runtime/hosts/cli/src/cli.rs`; this file was `src/cli.rs`
 //! until the CLI packages were given one file name.
 //!
@@ -23,7 +24,7 @@
 //!   names its signer; there is no unsigned or untrusted mode.
 
 use crate::host::{self, CliHost};
-use lunarstorm_cli_contract::{Arg, Command, Failure, Invocation, Package, Section};
+use lunarstorm_cli_contract::{Arg, Command, Failure, Invocation, Package, Section, ValueType};
 use lunarstorm_runtime::vm::Vm;
 use lunarstorm_runtime::{Runtime, Source};
 use lunarstorm_vm_quickjs::QuickJs;
@@ -31,6 +32,10 @@ use std::path::{Path, PathBuf};
 
 /// The name scripts see as `process.argv[0]`.
 const ARGV0: &str = "lunar";
+
+/// Where `types` writes by default, relative to the current directory: the
+/// committed output of the `lunartypes` package when run at the repository root.
+const TYPES_OUT: &str = "runtime/types/dist";
 
 /// The runtime's package.
 struct RuntimePackage;
@@ -65,7 +70,7 @@ impl Package for RuntimePackage {
     }
 
     /// # Returns
-    /// The `run` command.
+    /// The `run`, `debug`, `jbn` and `types` commands.
     fn commands(&self) -> Vec<Command> {
         vec![Command::new("run", "run a script, or code given with -e, on the Lunarstorm runtime")
             .default_command()
@@ -99,7 +104,12 @@ impl Package for RuntimePackage {
                     .arg(Arg::option("release").placeholder("<n>").default("1").about("release sequence number"))
                     .example("lunar jbn build src/main.ts -o app.jbn --key signing.der")
                     .run(build),
-            )]
+            ),
+        Command::new("types", "write the TypeScript declarations of every host (the lunartypes package)")
+            .arg(Arg::option("out").placeholder("<dir>").value(ValueType::Path).default(TYPES_OUT).about("the directory to write into; created when missing"))
+            .example("lunar types")
+            .example("lunar types --out node_modules/lunartypes/dist")
+            .run(types)]
     }
 
     /// # Returns
@@ -304,4 +314,73 @@ pub fn compile(entry: &Path, name: &str, version: &str, release: u64) -> Result<
     runtime.register(host::bindings());
     runtime.start().map_err(|e| format!("bootstrap failed: {e}"))?;
     runtime.package(entry, name, version, release)
+}
+
+/// The `types` handler: writes [`type_files`] under `--out`, replacing files of
+/// the same name and leaving other files alone.
+///
+/// # Arguments
+/// * `invocation` - `out`, the output directory.
+///
+/// # Returns
+/// 0 after printing `wrote <n> files to <dir>`.
+///
+/// # Errors
+/// A usage error when `--out` names something that is not a directory; a failure
+/// when the declarations cannot be collected or a file cannot be written.
+fn types(invocation: &mut Invocation) -> Result<i32, Failure> {
+    let out = invocation.values.path("out").unwrap_or_else(|| PathBuf::from(TYPES_OUT));
+    if out.exists() && !out.is_dir() {
+        return Err(Failure::usage(format!("--out {} is not a directory", out.display())));
+    }
+    let files = type_files().map_err(Failure::failed)?;
+    for (path, text) in &files {
+        let target = out.join(path);
+        let cannot = |e: std::io::Error| Failure::failed(format!("cannot write {}: {e}", target.display()));
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).map_err(cannot)?;
+        }
+        std::fs::write(&target, text).map_err(cannot)?;
+    }
+    println!("wrote {} files to {}", files.len(), out.display());
+    Ok(0)
+}
+
+/// Renders the `.d.ts` files of every host from the declarations their Runtimes
+/// carry (plan D5): `index.d.ts`, `extensions/hostapi.d.ts`, `cli.d.ts`,
+/// `desktop.d.ts`.
+///
+/// Decisions:
+/// - Each host's set comes from a Runtime built as that host builds it, never
+///   started: this host's as [`execute`] builds it, the desktop host's from
+///   `lunarstorm_host_desktop::declarations`.
+/// - The core is what both hosts declare identically, so `index.d.ts` holds only
+///   what every program can rely on.
+/// - HostApi's layer is this host's Runtime before [`host::bindings`] is
+///   registered, minus the core: HostApi is this host's only extension, and its
+///   areas (`ui`) are the ones this host's manifest selects.
+///
+/// # Returns
+/// `(path relative to the output directory, contents)` per file.
+///
+/// # Errors
+/// A Runtime cannot be created, or its declarations cannot be collected.
+pub fn type_files() -> Result<Vec<(PathBuf, String)>, String> {
+    let mut runtime = Runtime::<QuickJs, CliHost>::new(CliHost::new(vec![String::from(ARGV0)]))
+        .map_err(|e| format!("cannot create the event loop: {e}"))?;
+    let installed = runtime.declarations()?;
+    runtime.register(host::bindings());
+    let cli = runtime.declarations()?;
+    let desktop = lunarstorm_host_desktop::declarations()?;
+    let core = lunarstorm_types::common(&cli, &desktop);
+    let surface = lunarstorm_types::Surface {
+        globals: Vec::new(),
+        extensions: vec![("hostapi", lunarstorm_types::only(&installed, &core))],
+        hosts: vec![
+            lunarstorm_types::Host { name: "cli", modules: lunarstorm_types::only(&cli, &installed), extensions: vec!["hostapi"] },
+            lunarstorm_types::Host { name: "desktop", modules: lunarstorm_types::only(&desktop, &core), extensions: Vec::new() },
+        ],
+        core,
+    };
+    Ok(lunarstorm_types::emit(&surface))
 }

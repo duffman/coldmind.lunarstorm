@@ -19,9 +19,23 @@ lunarstorm-vm-quickjs = { path = "../../engines/quickjs" }
 libc = "0.2"
 # Used by the binary only: the windowing event loop, and JSON for the envelopes
 # and native-call arguments that cross the `Shell` contract as text.
-tao = "0.37"
-serde_json = "1"
+#
+# Decision: optional behind the default feature `shell`, which the binary requires,
+# so `lunarstorm types` (runtime/hosts/cli) reads this host's declarations through
+# the library without building tao into the `lunarstorm` command line.
+tao = { version = "0.37", optional = true }
+serde_json = { version = "1", optional = true }
+
+[features]
+default = ["shell"]
+# The `lunarstorm-desktop` binary: the tao shell around the library.
+shell = ["dep:tao", "dep:serde_json"]
 
 [[bin]]
 name = "lunarstorm-desktop"
 path = "src/main.rs"
+required-features = ["shell"]
+
+[[test]]
+name = "desktop"
+required-features = ["shell"]

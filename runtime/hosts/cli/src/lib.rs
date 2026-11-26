@@ -14,4 +14,4 @@ pub mod command;
 mod host;
 mod ui;
 
-pub use command::{compile, engine, package};
+pub use command::{compile, engine, package, type_files};

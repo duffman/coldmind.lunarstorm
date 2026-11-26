@@ -3217,8 +3217,10 @@ dependencies = [
  "lunar-extension-hostapi",
  "lunarstorm-cli-contract",
  "lunarstorm-cliui",
+ "lunarstorm-host-desktop",
  "lunarstorm-jbn",
  "lunarstorm-runtime",
+ "lunarstorm-types",
  "lunarstorm-vm-quickjs",
 ]
 
@@ -3357,6 +3359,14 @@ dependencies = [
  "mio",
  "slab",
  "tempfile",
+]
+
+[[package]]
+name = "lunarstorm-types"
+version = "0.1.0"
+dependencies = [
+ "lunarstorm-host-cli",
+ "lunarstorm-vm",
 ]
 
 [[package]]

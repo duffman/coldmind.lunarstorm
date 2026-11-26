@@ -27,7 +27,10 @@
 #                     engine sources in engines/rquickjs/sys/quickjs, so the crates'
 #                     jetbunny-relative paths resolve unchanged. The only compiler of
 #                     Lunarstorm contexts.
-#     vm              the VM interface, callbacks, capabilities and conformance suite
+#     vm              the VM interface, callbacks, capabilities and conformance suite;
+#                     the declarations (types.rs) every native binding carries
+#     types           .d.ts emitter over those declarations (`lunarstorm types`); the
+#                     same folder is the npm package `lunartypes` with dist/ committed
 #     engines/quickjs   VM adapter wrapping QuickJS
 #     engines/rquickjs  the engine binding (rquickjs + quickjs-ng C source), adopted
 #                       from upstream 0.14.0 and owned here: core, macro, sys, examples
@@ -62,6 +65,7 @@ resolver = "2"
 members = [
     "apps/lunarstorm",
     "runtime/vm",
+    "runtime/types",
     "runtime/engines/quickjs",
     "runtime/engines/rquickjs",
     "runtime/engines/rquickjs/core",

@@ -337,12 +337,32 @@ const NATIVE: Sig = sig(
 const ERROR: Sig = sig(&[Param { name: "text", ty: Ty::String, about: "the formatted error" }], Ty::Undefined, "Reports a handler error.");
 /// `desktopRestore()`.
 const RESTORE: Sig = sig(&[], Ty::String, "The control values carried over from the previous instance, as JSON.");
-/// `desktopHooks(dispatch, settle)`. The hooks' own parameters are the glue's
-/// business; only their callability is checked.
+/// `desktopHooks(dispatch, settle)`. Only the hooks' callability is checked at
+/// the call; their parameters are declared for `lunarstorm types`.
+///
+/// Fix: the hooks were declared without parameters, which typed them as `() =>
+/// void`, a type the glue's real hooks (they take arguments) are not assignable
+/// to. They now declare the arguments the host passes.
 const HOOKS_SIG: Sig = sig(
     &[
-        Param { name: "dispatch", ty: Ty::Function(&sig(&[], Ty::Undefined, "")), about: "delivers one envelope (JSON) from the desktop process" },
-        Param { name: "settle", ty: Ty::Function(&sig(&[], Ty::Undefined, "")), about: "settles a native call: (id, ok, json)" },
+        Param {
+            name: "dispatch",
+            ty: Ty::Function(&sig(&[Param { name: "json", ty: Ty::String, about: "" }], Ty::Undefined, "")),
+            about: "delivers one envelope (JSON) from the desktop process",
+        },
+        Param {
+            name: "settle",
+            ty: Ty::Function(&sig(
+                &[
+                    Param { name: "id", ty: Ty::Number, about: "" },
+                    Param { name: "ok", ty: Ty::Bool, about: "" },
+                    Param { name: "json", ty: Ty::String, about: "" },
+                ],
+                Ty::Undefined,
+                "",
+            )),
+            about: "settles a native call: (id, ok, json)",
+        },
     ],
     Ty::Undefined,
     "Hands the host the glue's two hooks.",
@@ -395,6 +415,52 @@ fn bindings<S: Shell>(shell: &Arc<S>, epoch: u64, restore: String) -> Bindings<E
         .module(GLUE_MODULE, GLUE)
         .module("@desktop/bridge", BRIDGE_MODULE)
         .module("@desktop/api", API_MODULE)
+}
+
+/// A desktop process that ignores everything, for [`declarations`]: its Runtime
+/// never starts, so none of these is called.
+struct Silent;
+
+impl Shell for Silent {
+    /// Ignored.
+    fn loaded(&self, _: u64, _: Option<&str>) {}
+    /// Ignored.
+    fn send(&self, _: u64, _: &str) {}
+    /// Ignored.
+    fn native(&self, _: u64, _: u64, _: &str, _: &str, _: &str) {}
+    /// Ignored.
+    fn error(&self, _: u64, _: &str) {}
+    /// Ignored.
+    fn log(&self, _: &str, _: &str) {}
+    /// Ignored.
+    fn retired(&self, _: u64) {}
+}
+
+/// Lists everything a backend on this host can reach, for `lunarstorm types`.
+///
+/// Decision: built the way [`start`] builds a backend's Runtime (same host type,
+/// same [`bindings`]), over a [`Silent`] shell and without starting it, so the
+/// declarations cannot drift from what a backend gets.
+///
+/// # Returns
+/// The Runtime's merged declarations (`Runtime::declarations`).
+///
+/// # Errors
+/// The event loop cannot be created, or the Runtime's own error.
+pub fn declarations() -> Result<Vec<lunarstorm_runtime::vm::ModuleDecl>, String> {
+    let shell = Arc::new(Silent);
+    let host = DesktopHost {
+        shell: shell.clone(),
+        epoch: 0,
+        name: String::new(),
+        roots: Vec::new(),
+        environment: Vec::new(),
+        loading: Cell::new(false),
+        failure: RefCell::new(None),
+    };
+    let mut runtime = Runtime::<Engine, _>::new(host).map_err(|error| format!("cannot create the event loop: {error}"))?;
+    runtime.register(bindings(&shell, 0, String::new()));
+    runtime.declarations()
 }
 
 /// Describes the pending exception of a failed hook call.

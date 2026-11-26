@@ -10,7 +10,7 @@ errors, and calls the handlers.
 apps/lunarstorm                 the binary: picks packages (one Cargo feature each)
   ├─ crates/cli-host            lunarstorm-cli-host: parse, help, describe, completions, dispatch
   │    └─ crates/cliui          lunarstorm-cliui: colors, help layout, error frames
-  ├─ runtime/hosts/cli          lunarstorm-host-cli: package "runtime" → `run`, `debug`, `jbn key`, `jbn build`
+  ├─ runtime/hosts/cli          lunarstorm-host-cli: package "runtime" → `run`, `debug`, `jbn key`, `jbn build`, `types`
   ├─ toolchain/crates/pipeline  lunarstorm-pipeline: package "build"  → `build`, `build types`, `build check`
   └─ toolchain/crates/cli       devtools-cli: package "frontend" → `serve`, `bundle`, `preview`, `transpile`
            all packages depend on
@@ -32,6 +32,8 @@ lunar jbn key signing.der > trust.json     # new signing key, and a trust file f
 lunar jbn build src/main.ts -o app.jbn --key signing.der
 lunar run --trust trust.json app.jbn       # run a signed package (or LUNARSTORM_TRUST)
 lunar debug app.ts --port 8080             # Debug Adapter Protocol on stdin/stdout; script stdout → stderr
+lunar types                                # regenerate runtime/types/dist (the lunartypes .d.ts), run at the repo root
+lunar types --out <dir>                    # write index.d.ts, cli.d.ts, desktop.d.ts, extensions/*.d.ts to <dir>; a file there is a usage error (2)
 lunar build -p templates/starters/desktop  # build into <project>/dist
 lunar build -p app -o out                  # build into out/
 lunar build types -p app                   # write app/src/desktop.d.ts
