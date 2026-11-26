@@ -14,10 +14,10 @@
 //!   reactor sends a known method as its index, so the glue's hand-copied list is
 //!   gone.
 
-use super::net::{flag, key};
+use super::tcp_sockets_and_servers::{flag, key};
 use super::{arg, coded_error, f, method, p, Node, Slot};
-use crate::host::Host;
-use crate::io::Shared;
+use crate::host_services_trait::Host;
+use crate::reactor_io_state::Shared;
 use lunarstorm_engine_contract::{Call, ClassDecl, ClassSpec, ErrorKind, Field, FnDecl, Item, Kind, ModuleDecl, Outcome, Scope, Sig, Ty, Vm};
 use std::rc::Rc;
 
@@ -188,10 +188,10 @@ fn incoming<'s, V: Vm>(scope: &V::Scope<'s>, node: &Rc<Node<V>>) -> Outcome<V::V
         let request = arg::<V>(scope, call.args(), 0);
         let body = scope.get(&request, "_body")?;
         if scope.kind(&body) != Kind::Undefined {
-            let chunk = super::buffer::as_buffer(&n, scope, body)?;
-            super::events::fire(&n, scope, &request, &scope.string("data")?, &[chunk])?;
+            let chunk = super::buffer_and_text_codecs::as_buffer(&n, scope, body)?;
+            super::event_emitter::fire(&n, scope, &request, &scope.string("data")?, &[chunk])?;
         }
-        super::events::fire(&n, scope, &request, &scope.string("end")?, &[])?;
+        super::event_emitter::fire(&n, scope, &request, &scope.string("end")?, &[])?;
         Ok(scope.undefined())
     })?;
     node.keep(scope, Slot::BodyDeliver, &deliver);
@@ -220,7 +220,7 @@ fn incoming<'s, V: Vm>(scope: &V::Scope<'s>, node: &Rc<Node<V>>) -> Outcome<V::V
             scope.set(&result, "done", scope.boolean(true))?;
         } else {
             scope.set(this, "_body", scope.undefined())?;
-            scope.set(&result, "value", super::buffer::as_buffer(&n, scope, body)?)?;
+            scope.set(&result, "value", super::buffer_and_text_codecs::as_buffer(&n, scope, body)?)?;
             scope.set(&result, "done", scope.boolean(false))?;
         }
         let (promise, resolver) = scope.promise()?;

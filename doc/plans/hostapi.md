@@ -147,14 +147,14 @@ same tests pass, and the documentation follows. Sizes are added lines, tests inc
 | # | step | files | tests | size |
 |---|---|---|---|---|
 | 1 | `lunar-extension`: `Name` (`[a-z][a-z0-9]{0,31}`, reserved `ipc`, `worker`, `internal`), `Manifest` (serde, `Manifest::empty()`), `PluginHost`, `Cardinality`, `Requirement`, `Offer`, `Use`, `check` | `extensions/core/{Cargo.toml,src/lib.rs,README.md}`; root `Cargo.toml` members and header | unit tests: valid, invalid and reserved names; each load-time message; the empty manifest passes against any offer | 250 |
-| 2 | Runtime: `Extension<V>`, `ExtensionSet<V>` for tuples up to 8, the `Host` members, the checked merge in `Bindings`, extension setup in `start`, two lines in each of the 7 `impl Host` | `runtime/event-loop-runtime/src/{extension.rs,host.rs,bindings.rs,runtime.rs,lib.rs}`, the 4 test hosts, `examples/ipc-demo.rs`, `runtime/hosts/{cli,desktop}/src/*` | `runtime/event-loop-runtime/tests/extensions.rs` (see below) | 280 |
+| 2 | Runtime: `Extension<V>`, `ExtensionSet<V>` for tuples up to 8, the `Host` members, the checked merge in `Bindings`, extension setup in `start`, two lines in each of the 7 `impl Host` | `runtime/event-loop-runtime/src/{extension.rs,host.rs,bindings.rs,runtime.rs,lib.rs}`, the 4 test hosts, `examples/ipc-demo.rs`, `runtime/hosts/{cli,desktop}/src/*` | `runtime/event-loop-runtime/tests/extension_loading.rs` (see below) | 280 |
 | 3 | HostApi: `HostApi<V, A>`, `Area<V>`, `AreaSet<V>` for tuples, `lunarstorm:hostapi` | `extensions/hostapi/{Cargo.toml,src/lib.rs,js/hostapi.js,README.md}` | `extensions/hostapi/tests/hostapi.rs` (see below) | 220 |
 | 4 | The CLI host adopts HostApi: `src/ui.rs`, `manifest.json`, `type Extensions<V: Vm> = (HostApi<V, (Ui,)>,)`, the alias, `lunarstorm:hostapi` in the help's module list (`cli.rs:104`) | `runtime/host-command-line/{Cargo.toml,manifest.json,src/ui.rs,src/host.rs,src/cli.rs}` | `apps/lunarstorm/tests/ui.rs` unchanged and green, plus two new cases (see below); manifest parse test in `host.rs` | 110 |
 | 5 | Documentation | READMEs of the four packages; `runtime/event-loop-runtime/doc/extensions.md` (built parts marked built, the open module-name and CLI-manifest questions answered); `runtime/event-loop-runtime/doc/hosts.md` (register step and worker note); root README table | | 120 |
 
 Total about 980 lines.
 
-### Tests in step 2: `runtime/event-loop-runtime/tests/extensions.rs`
+### Tests in step 2: `runtime/event-loop-runtime/tests/extension_loading.rs`
 
 Uses a test host with `WORKERS = true` and a test extension `probe`. `probe` counts its `bindings` calls,
 binds an `ops` function, and serves `lunarstorm:probe` as a source module reading it.

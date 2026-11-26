@@ -13,8 +13,8 @@
 //! - **Coalesced wakes.** A worker wakes the reactor only when no wake is already
 //!   pending, so a burst of completions costs one wake syscall.
 
-use crate::fs::{self, FsValue};
-use crate::io::Fault;
+use crate::blocking_filesystem_operations::{self, FsValue};
+use crate::reactor_io_state::Fault;
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
 use mio::Waker;
 use std::collections::VecDeque;
@@ -196,7 +196,7 @@ fn worker(link: Link) {
         let msg = match work {
             Ok(Work::Fs { req, op, path, data }) => ResultMsg::Fs {
                 req,
-                result: fs::exec(op, &path, &data),
+                result: blocking_filesystem_operations::exec(op, &path, &data),
             },
             Ok(Work::Resolve { conn, host, port }) => ResultMsg::Resolved {
                 conn,

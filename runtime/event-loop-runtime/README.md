@@ -25,7 +25,7 @@ cargo build -p lunarstorm-event-loop-runtime
 cargo test -p lunarstorm-event-loop-runtime      # tests/{embed,extensions,ipc,modules,worker}.rs, against QuickJS
 ```
 
-`tests/embed.rs` (12 tests) covers: services come from the host, `call` settling with values and errors, `post` from another thread, host bindings and modules, host fs/net refusal, `poll` for hosts with their own loop, lifecycle errors as `Err` not panics, no kernel poll per queued immediate, hosts that survive uncaught errors and failed loads, a held loop sleeping until posted work, and a watchdog ending an overrunning script via `pulse()` plus `interrupt()`.
+`tests/runtime_embedding.rs` (12 tests) covers: services come from the host, `call` settling with values and errors, `post` from another thread, host bindings and modules, host fs/net refusal, `poll` for hosts with their own loop, lifecycle errors as `Err` not panics, no kernel poll per queued immediate, hosts that survive uncaught errors and failed loads, a held loop sleeping until posted work, and a watchdog ending an overrunning script via `pulse()` plus `interrupt()`.
 
 ## Decisions and hazards
 

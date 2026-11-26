@@ -18,7 +18,7 @@
 
 use lunarstorm_engine_contract::Vm;
 
-use crate::bindings::Bindings;
+use crate::host_bindings_registry::Bindings;
 
 pub use lunar_extension::{check, valid_name, Cardinality, Entry, Manifest, Offer, PluginHost, Requirement, Use, RESERVED};
 

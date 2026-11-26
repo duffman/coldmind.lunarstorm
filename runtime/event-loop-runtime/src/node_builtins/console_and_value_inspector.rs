@@ -1,7 +1,7 @@
 //! The `console` global and the value inspector behind it, which also formats
 //! uncaught errors (the glue's `describe`).
 //!
-//! A line-for-line port of the glue's `inspect` and `format`; `node_surface`
+//! A line-for-line port of the glue's `inspect` and `format`; `node_behaviour_pinned`
 //! pins their output. Conversions a script could observe (`String(x)`,
 //! `Number(x)`, `JSON.stringify`, `Object.keys`) go through the builtins
 //! [`Node`] captured, so numbers, keys and JSON print exactly as before.
@@ -16,10 +16,10 @@
 //!   it, as in the glue.
 
 use super::{f, p, Node, Slot};
-use crate::bindings::declared;
-use crate::host::Host;
-use crate::io::Shared;
-use crate::ops::print;
+use crate::host_bindings_registry::declared;
+use crate::host_services_trait::Host;
+use crate::reactor_io_state::Shared;
+use crate::internal_natives::print;
 use lunarstorm_engine_contract::{Call, ErrorKind, Field, FnDecl, Item, Kind, Outcome, Scope, Sig, Ty, Vm};
 use std::rc::Rc;
 

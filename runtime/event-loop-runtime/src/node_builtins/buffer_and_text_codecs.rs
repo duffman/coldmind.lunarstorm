@@ -7,7 +7,7 @@
 //! `subarray` return a `Buffer` through the species constructor.
 
 use super::{arg, f, p, Node, Slot};
-use crate::bindings::declared;
+use crate::host_bindings_registry::declared;
 use lunarstorm_engine_contract::{Call, ClassDecl, ClassSpec, ErrorKind, Field, FnDecl, Item, Kind, ModuleDecl, Outcome, Scope, Sig, Ty, Vm};
 use std::rc::Rc;
 
@@ -101,7 +101,7 @@ pub(crate) fn globals() -> Vec<Item> {
 
 /// Encodes a JS string as UTF-8.
 ///
-/// Fix (node_fixes `text_encoder_replaces_lone_surrogates`): the glue went
+/// Fix (node_compat_fixes `text_encoder_replaces_lone_surrogates`): the glue went
 /// through `ops.utf8Encode`, whose string check throws `TypeError` for an
 /// unpaired surrogate, so `new TextEncoder().encode("\ud800")` threw; Node and
 /// the Encoding Standard give U+FFFD (`EF BF BD`). Decision: take the engine's

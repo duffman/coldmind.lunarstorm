@@ -16,9 +16,9 @@
 //!   server and, if so, takes the second argument as the `request` listener.
 
 use super::{arg, coded_error, f, method, p, Node, Slot};
-use crate::host::Host;
-use crate::io::{Fault, Shared};
-use crate::ops;
+use crate::host_services_trait::Host;
+use crate::reactor_io_state::{Fault, Shared};
+use crate::internal_natives;
 use lunarstorm_engine_contract::{Call, ClassDecl, ClassSpec, ErrorKind, FnDecl, Item, Kind, ModuleDecl, Outcome, Scope, Sig, Ty, Vm};
 use std::rc::Rc;
 
@@ -270,7 +270,7 @@ pub(crate) fn write<'s, V: Vm, H: Host>(node: &Node<V>, shared: &Shared<H>, scop
     if scope.kind(&encoding) == Kind::Function {
         cb = encoding;
     } else {
-        super::buffer::utf8_only(node, scope, &encoding, ErrorKind::Type)?;
+        super::buffer_and_text_codecs::utf8_only(node, scope, &encoding, ErrorKind::Type)?;
     }
     if flag(node, scope, this, "destroyed")? || flag(node, scope, this, "_ended")? {
         let error = coded_error::<V>(scope, "write after end", Some("ERR_STREAM_WRITE_AFTER_END"))?;
@@ -375,11 +375,11 @@ fn socket<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>, node
             host = scope.undefined();
         }
         let address = if n.truthy(scope, &host) { n.text(scope, &host)? } else { String::from("127.0.0.1") };
-        let port = super::process::to_int32(scope.as_number(&n.call(scope, Slot::Number, &[port])?).unwrap_or(0.0));
+        let port = super::process_and_globals::to_int32(scope.as_number(&n.call(scope, Slot::Number, &[port])?).unwrap_or(0.0));
         scope.set(this, "remoteAddress", scope.string(&address)?)?;
         scope.set(this, "remotePort", scope.int(port))?;
         scope.set(this, "connecting", scope.boolean(true))?;
-        let key = ops::connect(&s, &address, port as u16).map_err(|fault| ops::throw_fault::<V>(scope, fault))?;
+        let key = internal_natives::connect(&s, &address, port as u16).map_err(|fault| internal_natives::throw_fault::<V>(scope, fault))?;
         scope.set(this, "_k", scope.number(key as f64))?;
         n.set_handle(scope, key, Some(this));
         if scope.kind(&cb) == Kind::Function {
@@ -473,7 +473,7 @@ fn server<'s, V: Vm, H: Host>(scope: &V::Scope<'s>, shared: &Rc<Shared<H>>, node
         }
         let address = if n.truthy(scope, &host) { n.text(scope, &host)? } else { String::from("0.0.0.0") };
         let http = flag(&n, scope, this, "_http")?;
-        match ops::listen(&s, &address, port as u16, http) {
+        match internal_natives::listen(&s, &address, port as u16, http) {
             Ok((key, bound)) => {
                 scope.set(this, "_k", scope.number(key as f64))?;
                 scope.set(this, "_port", scope.number(f64::from(bound)))?;

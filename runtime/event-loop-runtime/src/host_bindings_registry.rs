@@ -20,7 +20,7 @@
 //!   (source text, for third-party extensions) and [`Bindings::values`] stay
 //!   undeclared.
 
-use crate::modules::INTERNAL_MODULE;
+use crate::module_loader_callbacks::INTERNAL_MODULE;
 use lunarstorm_engine_contract::{Call, ClassDecl, ClassSpec, ErrorKind, FnDecl, Item, ModuleDecl, Outcome, Scope, Sig, Vm};
 
 /// Adds one binding to the `ops` object: `(scope, ops)`.

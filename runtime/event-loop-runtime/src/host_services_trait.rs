@@ -23,7 +23,7 @@ use std::time::{Instant, SystemTime};
 
 use lunarstorm_engine_contract::Vm;
 
-use crate::extension::{ExtensionSet, Manifest};
+use crate::extension_manifest_check::{ExtensionSet, Manifest};
 
 /// One of the two standard output streams.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

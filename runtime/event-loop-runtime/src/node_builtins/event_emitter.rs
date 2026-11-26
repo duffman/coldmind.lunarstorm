@@ -8,18 +8,18 @@
 //!   collected with it.
 //! - Arrays are copy-on-write: `on`/`off` store a new array, so `emit` iterates
 //!   the array it read and a listener added or removed during an emit does not
-//!   change that emit (pinned by `node_surface`).
+//!   change that emit (pinned by `node_behaviour_pinned`).
 //! - An entry is the listener itself, or for `once` a record `{ listener, fired }`
 //!   instead of a wrapper function; see [`ONCE`].
 
 use super::{arg, f, p, Node, Slot};
-use crate::bindings::declared;
+use crate::host_bindings_registry::declared;
 use lunarstorm_engine_contract::{Call, ClassDecl, ClassSpec, ErrorKind, FnDecl, Item, Kind, ModuleDecl, Outcome, Param, Scope, Sig, Ty, Vm};
 use std::rc::Rc;
 
 /// The own property holding an emitter's listener `Map`.
 ///
-/// Fix (node_fixes `emitter_keys_hide_listener_storage`): the glue kept listeners
+/// Fix (node_compat_fixes `emitter_keys_hide_listener_storage`): the glue kept listeners
 /// in an enumerable `_ev`, which `Object.keys`, `for...in` and `console.log` of
 /// every emitter showed. Decision: define it non-enumerable (and not writable or
 /// configurable) with `Object.defineProperty` on the first listener; Node's own
@@ -245,7 +245,7 @@ pub(crate) fn install<'s, V: Vm>(scope: &V::Scope<'s>, node: &Rc<Node<V>>, nativ
         Ok(this.clone())
     })?;
     let n = node.clone();
-    // Fix (node_fixes `emitter_listeners_unwrap_once`): the glue stored a wrapper
+    // Fix (node_compat_fixes `emitter_listeners_unwrap_once`): the glue stored a wrapper
     // function, which `listeners()` returned instead of the function given to
     // `once`. Decision: store a record `{ listener, fired }`; `listeners()` maps it
     // back, `off` matches its `listener`, `emit` removes it before the call.

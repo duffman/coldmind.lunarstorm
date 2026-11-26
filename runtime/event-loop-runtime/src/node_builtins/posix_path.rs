@@ -4,9 +4,9 @@
 //! at, so byte positions in UTF-8 match the JS string positions they replace.
 
 use super::{f, p};
-use crate::bindings::declared;
-use crate::host::Host;
-use crate::io::Shared;
+use crate::host_bindings_registry::declared;
+use crate::host_services_trait::Host;
+use crate::reactor_io_state::Shared;
 use lunarstorm_engine_contract::{Call, Field, FnDecl, Item, Kind, ModuleDecl, Outcome, Scope, Ty, Vm};
 use std::rc::Rc;
 
@@ -72,7 +72,7 @@ pub(crate) fn normalize(p: &str) -> String {
         }
         return format!("/{joined}");
     }
-    // Fix (node_fixes `path_normalize_keeps_trailing_slash_of_dot`): the glue gave
+    // Fix (node_compat_fixes `path_normalize_keeps_trailing_slash_of_dot`): the glue gave
     // `.` for `./` and `a/../`, dropping the trailing slash; Node gives `./`.
     // Decision: an empty relative result becomes `.` first, and the trailing slash
     // of the input is kept on it as on any other result. `normalize("")` and
@@ -165,7 +165,7 @@ fn basename<'a>(p: &'a str, ext: Option<&str>) -> &'a str {
 /// The extension of the last segment including its dot, or `""`.
 fn extname(p: &str) -> &str {
     let base = basename(p, None);
-    // Fix (node_fixes `path_extname_of_dot_dot_is_empty`): the glue gave `.` for
+    // Fix (node_compat_fixes `path_extname_of_dot_dot_is_empty`): the glue gave `.` for
     // `..`, reading its second dot as an extension; Node gives `""`. Decision: the
     // parent segment `..` has no extension; every other name keeps the glue's
     // rule (a dot at index 0 starts no extension), so `...` and `a.` stay `.`.

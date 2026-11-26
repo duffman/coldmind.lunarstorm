@@ -22,9 +22,9 @@
 //!   there is no event code in the glue's `dispatch`.
 //! - Only the host type decides whether the module exists ([`Host::IPC`]).
 
-use crate::channel::{Channel, Inbox, Nudge};
-use crate::host::Host;
-use crate::io::Shared;
+use crate::cross_thread_message_channel::{Channel, Inbox, Nudge};
+use crate::host_services_trait::Host;
+use crate::reactor_io_state::Shared;
 use lunarstorm_engine_contract::{ErrorKind, Kind, Outcome, Scope, Vm};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

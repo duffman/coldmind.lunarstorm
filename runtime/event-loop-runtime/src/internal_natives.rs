@@ -20,13 +20,13 @@
 //!   through the host: stdio, exit, environment, clock, entropy, and the fs/net
 //!   policy check that precedes every filesystem and socket operation.
 
-use crate::fs::{self as hfs, op as fsop, FsValue};
-use crate::host::{Access, Host, Stream};
-use crate::io::{Fault, Shared};
-use crate::pool::Work;
-use crate::bindings::declared;
-use crate::modules::INTERNAL_MODULE;
-use crate::runtime::Arg;
+use crate::blocking_filesystem_operations::{self as hfs, op as fsop, FsValue};
+use crate::host_services_trait::{Access, Host, Stream};
+use crate::reactor_io_state::{Fault, Shared};
+use crate::blocking_work_pool::Work;
+use crate::host_bindings_registry::declared;
+use crate::module_loader_callbacks::INTERNAL_MODULE;
+use crate::runtime_public_types::Arg;
 use lunarstorm_engine_contract::{Call, ErrorKind, Field, FnDecl, Item, Kind, ModuleDecl, Outcome, Param, Scope, Sig, Thrown, Ty, Vm};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::rc::Rc;
@@ -190,7 +190,7 @@ fn denied(call: &str, detail: &str) -> Fault {
 ///
 /// # Arguments
 /// * `host` - the host.
-/// * `op` - operation code from [`crate::fs::op`].
+/// * `op` - operation code from [`crate::blocking_filesystem_operations::op`].
 /// * `path` - the path operated on.
 /// * `extra` - the operation's data; the destination path of a rename.
 ///
@@ -219,7 +219,7 @@ fn fs_allowed<H: Host>(host: &H, op: i32, path: &str, extra: &[u8]) -> Result<()
 ///
 /// # Arguments
 /// * `shared` - loop state: the host and the pool.
-/// * `op` - operation code from [`crate::fs::op`].
+/// * `op` - operation code from [`crate::blocking_filesystem_operations::op`].
 /// * `path` - the path operated on.
 /// * `extra` - the operation's data; the destination path of a rename.
 /// * `req` - 0 to run inline, else the request id the result event carries.

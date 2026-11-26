@@ -16,10 +16,10 @@
 //!   the slot becomes [`Entry::Closed`] until the close event is delivered, so the key
 //!   cannot be reused by a new connection while a stale event is in flight.
 
-use crate::host::{Host, Stream};
+use crate::host_services_trait::{Host, Stream};
 use lunarstorm_http1::{self as http, Framing, Phase};
-use crate::pool::Pool;
-use crate::runtime::Arg;
+use crate::blocking_work_pool::Pool;
+use crate::runtime_public_types::Arg;
 use bytes::{Buf, BytesMut};
 use mio::net::{TcpListener, TcpStream};
 use mio::{Interest, Registry, Token};

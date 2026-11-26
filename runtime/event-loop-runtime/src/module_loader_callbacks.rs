@@ -30,11 +30,11 @@
 //!   which every engine supports. [`Load::Later`] is left to a future loader for
 //!   engines that report `async_module_load`.
 
-use crate::bindings::{HostModule, ModuleTable};
-use crate::host::{Access, Host};
-use crate::io::Shared;
-use crate::ipc::{Ipc, MODULE as IPC_MODULE};
-use crate::worker::{Workers, MODULE as WORKER_MODULE};
+use crate::host_bindings_registry::{HostModule, ModuleTable};
+use crate::host_services_trait::{Access, Host};
+use crate::reactor_io_state::Shared;
+use crate::ipc_module::{Ipc, MODULE as IPC_MODULE};
+use crate::worker_threads_module::{Workers, MODULE as WORKER_MODULE};
 use lunarstorm_module_sources::{FACADE, Modules, REQUIRE};
 use lunarstorm_engine_contract::{Callbacks, Image, Load, ModuleMeta, ModuleSource, Scope, Vm};
 use lunarstorm_jbn_package_format::Package;

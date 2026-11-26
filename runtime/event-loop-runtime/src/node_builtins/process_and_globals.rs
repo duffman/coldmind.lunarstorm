@@ -10,11 +10,11 @@
 //! - `crypto` and `performance` are installed only when the engine has none.
 
 use super::{arg, f, p, Node, Slot};
-use crate::bindings::declared;
-use crate::host::Host;
-use crate::io::Shared;
-use crate::ops::{arch, platform, print, ENTROPY_MAX};
-use crate::node::timers::NEXT_TICK;
+use crate::host_bindings_registry::declared;
+use crate::host_services_trait::Host;
+use crate::reactor_io_state::Shared;
+use crate::internal_natives::{arch, platform, print, ENTROPY_MAX};
+use crate::node_builtins::timers_and_ticks::NEXT_TICK;
 use lunarstorm_engine_contract::{Call, ErrorKind, Field, FnDecl, Item, Kind, ModuleDecl, Outcome, Scope, Ty, Vm};
 use std::rc::Rc;
 
@@ -61,7 +61,7 @@ const MEMBERS: [Item; 16] = [
     Item::Value(Field { name: "stdout", ty: Ty::Object(&STREAM), about: "Standard output." }),
     Item::Value(Field { name: "stderr", ty: Ty::Object(&STREAM), about: "Standard error." }),
     Item::Value(Field { name: "env", ty: Ty::Object(&[]), about: "The environment, copied from the host on first read." }),
-    Item::Class(super::events::EVENT_EMITTER),
+    Item::Class(super::event_emitter::EVENT_EMITTER),
 ];
 
 /// # Returns

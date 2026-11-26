@@ -2,7 +2,7 @@
 //!
 //! The callbacks wait in Rust ([`Queues`]) as persistent handles; the reactor
 //! owns the timers themselves (`Io::timer_start`). Ordering is the glue's,
-//! pinned by `node_surface`: nextTick callbacks, then promise jobs, then timers,
+//! pinned by `node_behaviour_pinned`: nextTick callbacks, then promise jobs, then timers,
 //! then immediates; a 0 ms timeout armed with an immediate fires after it.
 //!
 //! Decision: the scheduling functions are installed without their declaration's
@@ -13,9 +13,9 @@
 //! carry the types a script should use.
 
 use super::{arg, f, p, Node, Slot};
-use crate::bindings::declared;
-use crate::host::Host;
-use crate::io::Shared;
+use crate::host_bindings_registry::declared;
+use crate::host_services_trait::Host;
+use crate::reactor_io_state::Shared;
 use lunarstorm_engine_contract::{Call, ErrorKind, FnDecl, Item, Kind, ModuleDecl, Outcome, Param, Scope, Sig, Ty, Vm};
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;

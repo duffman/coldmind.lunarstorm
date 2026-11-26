@@ -5,7 +5,7 @@
 //! API and on a worker thread for the async API, so both paths share one
 //! implementation and one error format.
 
-use crate::io::Fault;
+use crate::reactor_io_state::Fault;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;

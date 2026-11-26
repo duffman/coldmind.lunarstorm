@@ -1,8 +1,8 @@
 //! `node:fs` and `node:fs/promises`: one table of operations, three flavours
-//! (sync, promise, callback), all over [`crate::fs::exec`].
+//! (sync, promise, callback), all over [`crate::blocking_filesystem_operations::exec`].
 //!
 //! Decisions:
-//! - The operation codes are [`crate::fs::op`] itself; the glue's hand-copied
+//! - The operation codes are [`crate::blocking_filesystem_operations::op`] itself; the glue's hand-copied
 //!   `FS_*` table is gone.
 //! - An asynchronous request is a promise made with [`Scope::promise`]; its
 //!   resolver waits in [`Pending`] (owned by `Node`, cleared on stop) until the
@@ -16,12 +16,12 @@
 //!   checked (`fs: data must be ...`). The declarations carry the types a script
 //!   should use.
 
-use super::buffer::{as_buffer, utf8_only};
+use super::buffer_and_text_codecs::{as_buffer, utf8_only};
 use super::{f, is_object, p, Node, Slot};
-use crate::fs::{op, FsValue};
-use crate::host::Host;
-use crate::io::{Fault, Shared};
-use crate::ops::{fs_run, fs_value, DATA};
+use crate::blocking_filesystem_operations::{op, FsValue};
+use crate::host_services_trait::Host;
+use crate::reactor_io_state::{Fault, Shared};
+use crate::internal_natives::{fs_run, fs_value, DATA};
 use lunarstorm_engine_contract::{Call, ClassDecl, ClassSpec, ErrorKind, Field, FnDecl, Item, Kind, ModuleDecl, Outcome, Scope, Sig, Thrown, Ty, Vm};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;

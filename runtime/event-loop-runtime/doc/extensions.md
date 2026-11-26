@@ -54,7 +54,7 @@ Runtime/VM/Host call; the platform level is an object-safe trait registered when
 
 ## A runtime-level extension
 
-Built: `src/extension.rs`, checked by `tests/extensions.rs`. The first extension is HostApi
+Built: `src/extension.rs`, checked by `tests/extension_loading.rs`. The first extension is HostApi
 (`extensions/hostapi`).
 
 A runtime-level extension contributes a `Bindings` set, the mechanism hosts already use: natives on `ops`

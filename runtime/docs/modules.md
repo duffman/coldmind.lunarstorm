@@ -41,7 +41,7 @@ Host modules and builtins win over a `node_modules` package of the same name, as
 `bootstrap.js` returns `{ modules, internal, exportsOf, ... }`, and the Runtime keeps it in
 `Registry` (modules.rs:64). On first import of `node:fs`, `declare_builtin` reads `modules.fs`,
 asks `exportsOf('fs')` for the key list and declares a native module. Nothing is published on the
-global object; `builtins_are_native_modules_and_no_hidden_global_exists` (tests/embed.rs) guards
+global object; `builtins_are_native_modules_and_no_hidden_global_exists` (tests/runtime_embedding.rs) guards
 this. The globals that do exist are web/Node conveniences set by the glue: `console`, `process`,
 `Buffer`, `setTimeout` and friends, `TextEncoder`/`TextDecoder`, `crypto.getRandomValues`,
 `performance.now`, `global`.

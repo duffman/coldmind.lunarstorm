@@ -44,11 +44,12 @@
 //!   cannot unwind out of a native call, so `process.exit` in a worker ends whatever
 //!   `exit` ends.
 
-use crate::channel::{Channel, Nudge};
-use crate::host::{Access, Host};
-use crate::io::Shared;
-use crate::ipc::Ipc;
-use crate::runtime::{Runtime, Source};
+use crate::cross_thread_message_channel::{Channel, Nudge};
+use crate::host_services_trait::{Access, Host};
+use crate::reactor_io_state::Shared;
+use crate::ipc_module::Ipc;
+use crate::runtime_instance::Runtime;
+use crate::runtime_public_types::Source;
 use lunarstorm_engine_contract::{Call, ErrorKind, Interrupt, Kind, Limits, Outcome, Scope, Vm};
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
