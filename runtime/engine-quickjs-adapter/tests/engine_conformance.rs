@@ -1,6 +1,6 @@
 //! Runs the VM conformance suite against the QuickJS adapter.
 
-use lunarstorm_engine_contract::conformance;
+use lunarstorm_engine_contract::engine_conformance_suite as conformance;
 use lunarstorm_engine_quickjs_adapter::QuickJs;
 
 #[test]

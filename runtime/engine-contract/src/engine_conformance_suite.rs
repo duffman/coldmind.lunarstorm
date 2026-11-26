@@ -5,7 +5,7 @@
 //! ```text
 //! #[test]
 //! fn conforms() {
-//!     lunarstorm_engine_contract::conformance::run::<MyVm>();
+//!     lunarstorm_engine_contract::engine_conformance_suite::run::<MyVm>();
 //! }
 //! ```
 //!

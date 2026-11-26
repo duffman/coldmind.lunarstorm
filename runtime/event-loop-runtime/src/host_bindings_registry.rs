@@ -15,7 +15,7 @@
 //! - The boxed installers run once, at `start`. Calls into a registered function
 //!   afterwards go through the argument check ([`declared`]) to the closure.
 //! - Functions, classes and native modules require a declaration
-//!   ([`lunarstorm_engine_contract::types`]): it checks every call's arguments and lists the
+//!   ([`lunarstorm_engine_contract::native_declarations`]): it checks every call's arguments and lists the
 //!   binding in [`crate::Runtime::declarations`]. Only [`Bindings::module`]
 //!   (source text, for third-party extensions) and [`Bindings::values`] stay
 //!   undeclared.
