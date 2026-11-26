@@ -4,13 +4,21 @@
 //! implement the shared contract. Stock QuickJS-NG has no qualified interactive
 //! backend: select an explicit Disabled debugging profile. Default Development
 //! requirements still fail with Unsupported before application execution.
+#[path = "quickjs_ng_debug_engine/attach_to_foreign_context.rs"]
 mod attach;
+#[path = "quickjs_ng_debug_engine/rust_compiler_hookup.rs"]
 mod compiler;
+#[path = "quickjs_ng_debug_engine/native_callback_trampolines.rs"]
 mod callbacks;
+#[path = "quickjs_ng_debug_engine/bounded_value_copies.rs"]
 mod data;
+#[path = "quickjs_ng_debug_engine/native_debugger_pump.rs"]
 mod debug;
+#[path = "quickjs_ng_debug_engine/quickjs_c_abi.rs"]
 mod ffi;
+#[path = "quickjs_ng_debug_engine/prepared_module_graphs.rs"]
 mod modules;
+#[path = "quickjs_ng_debug_engine/native_scope_operations.rs"]
 mod scope;
 
 /// Links the forked `rquickjs-sys`, the one crate that compiles QuickJS-NG and the `jbq_*`
@@ -684,7 +692,7 @@ unsafe extern "C" fn interrupted(opaque: *mut c_void) -> std::ffi::c_int {
 }
 
 #[cfg(test)]
-#[path = "../../../tests/unit/quickjs_ng_lifecycle_coverage.rs"]
+#[path = "../../tests/unit/quickjs_ng_lifecycle_coverage.rs"]
 mod tests;
 
 // lunarstorm patch: jetbunny ran its public acceptance tests (quickjs_ng_data, _vm,
@@ -697,7 +705,7 @@ mod tests;
 // files in tests/ are, so its `use coldmind_runtime::...` resolves through the
 // crate's `extern crate self as coldmind_runtime`.
 #[cfg(test)]
-#[path = "../../../tests/quickjs_ng_debug_exceptions.rs"]
+#[path = "../../tests/quickjs_ng_debug_exceptions.rs"]
 mod debug_exceptions_acceptance;
 
 /// Factory registered by applications that compile in the native QuickJS adapter.
@@ -725,4 +733,5 @@ impl crate::engines::EngineFactory for QuickJsNgFactory {
 
 
 #[cfg(test)]
+#[path = "quickjs_ng_debug_engine/native_debug_hook_regression_tests.rs"]
 mod debug_tests;

@@ -50,6 +50,7 @@ pub(crate) enum Delivery {
     Message(Key),
     Completion(Key),
 }
+#[path = "application_lanes/sleep_gate.rs"]
 mod gate;
 use gate::Gate;
 /// Producer-side admission policy containing copied metadata, never live engine
@@ -57,7 +58,7 @@ use gate::Gate;
 pub type MessageValidator<M> = Arc<dyn Fn(&M) -> Result<(), RejectionReason> + Send + Sync>;
 pub(crate) type StopHook = Arc<dyn Fn() -> Result<(), FailureReport> + Send + Sync>;
 #[cfg(test)]
-#[path = "../../tests/unit/transport.rs"]
+#[path = "../tests/unit/transport.rs"]
 mod tests;
 pub(crate) trait Wake: Send + Sync {
     fn wake(&self) -> io::Result<()>;

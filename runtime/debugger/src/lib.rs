@@ -7,19 +7,28 @@
 //! `SourceDigest`, `FailureReport`, identities).
 //!
 //! An engine adapter implements [`debug::DebugBackend`] on its native hooks.
+//!
+//! Decision: file names say what each file holds (`debug_session/pause_coordinator.rs`,
+//! `engine_adapters/quickjs_ng_debug_engine/native_debugger_pump.rs`); module names
+//! stay jetbunny's (`debug`, `engine`, `engines::quickjs_ng`, `vm`), bound to the files
+//! by `#[path]`. The code and jetbunny's tests (`coldmind_runtime::debug::...`) stay
+//! verbatim, so upstream changes still apply as they are.
 
 // jetbunny's tests import its crate by name.
 #[cfg(test)]
 extern crate self as coldmind_runtime;
 
+#[path = "debug_session.rs"]
 pub mod debug;
+#[path = "engine_neutral_types.rs"]
 pub mod engine;
+#[path = "engine_adapters.rs"]
 pub mod engines;
 
 /// The handle the debug target registry keeps per VM; Lunarstorm's host builds it
 /// from its Runtime's interrupt.
 #[cfg(not(test))]
-#[path = "vm.rs"]
+#[path = "debug_target_vm_handle.rs"]
 pub mod vm;
 
 // lunarstorm patch: jetbunny's own VM (`VirtualMachine`, its loop transport, module
@@ -31,32 +40,44 @@ pub mod vm;
 // has the same `runtime_epoch` / `request_stop` the registry calls (debug/targets.rs,
 // identical in both trees).
 #[cfg(test)]
-#[path = "vm/mod.rs"]
+#[path = "owner_thread_vm_facade.rs"]
 pub mod vm;
 #[cfg(test)]
+#[path = "index_arena.rs"]
 mod arena;
 #[cfg(test)]
+#[path = "module_identity_and_graphs.rs"]
 pub mod modules;
 #[cfg(test)]
 #[doc(hidden)]
+#[path = "owner_thread_socket_reactor.rs"]
 pub mod owner_io;
 #[cfg(test)]
+#[path = "admitted_program_handoff.rs"]
 pub mod program;
 #[cfg(test)]
+#[path = "application_lanes.rs"]
 pub mod transport;
 #[cfg(test)]
+#[path = "scheduling_budgets.rs"]
 mod config;
 #[cfg(test)]
+#[path = "owner_thread_callbacks.rs"]
 mod driver;
 #[cfg(test)]
+#[path = "owner_admission_controls.rs"]
 mod host;
 #[cfg(test)]
+#[path = "ready_item_queue.rs"]
 mod ready;
 #[cfg(test)]
+#[path = "owner_thread_pump.rs"]
 mod runner;
 #[cfg(test)]
+#[path = "monotonic_timer_schedule.rs"]
 mod timers;
 #[cfg(test)]
+#[path = "dev_tracing.rs"]
 pub mod trace;
 /// Owner-thread scheduling, native TCP readiness, and bounded producer transport
 /// (jetbunny's, test build only; see `vm`).

@@ -1,5 +1,7 @@
 //! Engine-independent module identity, providers, and bounded owner-local graphs.
+#[path = "module_identity_and_graphs/module_providers.rs"]
 mod providers;
+#[path = "module_identity_and_graphs/confined_source_tree.rs"]
 mod vfs;
 use crate::engine::*;
 pub use providers::{FileModuleProvider, MemoryModuleProvider};

@@ -1,5 +1,7 @@
 //! One owner-thread VM facade over the existing engine bridge and event loop.
+#[path = "owner_thread_vm_facade/command_transaction.rs"]
 pub(crate) mod command;
+#[path = "owner_thread_vm_facade/native_execution_state.rs"]
 mod modules;
 pub use crate::debug::{DebugSessionOptions, VmDebugHandle};
 use crate::{
@@ -704,18 +706,18 @@ impl<E: JsEngine> Drop for VirtualMachine<E> {
 // Reuse the actual Rust contract adapter from integration tests. The crate-root
 // cfg(test) alias resolves its public imports without a production test hook.
 #[cfg(test)]
-#[path = "../../tests/support/mod.rs"]
+#[path = "../tests/support/mod.rs"]
 pub(crate) mod contract_fixture;
 #[cfg(test)]
-#[path = "../../tests/support/allocator.rs"]
+#[path = "../tests/support/allocator.rs"]
 pub(crate) mod test_allocator;
 
 #[cfg(all(test, not(miri)))]
-#[path = "../../tests/unit/vm_bench.rs"]
+#[path = "../tests/unit/vm_bench.rs"]
 mod benchmarks;
 #[cfg(test)]
-#[path = "../../tests/unit/vm_faults.rs"]
+#[path = "../tests/unit/vm_faults.rs"]
 pub(crate) mod faults;
 #[cfg(test)]
-#[path = "../../tests/unit/vm.rs"]
+#[path = "../tests/unit/vm.rs"]
 mod tests;

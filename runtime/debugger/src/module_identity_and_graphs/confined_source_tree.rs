@@ -9,12 +9,14 @@
 //! Resolvers query [`VirtualDir`] instead of the disk. A provider sees one snapshot for its
 //! lifetime (one build or run); a name missing from a cached listing re-reads that one
 //! directory once, so files created after the listing are still found.
+#[path = "confined_source_tree/cached_directory_listing.rs"]
 mod entries;
+#[path = "confined_source_tree/cached_path_resolution.rs"]
 mod virtual_dir;
 
 pub(crate) use entries::Kind;
 pub(crate) use virtual_dir::VirtualDir;
 
 #[cfg(test)]
-#[path = "../../../tests/unit/virtual_dir.rs"]
+#[path = "../../tests/unit/virtual_dir.rs"]
 mod tests;

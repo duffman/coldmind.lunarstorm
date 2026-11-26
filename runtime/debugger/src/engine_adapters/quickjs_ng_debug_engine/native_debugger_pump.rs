@@ -13,9 +13,9 @@ use std::{
     },
     time::Instant,
 };
-#[path = "inspection.rs"]
+#[path = "native_inspection.rs"]
 mod inspection;
-#[path = "rejections.rs"]
+#[path = "rejection_bookkeeping.rs"]
 mod rejections;
 const PAGE_LIMIT: usize = 1024;
 type FrameVariable = (JsString, Rc<NativeValue>, i32, i32);

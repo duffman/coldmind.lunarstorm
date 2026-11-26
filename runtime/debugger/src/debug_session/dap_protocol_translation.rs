@@ -5,7 +5,7 @@ use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::value::RawValue;
 use std::{collections::HashMap, fmt, mem::size_of};
 
-#[path = "target_dap.rs"]
+#[path = "worker_dap_multiplexing.rs"]
 mod target_sessions;
 
 /// Framing, schema, bound, or typed debugger error at the IDE boundary.
