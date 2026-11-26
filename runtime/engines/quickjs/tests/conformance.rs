@@ -5,5 +5,5 @@ use lunarstorm_vm_quickjs::QuickJs;
 
 #[test]
 fn quickjs_conforms_to_the_vm_contract() {
-    assert_eq!(conformance::run::<QuickJs>(), 15);
+    assert_eq!(conformance::run::<QuickJs>(), 19);
 }
