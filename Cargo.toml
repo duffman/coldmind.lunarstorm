@@ -34,6 +34,7 @@
 #                     package mounted by cli/app
 #     cli/app         the `lunar` command line: `run` (runtime), `build` (pipeline),
 #                     `project`; one Cargo feature per package; see doc/cli.md
+#     cli/templates   `lunar project init` templates: program, module
 #     cli/lunarstation  the `lunarstation` command line: lunar's packages on the CLI
 #                     host under its own name and external prefix
 #     desktop/host    desktop app host: a desktop application's backend on the Runtime,
@@ -41,6 +42,7 @@
 #     desktop/app     native desktop process: lib + `lunarstorm-debug`, `lunarstorm-release`
 #     desktop/pack    `lunarstorm-pack`: archive, attach, package and sign per OS
 #     desktop/web     `lunarstorm-web`: the app in a browser tab, backend in a Worker
+#     desktop/templates `lunar project init` templates: app (also the desktop starter)
 #     desktop/examples/app  a complete generated project (not a crate)
 #     project         `lunar project`: init, insight, compile, sign (used by cli and desktop)
 #     development     the `development` application
@@ -94,6 +96,8 @@ members = [
     "platform/desktop/pack",
     "platform/desktop/web",
     "platform/project",
+    "platform/cli/templates",
+    "platform/desktop/templates",
     "platform/cli/lunarstation",
     "platform/development",
     "crates/cliui",

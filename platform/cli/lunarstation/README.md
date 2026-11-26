@@ -12,7 +12,7 @@ packages enabled by Cargo features, and exits with `cli.run(args)`.
 | `runtime` | `lunarstorm-host-cli` | `run` (default) |
 | `build`   | `lunarstorm-pipeline` | `build`, `build types`, `build check` |
 | `frontend`| `devtools-cli`        | `serve`, `bundle`, `preview`, `transpile` |
-| `project` | `lunarstorm-project`  | `project init`, `insight`, `compile`, `sign` |
+| `project` | `lunarstorm-project`  | `project init`, `insight`, `compile`, `sign`, `templates` |
 
 The host adds `describe`, `completions`, `--color`, `--help`, `--version`, and runs an
 unknown `lunarstation <name>` as `lunarstation-<name>` from `PATH`.

@@ -42,4 +42,4 @@ Tests (`tests/`) run the real binary through `CARGO_BIN_EXE_lunarstorm`:
 - Features select packages at compile time, so a `--no-default-features --features build` binary has no runtime at all; the `run` tests in `cli.rs` and `ui.rs` need the default features.
 - The old `lunarstorm` binary of `platform/cli/host` is archived in `.archive/2026-11-24/`; its end-to-end tests live here now and the command line is unchanged.
 - Test scratch directories: `commands.rs` uses `CARGO_TARGET_TMPDIR` (under the cargo target dir); `cli.rs` uses `std::env::temp_dir()` and deletes/recreates `lunarstorm-test-<name>-<pid>` on every call.
-- `commands.rs` reads `templates/starters/desktop` from the repo, so it must run from a full checkout.
+- `commands.rs` reads `platform/desktop/templates/app` from the repo, so it must run from a full checkout.

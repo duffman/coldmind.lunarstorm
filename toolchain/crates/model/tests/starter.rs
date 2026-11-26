@@ -8,7 +8,7 @@ use lunarstorm_model::{extract, Element, Value};
 /// # Returns
 /// The starter project's directory.
 fn starter() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../templates/starters/desktop")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../platform/desktop/templates/app")
 }
 
 /// Finds an element by name anywhere under `root`.

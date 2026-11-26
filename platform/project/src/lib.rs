@@ -8,4 +8,4 @@
 pub mod command;
 pub mod developer;
 
-pub use command::package;
+pub use command::{package, Templates};

@@ -24,8 +24,9 @@ runtime = ["dep:lunarstorm-host-cli"]
 build = ["dep:lunarstorm-pipeline"]
 # `serve`, `bundle`, `preview`, `transpile`: the frontend tools (toolchain/crates/cli).
 frontend = ["dep:devtools-cli"]
-# `project init`, `insight`, `compile`, `sign` (platform/project).
-project = ["dep:lunarstorm-project"]
+# `project init`, `insight`, `compile`, `sign`, `templates` (platform/project), with the
+# cli and desktop templates.
+project = ["dep:lunarstorm-project", "dep:lunarstorm-cli-templates", "dep:lunarstorm-desktop-templates"]
 
 [dependencies]
 lunarstorm-cli-host = { path = "../../../crates/cli-host" }
@@ -33,6 +34,8 @@ lunarstorm-host-cli = { path = "../host", optional = true }
 lunarstorm-pipeline = { path = "../../../toolchain/crates/pipeline", optional = true }
 devtools-cli = { path = "../../../toolchain/crates/cli", optional = true }
 lunarstorm-project = { path = "../../project", optional = true }
+lunarstorm-cli-templates = { path = "../templates", optional = true }
+lunarstorm-desktop-templates = { path = "../../desktop/templates", optional = true }
 
 [dev-dependencies]
 serde_json.workspace = true

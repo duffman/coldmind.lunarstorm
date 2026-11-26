@@ -1,0 +1,5 @@
+{
+  "description": "a desktop app: one window with a form, built by lunar build",
+  "type": "desktop",
+  "main": "src/app.tsx"
+}

@@ -1,0 +1,10 @@
+# The desktop product's project templates for `lunar project init`: `app`. Each
+# folder holding a `template.json` is one template; `build.rs` (the same script as
+# lunarstorm-cli-templates) embeds them. No dependencies, so `lunar` can mount them
+# without linking the desktop host.
+[package]
+name = "lunarstorm-desktop-templates"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Lunarstorm desktop project templates: app"

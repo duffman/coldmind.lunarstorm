@@ -22,3 +22,6 @@ serde_json.workspace = true
 tempfile.workspace = true
 # The tests run the commands through the real command-line host.
 lunarstorm-cli-host = { path = "../../crates/cli-host" }
+# The products' templates, mounted as `lunar` mounts them.
+lunarstorm-cli-templates = { path = "../cli/templates" }
+lunarstorm-desktop-templates = { path = "../desktop/templates" }

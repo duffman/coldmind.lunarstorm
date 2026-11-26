@@ -8,7 +8,8 @@ use serde_json::Value;
 use std::fs;
 use std::path::Path;
 
-/// Runs `lunar <words>` with only the project package mounted.
+/// Runs `lunar <words>` with only the project package mounted, with the cli and
+/// desktop templates as `lunar` mounts them.
 ///
 /// # Arguments
 /// * `words` - the command line after the program name.
@@ -16,7 +17,8 @@ use std::path::Path;
 /// # Returns
 /// The exit status.
 fn lunar(words: &[&str]) -> i32 {
-    Cli::new("lunar", "lunar", "0", "test").package(lunarstorm_project::command::package()).run(words.iter().map(|w| (*w).to_owned()).collect())
+    let templates = &[("cli", lunarstorm_cli_templates::FILES), ("desktop", lunarstorm_desktop_templates::FILES)];
+    Cli::new("lunar", "lunar", "0", "test").package(lunarstorm_project::command::package(templates)).run(words.iter().map(|w| (*w).to_owned()).collect())
 }
 
 /// # Arguments
@@ -157,4 +159,51 @@ fn a_developer_key_is_refused_from_another_root_expired_or_tampered() {
     let extended = file.replace("1000", "9999999999");
     assert!(DeveloperKey::open(extended.as_bytes(), &root, 0).err().expect("refused").contains("not issued"));
     assert!(developer::issue(&der, "Bad Id", 1).is_err());
+}
+
+#[test]
+fn init_writes_a_desktop_app_that_compile_refuses() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let app = dir.path().join("notes");
+    let path = app.to_str().unwrap();
+    assert_eq!(lunar(&["project", "templates"]), 0);
+    assert_eq!(lunar(&["project", "init", path, "--template", "desktop/app", "--mode", "node"]), 1);
+    assert!(!app.join("package.json").exists());
+    assert_eq!(lunar(&["project", "init", path, "--template", "desktop/app"]), 0);
+
+    let description = json(&app.join("package.json"));
+    assert_eq!(description["name"], "notes");
+    assert_eq!(description["main"], "src/app.tsx");
+    assert_eq!(description["lunar"]["type"], "desktop");
+    assert!(description.get("scripts").is_none());
+    for file in ["src/app.tsx", "src/forms/main.ts", "src/forms/main.view.tsx"] {
+        assert!(app.join(file).is_file(), "{file}");
+    }
+    assert!(!app.join("template.json").exists());
+    assert!(fs::read_to_string(app.join(".gitignore")).unwrap().contains("dist/"));
+    assert!(fs::read_to_string(app.join("README.md")).unwrap().starts_with("# notes\n"));
+    assert_eq!(lunar(&["project", "compile", path]), 1);
+    assert!(!app.join("build").exists());
+}
+
+#[test]
+fn init_takes_a_template_folder_and_refuses_unknown_or_broken_templates() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let template = dir.path().join("tool");
+    fs::create_dir_all(template.join("bin")).unwrap();
+    fs::write(template.join("template.json"), r#"{"description": "a tool", "type": "program", "main": "bin/run.ts"}"#).unwrap();
+    fs::write(template.join("bin/run.ts"), "console.log('{{name}} runs');\n").unwrap();
+    fs::write(template.join(".DS_Store"), "x").unwrap();
+    let app = dir.path().join("Tool Box");
+    assert_eq!(lunar(&["project", "init", app.to_str().unwrap(), "--template", template.to_str().unwrap()]), 0);
+    assert_eq!(json(&app.join("package.json"))["scripts"]["start"], "lunar bin/run.ts");
+    assert_eq!(fs::read_to_string(app.join("bin/run.ts")).unwrap(), "console.log('tool-box runs');\n");
+    assert!(!app.join(".DS_Store").exists());
+    assert!(fs::read_to_string(app.join(".gitignore")).unwrap().contains(".lunar/"));
+
+    let other = dir.path().join("other");
+    assert_eq!(lunar(&["project", "init", other.to_str().unwrap(), "--template", "desktop/nope"]), 1);
+    fs::write(template.join("template.json"), r#"{"type": "program", "main": "src/missing.ts"}"#).unwrap();
+    assert_eq!(lunar(&["project", "init", other.to_str().unwrap(), "--template", template.to_str().unwrap()]), 1);
+    assert!(!other.exists());
 }

@@ -107,7 +107,7 @@ case "$cmd" in
   smoke)
     "$0" build
     "$0" cli
-    "$0" pipeline templates/starters/desktop
+    "$0" pipeline platform/desktop/templates/app
     "$0" web platform/desktop/examples/app \
       wait .vcl-statusbar Ready shot "$state/web-before.png" \
       type input.vcl-edit ' 2' wait .vcl-statusbar Modified \

@@ -1,0 +1,5 @@
+{
+  "description": "a module other code imports",
+  "type": "module",
+  "main": "src/index.ts"
+}

@@ -32,7 +32,7 @@ lunar jbn key signing.der > trust.json     # new signing key, and a trust file f
 lunar jbn build src/main.ts -o app.jbn --key signing.der
 lunar run --trust trust.json app.jbn       # run a signed package (or LUNARSTORM_TRUST)
 lunar debug app.ts --port 8080             # Debug Adapter Protocol on stdin/stdout; script stdout → stderr
-lunar build -p templates/starters/desktop  # build into <project>/dist
+lunar build -p platform/desktop/templates/app  # build into <project>/dist
 lunar build -p app -o out                  # build into out/
 lunar build types -p app                   # write app/src/desktop.d.ts
 lunar build check -p app                   # report compile errors, write nothing

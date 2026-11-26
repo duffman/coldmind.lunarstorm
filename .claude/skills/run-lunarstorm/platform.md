@@ -22,7 +22,7 @@ all four:
 | `runtime` | `lunarstorm-host-cli` | `run` (default command), `debug` (DAP on stdio), `jbn key`, `jbn build` |
 | `build` | `lunarstorm-pipeline` | `build [-p dir] [-o dir]`, `build types`, `build check` |
 | `frontend` | `devtools-cli` | `serve`, `bundle`, `preview`, `transpile` |
-| `project` | `lunarstorm-project` (`platform/project`) | `project init`, `project insight`, `project compile`, `project sign` |
+| `project` | `lunarstorm-project` (`platform/project`) | `project init` (`--template cli/program|cli/module|desktop/app|<folder>`), `project templates`, `project insight`, `project compile`, `project sign` |
 
 The host adds `help`, `describe` (the whole tree as JSON), `completions <bash|zsh>`, `--color`,
 `--help` and `--version`.
@@ -116,8 +116,8 @@ It does not check that `--runtime` matches `--target`.
 ## Operate
 
 ```sh
-.claude/skills/run-lunarstorm/driver.sh pipeline templates/starters/desktop   # -> .scratch/run-lunarstorm/dist
-~/.cargo-target/debug/lunar build check -p templates/starters/desktop         # ok: 1 form(s)
+.claude/skills/run-lunarstorm/driver.sh pipeline platform/desktop/templates/app   # -> .scratch/run-lunarstorm/dist
+~/.cargo-target/debug/lunar build check -p platform/desktop/templates/app         # ok: 1 form(s)
 .claude/skills/run-lunarstorm/driver.sh web platform/desktop/examples/app wait .vcl-statusbar Ready shot .scratch/run-lunarstorm/web.png
 .claude/skills/run-lunarstorm/driver.sh desktop platform/desktop/examples/app
 .claude/skills/run-lunarstorm/driver.sh stop

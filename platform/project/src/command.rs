@@ -8,6 +8,8 @@
 //!
 //! ```text
 //! lunar project init [dir] --type module|program --mode lunar|node
+//! lunar project init [dir] --template desktop/app | <folder>
+//! lunar project templates
 //! lunar project insight [dir]
 //! lunar project compile [dir]            build/<name>.jbn, development key
 //! lunar project sign [dir] --key <developer.json>
@@ -15,8 +17,17 @@
 //!
 //! Decisions:
 //! - The project description is `package.json`: `name`, `version`, `main` (the
-//!   entry) and a `lunar` object with `type` and `mode`. No other file is needed,
-//!   and no template: `init` writes the few files itself.
+//!   entry) and a `lunar` object with `type` and `mode`. No other file is needed.
+//! - Templates come from the products, not from this crate: the binary passes each
+//!   product's embedded files ([`Templates`]) to [`package`], so this crate names no
+//!   product and a binary mounts only the templates it ships. A template folder is
+//!   `template.json` (`description`, `type`, `main`) plus the files to write;
+//!   `{{name}}` in a UTF-8 file becomes the package name, and `gitignore` is written
+//!   as `.gitignore`. `init` writes `package.json` itself from `type`, `main` and
+//!   `--mode`, so templates carry no conditionals. `--type` picks `cli/<type>`;
+//!   `--template` overrides it with a mounted name or a folder on disk.
+//! - A `desktop` project is built by `lunar build -p` (lunarstorm-pipeline), so
+//!   `compile` and `sign` refuse it, and `init` refuses `--mode node` for it.
 //! - `compile` signs with a per-project development key (`.lunar/dev.der`, made on
 //!   first use, owner-only) and writes `build/trust.json` naming it, so
 //!   `lunar run --trust build/trust.json build/<name>.jbn` runs the build. A `.jbn`
@@ -34,15 +45,27 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// One product's embedded templates, as its templates crate exports them:
+/// `(product, files)`, each file `("<template>/<path>", bytes)`. A template is named
+/// `<product>/<template>` on the command line.
+pub type Templates = (&'static str, &'static [(&'static str, &'static [u8])]);
+
 /// The project package.
-struct ProjectPackage;
+struct ProjectPackage {
+    /// The templates `init` can use, per product.
+    templates: &'static [Templates],
+}
 
 /// Returns the project package for mounting on the command line.
 ///
+/// # Arguments
+/// * `templates` - the products' templates `init` offers; `--type` needs `cli/program`
+///   and `cli/module` among them.
+///
 /// # Returns
 /// The package; it exports `project`.
-pub fn package() -> Box<dyn Package> {
-    Box::new(ProjectPackage)
+pub fn package(templates: &'static [Templates]) -> Box<dyn Package> {
+    Box::new(ProjectPackage { templates })
 }
 
 impl Package for ProjectPackage {
@@ -62,6 +85,7 @@ impl Package for ProjectPackage {
     /// `project` with `init`, `insight`, `compile` and `sign`.
     fn commands(&self) -> Vec<Command> {
         let directory = || Arg::positional("dir").value(lunarstorm_cli_contract::ValueType::Path).default(".").about("the project directory");
+        let templates = self.templates;
         let release = || Arg::option("release").value(lunarstorm_cli_contract::ValueType::Int).default("1").about("release number trust stores compare");
         vec![Command::new("project", "create, inspect, compile and sign a Lunarstorm project")
             .child(
@@ -69,9 +93,12 @@ impl Package for ProjectPackage {
                     .arg(directory())
                     .arg(Arg::option("type").choices(&["module", "program"]).default("program").about("a program to run, or a module to import"))
                     .arg(Arg::option("mode").choices(&["lunar", "node"]).default("lunar").about("the runtime it targets"))
-                    .run(init)
-                    .example("lunar project init hello --type program --mode lunar"),
+                    .arg(Arg::option("template").placeholder("<product/name|folder>").about("a template from `lunar project templates`, or a template folder; overrides --type"))
+                    .run(move |invocation| init(invocation, templates))
+                    .example("lunar project init hello --type program --mode lunar")
+                    .example("lunar project init notes --template desktop/app"),
             )
+            .child(Command::new("templates", "list the templates init can use").run(move |_| list(templates)))
             .child(Command::new("insight", "summarize a project: description, dependencies, files and build").arg(directory()).run(insight))
             .child(
                 Command::new("compile", "compile to runtime bytecode: build/<name>.jbn, signed with a development key")
@@ -89,6 +116,143 @@ impl Package for ProjectPackage {
                     .example("lunar project sign --key ~/.lunarstorm/developer.json"),
             )]
     }
+}
+
+/// A project template: what `init` writes besides `package.json`.
+struct Template {
+    /// `program`, `module` or `desktop`: `lunar.type` in `package.json`.
+    kind: String,
+    /// The entry file: `main` in `package.json`.
+    main: String,
+    /// The files to write, by path relative to the project; `template.json` left out.
+    files: Vec<(String, Vec<u8>)>,
+}
+
+impl Template {
+    /// Builds a template from its files.
+    ///
+    /// # Arguments
+    /// * `files` - every file of the template folder, `template.json` included.
+    /// * `origin` - the template's name or folder, for errors.
+    ///
+    /// # Returns
+    /// The template.
+    ///
+    /// # Errors
+    /// No or malformed `template.json`, an unknown `type`, or no file for `main`.
+    fn parse(files: Vec<(String, Vec<u8>)>, origin: &str) -> Result<Template, Failure> {
+        let (meta, files): (Vec<_>, Vec<_>) = files.into_iter().partition(|(path, _)| path == "template.json");
+        let (_, meta) = meta.into_iter().next().ok_or_else(|| Failure::failed(format!("{origin}: no template.json")))?;
+        let json: Value = serde_json::from_slice(&meta).map_err(|e| Failure::failed(format!("{origin}/template.json: {e}")))?;
+        let field = |key: &str| json.get(key).and_then(Value::as_str).map(str::to_owned).ok_or_else(|| Failure::failed(format!("{origin}/template.json has no \"{key}\"")));
+        let (kind, main) = (field("type")?, field("main")?);
+        if !matches!(kind.as_str(), "program" | "module" | "desktop") {
+            return Err(Failure::failed(format!("{origin}/template.json: type {kind:?} is not program, module or desktop")));
+        }
+        if !files.iter().any(|(path, _)| *path == main) {
+            return Err(Failure::failed(format!("{origin}: no file {main} for \"main\"")));
+        }
+        Ok(Template { kind, main, files })
+    }
+
+    /// Finds a mounted template.
+    ///
+    /// # Arguments
+    /// * `templates` - the mounted products' templates.
+    /// * `name` - `<product>/<template>`.
+    ///
+    /// # Returns
+    /// The template.
+    ///
+    /// # Errors
+    /// No such template (the error lists the mounted ones), or a broken one.
+    fn mounted(templates: &[Templates], name: &str) -> Result<Template, Failure> {
+        let found = name.split_once('/').and_then(|(product, template)| {
+            let (_, files) = templates.iter().find(|(p, _)| *p == product)?;
+            let prefix = format!("{template}/");
+            let files: Vec<(String, Vec<u8>)> = files.iter().filter_map(|(path, bytes)| path.strip_prefix(prefix.as_str()).map(|p| (p.to_owned(), bytes.to_vec()))).collect();
+            (!files.is_empty()).then_some(files)
+        });
+        match found {
+            Some(files) => Template::parse(files, name),
+            None => {
+                let names: Vec<String> = catalog(templates).into_iter().map(|(name, _)| name).collect();
+                Err(Failure::failed(format!("no template {name}; available: {}", if names.is_empty() { String::from("none") } else { names.join(", ") })))
+            }
+        }
+    }
+
+    /// Reads a template folder from disk; names starting with `.` are skipped, as
+    /// the templates crates' `build.rs` skips them.
+    ///
+    /// # Arguments
+    /// * `folder` - the template folder.
+    ///
+    /// # Returns
+    /// The template.
+    ///
+    /// # Errors
+    /// An unreadable file, or a broken template.
+    fn folder(folder: &Path) -> Result<Template, Failure> {
+        /// Collects the files under `dir` as paths relative to `root`.
+        fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, Vec<u8>)>) -> Result<(), Failure> {
+            for entry in fs::read_dir(dir).map_err(io(dir))?.flatten() {
+                let path = entry.path();
+                if entry.file_name().to_string_lossy().starts_with('.') {
+                    continue;
+                }
+                if path.is_dir() {
+                    walk(root, &path, out)?;
+                } else {
+                    let relative = path.strip_prefix(root).expect("under the folder").to_string_lossy().replace('\\', "/");
+                    out.push((relative, fs::read(&path).map_err(io(&path))?));
+                }
+            }
+            Ok(())
+        }
+        let mut files = Vec::new();
+        walk(folder, folder, &mut files)?;
+        Template::parse(files, &folder.display().to_string())
+    }
+}
+
+/// Lists the mounted templates.
+///
+/// # Arguments
+/// * `templates` - the mounted products' templates.
+///
+/// # Returns
+/// `(<product>/<template>, description)` per template, sorted by name.
+fn catalog(templates: &[Templates]) -> Vec<(String, String)> {
+    let mut list: Vec<(String, String)> = templates
+        .iter()
+        .flat_map(|(product, files)| {
+            files.iter().filter_map(move |(path, bytes)| {
+                let template = path.strip_suffix("/template.json").filter(|t| !t.contains('/'))?;
+                let json: Value = serde_json::from_slice(bytes).ok()?;
+                Some((format!("{product}/{template}"), json.get("description").and_then(Value::as_str).unwrap_or("").to_owned()))
+            })
+        })
+        .collect();
+    list.sort();
+    list
+}
+
+/// The `templates` handler: prints each mounted template and its description.
+///
+/// # Arguments
+/// * `templates` - the mounted products' templates.
+///
+/// # Returns
+/// `0`.
+///
+/// # Errors
+/// None; the signature is the handler's.
+fn list(templates: &[Templates]) -> Result<i32, Failure> {
+    for (name, description) in catalog(templates) {
+        println!("{name:<16}{description}");
+    }
+    Ok(0)
 }
 
 /// The project description read from `package.json`.
@@ -124,6 +288,17 @@ impl Project {
     /// Its value, if it is a string.
     fn text(&self, key: &str) -> Option<&str> {
         self.json.get(key).and_then(Value::as_str)
+    }
+
+    /// Refuses a desktop project, which `lunar build` builds instead of `compile`.
+    ///
+    /// # Errors
+    /// `lunar.type` is `desktop`.
+    fn packable(&self) -> Result<(), Failure> {
+        match self.json.get("lunar").and_then(|l| l.get("type")).and_then(Value::as_str) {
+            Some("desktop") => Err(Failure::failed(format!("{} is a desktop project; build it with `lunar build -p {}`", self.root.display(), self.root.display()))),
+            _ => Ok(()),
+        }
     }
 
     /// # Returns
@@ -170,25 +345,39 @@ fn package_name(root: &Path) -> String {
     if name.is_empty() { String::from("app") } else { name }
 }
 
-/// The `init` handler: writes `package.json`, the entry file and `.gitignore`.
+/// The `init` handler: writes `package.json` and the template's files, and a default
+/// `.gitignore` when the template has none.
 ///
 /// Decision: it refuses a directory that already has a `package.json` rather than
-/// merging into it.
+/// merging into it, and never overwrites a file that exists.
+///
+/// # Arguments
+/// * `invocation` - `dir`, `type`, `mode` and `template`.
+/// * `templates` - the mounted products' templates.
 ///
 /// # Errors
-/// An existing project, or an unwritable directory.
-fn init(invocation: &mut Invocation) -> Result<i32, Failure> {
+/// An existing project, an unknown or broken template, `--mode node` for a desktop
+/// project, or an unwritable directory.
+fn init(invocation: &mut Invocation, templates: &[Templates]) -> Result<i32, Failure> {
     let values = &invocation.values;
     let root = values.path("dir").unwrap_or_else(|| PathBuf::from("."));
-    let kind = values.text("type").unwrap_or("program").to_owned();
     let mode = values.text("mode").unwrap_or("lunar").to_owned();
+    let template = match values.text("template") {
+        Some(folder) if Path::new(folder).is_dir() => Template::folder(Path::new(folder))?,
+        Some(name) => Template::mounted(templates, name)?,
+        None => Template::mounted(templates, &format!("cli/{}", values.text("type").unwrap_or("program")))?,
+    };
     if root.join("package.json").exists() {
         return Err(Failure::failed(format!("{} already has a package.json", root.display())));
     }
-    fs::create_dir_all(root.join("src")).map_err(io(&root))?;
+    if template.kind == "desktop" && mode == "node" {
+        return Err(Failure::failed("a desktop project runs on lunar; drop --mode node"));
+    }
+    fs::create_dir_all(&root).map_err(io(&root))?;
     let name = package_name(&root);
+    let kind = template.kind.clone();
     let program = kind == "program";
-    let entry = if program { "src/main.ts" } else { "src/index.ts" };
+    let entry = template.main.as_str();
     let mut description = json!({
         "name": name,
         "version": "0.1.0",
@@ -204,16 +393,25 @@ fn init(invocation: &mut Invocation) -> Result<i32, Failure> {
     if mode == "node" {
         description["engines"] = json!({ "node": ">=22.18" });
     }
-    let source = if program { format!("console.log('hello from {name}');\n") } else { format!("export const name = '{name}';\n") };
-    let files = [
-        ("package.json", serde_json::to_string_pretty(&description).expect("JSON") + "\n"),
-        (entry, source),
-        (".gitignore", String::from("build/\n.lunar/\nnode_modules/\n")),
-    ];
-    for (path, text) in &files {
+    let mut files: Vec<(String, Vec<u8>)> = vec![(String::from("package.json"), (serde_json::to_string_pretty(&description).expect("JSON") + "\n").into_bytes())];
+    for (path, bytes) in &template.files {
+        let path = if path == "gitignore" { String::from(".gitignore") } else { path.clone() };
+        let bytes = match std::str::from_utf8(bytes) {
+            Ok(text) => text.replace("{{name}}", &name).into_bytes(),
+            Err(_) => bytes.clone(),
+        };
+        files.push((path, bytes));
+    }
+    if !files.iter().any(|(path, _)| path == ".gitignore") {
+        files.push((String::from(".gitignore"), b"build/\n.lunar/\nnode_modules/\n".to_vec()));
+    }
+    for (path, bytes) in &files {
         let path = root.join(path);
         if !path.exists() {
-            fs::write(&path, text).map_err(io(&path))?;
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).map_err(io(parent))?;
+            }
+            fs::write(&path, bytes).map_err(io(&path))?;
         }
     }
     eprintln!("{}: {kind} '{name}' for {mode}, entry {entry}", root.display());
@@ -353,6 +551,7 @@ fn development_key(root: &Path) -> Result<Signer, Failure> {
 fn compile(invocation: &mut Invocation) -> Result<i32, Failure> {
     let root = invocation.values.path("dir").unwrap_or_else(|| PathBuf::from("."));
     let project = Project::open(&root)?;
+    project.packable()?;
     let signer = development_key(&root)?;
     let (output, bytes) = pack(&project, release(invocation)?, &signer, &[])?;
     eprintln!("{}: {bytes} bytes, development key; run with `lunar run --trust {} {}`", output.display(), output.with_file_name("trust.json").display(), output.display());
@@ -371,6 +570,7 @@ fn sign(invocation: &mut Invocation) -> Result<i32, Failure> {
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
     let key = developer::DeveloperKey::open(&bytes, &developer::ROOT, now).map_err(|e| Failure::failed(format!("{}: {e}", key_file.display())))?;
     let project = Project::open(&root)?;
+    project.packable()?;
     let (output, size) = pack(&project, release(invocation)?, &key.signer, &key.metadata())?;
     eprintln!("{}: {size} bytes, signed by {}", output.display(), key.developer);
     Ok(0)

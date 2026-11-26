@@ -3156,6 +3156,8 @@ version = "0.1.0"
 dependencies = [
  "devtools-cli",
  "lunarstorm-cli-host",
+ "lunarstorm-cli-templates",
+ "lunarstorm-desktop-templates",
  "lunarstorm-host-cli",
  "lunarstorm-pipeline",
  "lunarstorm-project",
@@ -3168,6 +3170,8 @@ dependencies = [
  "devtools-cli",
  "libc",
  "lunarstorm-cli-host",
+ "lunarstorm-cli-templates",
+ "lunarstorm-desktop-templates",
  "lunarstorm-host-cli",
  "lunarstorm-pipeline",
  "lunarstorm-project",
@@ -3186,6 +3190,10 @@ dependencies = [
  "lunarstorm-cliui",
  "serde_json",
 ]
+
+[[package]]
+name = "lunarstorm-cli-templates"
+version = "0.1.0"
 
 [[package]]
 name = "lunarstorm-cliui"
@@ -3212,6 +3220,10 @@ dependencies = [
  "tokio",
  "url",
 ]
+
+[[package]]
+name = "lunarstorm-desktop-templates"
+version = "0.1.0"
 
 [[package]]
 name = "lunarstorm-host-cli"
@@ -3340,6 +3352,8 @@ dependencies = [
  "ed25519-dalek",
  "lunarstorm-cli-contract",
  "lunarstorm-cli-host",
+ "lunarstorm-cli-templates",
+ "lunarstorm-desktop-templates",
  "lunarstorm-host-cli",
  "lunarstorm-jbn",
  "serde_json",

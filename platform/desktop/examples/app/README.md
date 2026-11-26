@@ -30,7 +30,7 @@ Nobody. This directory is hand-written output: its own comments say it "stands i
 4c generates" (`backend.js`), "stands in for 4b output" (`MainForm.js`) and "stands in for
 the React VCL" (`vcl.js`). The real pipeline (`lunarstorm build -p <project>`, crate
 `toolchain/crates/pipeline`) writes the same file set from a model project such as
-`templates/starters/desktop`, but with different content: its starter form has `OwnerEdit`,
+`platform/desktop/templates/app`, but with different content: its starter form has `OwnerEdit`,
 `StatusEdit`, `NotesMemo`, no timer, and the VCL is `templates/zebra.framework/dist/vcl.js`.
 
 ## Running
