@@ -104,7 +104,7 @@ impl OutputDirPipeline {
 }
 
 impl Pipeline for OutputDirPipeline {
-    /// Reads `zebra.json`, `backend.js`, `frontend/**` and `package.json`.
+    /// Reads `zebra.json`, `backend.js` (optional), `frontend/**` and `package.json`.
     ///
     /// # Returns
     /// The build output.
@@ -117,7 +117,12 @@ impl Pipeline for OutputDirPipeline {
         let bytes = std::fs::read(&config_path).map_err(|e| diag(&config_path, e.to_string()))?;
         let config = HostConfig::parse(&bytes).map_err(|e| diag(&config_path, e))?;
         let backend_path = self.root.join("backend.js");
-        let backend = std::fs::read_to_string(&backend_path).map_err(|e| diag(&backend_path, e.to_string()))?;
+        // An app without backend code runs an empty module: the Runtime still loads the
+        // glue, which answers the WebView's HostApi calls.
+        let backend = match std::fs::read_to_string(&backend_path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::from("export {};\n"),
+            read => read.map_err(|e| diag(&backend_path, e.to_string()))?,
+        };
         let frontend = self.root.join("frontend");
         let mut files = BTreeMap::new();
         collect(&frontend, &frontend, &mut files).map_err(|e| diag(&frontend, e.to_string()))?;

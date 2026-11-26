@@ -60,8 +60,9 @@ Tests are all unit tests in `src/` (assets, changes, dev, envelope, native, pipe
   survives Authenticode signing. Dropped: rewriting `.rsrc`.
 - Every protocol response carries a CSP allowing only the asset origin; responses are `no-store`.
 - Permissions are checked in `runtime/lunarstorm.rs` before any native service sees a call;
-  the backend gets no filesystem roots, environment or sockets.
+  the backend gets no filesystem roots, environment or sockets. `permissions.fs` scopes
+  only the HostApi area `fs`, whose jobs run on worker threads (8 per backend).
 - One envelope for dev messages, property updates and events, so ordering is queue order.
 - `process.*` waiter polls `try_wait` (10 ms) so epoch release can kill a running child.
-- Hard limits: 1 MiB per message, queues of 1024, dialogs are modal on the UI thread, and
+- Hard limits: 1 MiB per message, 16 MiB per call result, 64 calls in flight per form, queues of 1024, dialogs are modal on the UI thread, and
   an `onCloseQuery` that does not answer in time cannot keep a window open.

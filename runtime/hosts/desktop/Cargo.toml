@@ -17,10 +17,12 @@ description = "Lunarstorm desktop app host: a desktop application's backend on t
 lunarstorm-runtime = { path = "../../core" }
 lunarstorm-vm-quickjs = { path = "../../engines/quickjs" }
 libc = "0.2"
-# Used by the binary only: the windowing event loop, and JSON for the envelopes
-# and native-call arguments that cross the `Shell` contract as text.
-tao = "0.37"
+# HostApi: the API areas (`fs`) the WebView reaches through the Runtime.
+lunar-extension-hostapi = { path = "../../../extensions/hostapi" }
+# JSON: `spec()` in the library; envelopes and native-call arguments in the binary.
 serde_json = "1"
+# Used by the binary only: the windowing event loop.
+tao = "0.37"
 
 [[bin]]
 name = "lunarstorm-desktop"

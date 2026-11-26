@@ -16,11 +16,13 @@
 //!
 //! Contract (provisional; the interface is not final):
 //! - Host -> runtime: [`HostMessage`]. `Load` starts or replaces the app for an epoch;
-//!   `Envelope` carries a validated `event`, `request` or `cancel`; `Stop` ends it (the
+//!   `Envelope` carries a validated `event`, `request`, `cancel` or `call`; `Stop` ends it (the
 //!   host also drops the runtime at shutdown).
 //! - Runtime -> host: [`RuntimeMessage`] through [`RuntimeContext::out`]. The runtime must
 //!   report `Loaded` for every `Load`: the host mounts the main form only after it. Every
 //!   `request` gets a `response` with the same id, or the host cancels it at the deadline.
+//!   Every `call` gets a `result` with the same id, a failed one (`EUNAVAIL`) from a
+//!   runtime without HostApi (decision D9).
 //!   Messages stamped with a retired epoch are dropped by the host.
 //! - Native calls go through [`RuntimeContext::natives`] after the runtime has checked
 //!   them against the host configuration's permissions.

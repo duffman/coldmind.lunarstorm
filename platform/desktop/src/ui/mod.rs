@@ -13,7 +13,7 @@ mod services;
 
 use crate::assets::AssetStore;
 use crate::changes::classify;
-use crate::envelope::{validate_inbound, validate_update, Envelope, Inbound, Kind, Mirror, Reject};
+use crate::envelope::{hostapi_boot, validate_inbound, validate_update, Envelope, Inbound, Kind, Mirror, Reject};
 use crate::runtime::{self, AppRuntime, HostMessage, NativeCall, RuntimeContext, RuntimeMessage};
 use crate::manifest::{FormConfig, HostConfig, APPLICATION_ID};
 use crate::native::NativeServices;
@@ -32,6 +32,20 @@ use wry::{DragDropEvent, NewWindowResponse, WebView, WebViewBuilder};
 
 /// Shell runtime injected into every WebView.
 pub const SHELL: &str = include_str!("../shell/shell.js");
+
+/// How long a WebView's HostApi call may wait for its `result` before the host
+/// answers `ETIMEDOUT`.
+///
+/// Decision: one fixed deadline, long enough for file and dialog work, so a backend
+/// that never answers cannot leave a page waiting forever.
+const CALL_DEADLINE: Duration = Duration::from_secs(30);
+
+/// Most HostApi calls one form may have in flight; one more is answered `EAGAIN`
+/// and not forwarded.
+///
+/// Defect fixed (review #4, decision D7): a page could queue any number of calls
+/// behind a busy backend (test `a_page_cannot_queue_more_than_max_calls`).
+const MAX_CALLS: usize = 64;
 
 /// Which runtime is running.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,6 +106,26 @@ struct Pending {
     deadline: Instant,
 }
 
+/// A WebView HostApi call forwarded to the backend under a host id.
+///
+/// Defect fixed (review #2, decision D8): calls were keyed by the page's own id,
+/// which restarts at 1 on every page load, so a reloaded page's first call was
+/// refused as a duplicate, or settled by the old page's late result (test
+/// `a_reloaded_page_does_not_inherit_the_old_pages_calls`). Decision: the backend
+/// sees a host-unique id, mapped back to the page's id on `result`, and a page's
+/// `session.start` drops its form's calls, so an old page's result matches
+/// nothing. Per-page id prefixes were rejected: more protocol for the same effect.
+struct HostCall {
+    /// The calling form.
+    form: String,
+    /// The id the page gave the call.
+    id: u64,
+    /// `<area>.<function>`.
+    method: String,
+    /// When the host answers `ETIMEDOUT`.
+    deadline: Instant,
+}
+
 /// A host-owned `timer` component.
 struct HostTimer {
     /// Owning form.
@@ -139,6 +173,11 @@ struct App {
     mirror: Mirror,
     /// Host requests in flight.
     pending: HashMap<u64, Pending>,
+    /// WebView HostApi calls in flight, by host id. A `result` is delivered only
+    /// while its call is here.
+    calls: HashMap<u64, HostCall>,
+    /// Last host id given to a call.
+    next_call: u64,
     /// Next request id.
     next_request: u64,
     /// Menus.
@@ -305,7 +344,9 @@ impl App {
             started: false,
             mirror: Mirror::default(),
             pending: HashMap::new(),
+            calls: HashMap::new(),
             next_request: 0,
+            next_call: 0,
             menus,
             trays,
             timers: Vec::new(),
@@ -375,7 +416,8 @@ impl App {
     fn mount(&mut self, name: &str) {
         let Some(form) = self.config.form(name).cloned() else { return };
         let Some(fw) = self.windows.get_mut(name) else { return };
-        let boot = json!({ "windowId": name, "epoch": self.epoch, "mode": if self.mode == Mode::Debug { "debug" } else { "release" } });
+        let hostapi = hostapi_boot(&self.config.permissions.hostapi);
+        let boot = json!({ "windowId": name, "epoch": self.epoch, "mode": if self.mode == Mode::Debug { "debug" } else { "release" }, "hostapi": hostapi });
         let assets = self.assets.clone();
         let (ipc_proxy, drop_proxy) = (self.proxy.clone(), self.proxy.clone());
         let (ipc_form, drop_form) = (name.to_owned(), name.to_owned());
@@ -589,6 +631,20 @@ impl App {
         }
     }
 
+    /// Answers a WebView call the backend will not: a failed `result`.
+    ///
+    /// # Arguments
+    /// * `form` - the calling form.
+    /// * `id` - the call's id.
+    /// * `method` - the call's method.
+    /// * `code` - `EREFUSED`, `ERELOAD`, `ETIMEDOUT` or `EAGAIN`.
+    /// * `message` - why.
+    fn fail_call(&self, form: &str, id: u64, method: &str, code: &str, message: &str) {
+        let mut result = Envelope::new(Kind::Result, form, self.epoch, method, json!({ "ok": false, "error": { "code": code, "message": message } }));
+        result.id = Some(id);
+        self.post(form, &result);
+    }
+
     /// Sends a dev message to every open shell (debug runtime only).
     ///
     /// # Arguments
@@ -610,11 +666,17 @@ impl App {
     /// * `body` - message text.
     fn on_ipc(&mut self, form: &str, body: &str) {
         let Some(config) = self.config.form(form).cloned() else { return };
-        match validate_inbound(body, &config, self.epoch) {
+        match validate_inbound(body, &config, self.epoch, &self.config.permissions.hostapi) {
             Ok(Inbound::Hello) => {
                 if let Some(fw) = self.windows.get_mut(form) {
                     fw.ready = true;
                 }
+                // The shell's `session.start` is the moment the WebView's IPC channel
+                // is live; logged with the backend it now talks to.
+                let backend = if self.loaded { "loaded" } else { "not loaded" };
+                eprintln!("zebra: {form}: WebView connected over IPC (backend epoch {}, {backend}, runtime {})", self.epoch, self.runtime.name());
+                // A new page: the old page's calls have no one left to answer (D8).
+                self.calls.retain(|_, call| call.form != form);
                 let hello = Envelope::new(Kind::Hello, form, self.epoch, "session.ready", json!({ "controls": self.mirror.form(form) }));
                 self.post(form, &hello);
                 if let Some(errors) = &self.errors {
@@ -640,6 +702,33 @@ impl App {
                 if !self.send_backend(*envelope) {
                     self.post(form, &Envelope::new(Kind::Error, form, self.epoch, "event", json!({ "message": "backend queue is full" })));
                 }
+            }
+            // Decision D12: a call is API use, not input, so a modal does not block it.
+            Ok(Inbound::Call { id, mut envelope }) => {
+                let mine = self.calls.values().filter(|call| call.form == form);
+                let (count, duplicate) = mine.fold((0, false), |(n, dup), call| (n + 1, dup || call.id == id));
+                if !self.loaded {
+                    self.fail_call(form, id, &envelope.method, "ERELOAD", "the backend is not running");
+                } else if duplicate {
+                    self.fail_call(form, id, &envelope.method, "EREFUSED", "a call with this id is in flight");
+                } else if count >= MAX_CALLS {
+                    self.fail_call(form, id, &envelope.method, "EAGAIN", &format!("{MAX_CALLS} calls are already in flight"));
+                } else {
+                    self.next_call += 1;
+                    let host = self.next_call;
+                    let method = envelope.method.clone();
+                    envelope.id = Some(host);
+                    let call = HostCall { form: form.to_owned(), id, method: method.clone(), deadline: Instant::now() + CALL_DEADLINE };
+                    self.calls.insert(host, call);
+                    if !self.send_backend(*envelope) {
+                        self.calls.remove(&host);
+                        self.fail_call(form, id, &method, "ERELOAD", "the backend is not running");
+                    }
+                }
+            }
+            Err(Reject::Call { id, method, code, reason }) => {
+                eprintln!("zebra: {form}: refused call {method}: {reason}");
+                self.fail_call(form, id, &method, code, &reason);
             }
             // An event from before a backend reload: dropped (6.2).
             Err(Reject::Stale(_)) => {}
@@ -683,6 +772,15 @@ impl App {
             RuntimeMessage::Envelope(envelope) if envelope.epoch == self.epoch => match envelope.kind {
                 Kind::Update => self.apply_update(&envelope),
                 Kind::Response => self.on_response(&envelope),
+                // Delivered once, to the form that made the call, while it waits.
+                Kind::Result => {
+                    let call = envelope.id.and_then(|host| self.calls.remove(&host));
+                    if let Some(call) = call.filter(|call| call.form == envelope.window_id) {
+                        let mut envelope = envelope;
+                        envelope.id = Some(call.id);
+                        self.post(&call.form, &envelope);
+                    }
+                }
                 _ => {}
             },
             RuntimeMessage::Error { epoch, message } if epoch == self.epoch => self.runtime_error(&message),
@@ -977,6 +1075,10 @@ impl App {
             self.epoch += 1;
             self.loaded = false;
             self.pending.clear();
+            // The calls' backend is gone; their callers learn it now, not at the deadline.
+            for call in std::mem::take(&mut self.calls).into_values() {
+                self.fail_call(&call.form, call.id, &call.method, "ERELOAD", "the backend was reloaded");
+            }
             self.broadcast("backend.epoch", json!({ "epoch": self.epoch }));
             self.runtime.send_blocking(HostMessage::Load {
                 backend: self.build.backend.clone(),
@@ -1000,7 +1102,7 @@ impl App {
         }
     }
 
-    /// Expires request deadlines and fires due timers.
+    /// Expires request and call deadlines and fires due timers.
     fn tick(&mut self) {
         let now = Instant::now();
         let expired: Vec<u64> = self.pending.iter().filter(|(_, p)| p.deadline <= now).map(|(id, _)| *id).collect();
@@ -1013,6 +1115,11 @@ impl App {
             cancel.id = Some(id);
             let _ = self.runtime.send(HostMessage::Envelope(cancel));
             self.finish_close(&pending.form);
+        }
+        let late: Vec<u64> = self.calls.iter().filter(|(_, call)| call.deadline <= now).map(|(host, _)| *host).collect();
+        let late: Vec<HostCall> = late.into_iter().filter_map(|host| self.calls.remove(&host)).collect();
+        for call in late {
+            self.fail_call(&call.form, call.id, &call.method, "ETIMEDOUT", "the backend did not answer in time");
         }
         let mut due = Vec::new();
         for timer in self.timers.iter_mut().filter(|t| t.enabled && t.next <= now) {
@@ -1041,6 +1148,7 @@ impl App {
             .filter(|t| t.enabled)
             .map(|t| t.next)
             .chain(self.pending.values().map(|p| p.deadline))
+            .chain(self.calls.values().map(|call| call.deadline))
             .min();
         match next {
             Some(at) => ControlFlow::WaitUntil(at),

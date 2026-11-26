@@ -14,6 +14,25 @@
 //! | `response` | JS -> host           | same as the request       | `{cancel}`                   |
 //! | `cancel`   | host -> JS           | same as the request       | `{}`                         |
 //! | `dev`      | host -> WebView      | `dev.*`, `backend.epoch`  | per message                  |
+//! | `call`     | WebView -> host -> JS| `<area>.<function>`       | `{args: [...]}`              |
+//! | `result`   | JS -> host -> WebView| same as the call          | `{ok, value}` / `{ok, error: {code, message}}` |
+//!
+//! A `call` is a WebView's use of the host's API (HostApi). The host checks it here
+//! against the app's permitted areas and the host's spec, then forwards it; the
+//! Runtime's dispatcher checks it again and answers. A refused call is answered
+//! with a `result` carrying the same `id`, so the caller never waits for nothing.
+//!
+//! The codes a page can see in a failed `result`:
+//!
+//! | from              | codes                                                        |
+//! |-------------------|--------------------------------------------------------------|
+//! | the host          | `EREFUSED` (not in the spec or not permitted, bad arguments, duplicate id), `ERELOAD` (no backend, or it was reloaded), `ETIMEDOUT` (30 s), `EAGAIN` (64 calls in flight per form), `E2BIG` (result over [`MAX_RESULT`]), `EUNAVAIL` (a runtime without HostApi) |
+//! | the `fs` area     | `EACCES` (outside the roots, a link), `ENOENT`, `EINVAL` (bad argument, not a regular file), `ENOTDIR`, `EIO`, `E2BIG` (over 16 MiB), `EAGAIN` (the backend's job queue is full) |
+//! | the dispatcher    | `EFAIL` (the value is not JSON); its `EINVAL`/`EPERM` checks repeat the host's and a WebView cannot reach them |
+//!
+//! Limits: a `writeText` is bounded by [`MAX_MESSAGE`] (1 MiB inbound); a `result` by
+//! [`MAX_RESULT`]. Decision D11: after `ETIMEDOUT` or `ERELOAD` the operation may
+//! still have run; calls are not cancelled, as no area needs it yet.
 //!
 //! Decision: there is no second channel. Dev messages, property updates and control
 //! events share this envelope, so ordering between them is the queue order.
@@ -31,6 +50,15 @@ pub const QUEUE_CAPACITY: usize = 1024;
 
 /// Largest WebView message accepted, in bytes; larger ones are rejected unparsed.
 pub const MAX_MESSAGE: usize = 1 << 20;
+
+/// Largest `result` envelope sent to a WebView, in bytes (decision D6); a larger
+/// one is replaced by a failed `result` with code `E2BIG` and the same id.
+///
+/// Defect fixed (review #3): a value of any size went to the WebView (test
+/// `a_result_over_the_envelope_limit_becomes_e2big`). The `fs` text limit alone
+/// does not bound it: JSON escaping can grow text sixfold. It lives here, beside
+/// [`MAX_MESSAGE`], because the host crate knows no envelopes.
+pub const MAX_RESULT: usize = 16 << 20;
 
 /// What an envelope is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,6 +80,10 @@ pub enum Kind {
     Dev,
     /// A rejected message, sent back to its WebView.
     Error,
+    /// A WebView's HostApi call; answered by a `result` with the same `id`.
+    Call,
+    /// The answer to a `call`.
+    Result,
 }
 
 /// The single message shape on every hop.
@@ -122,6 +154,17 @@ pub enum Reject {
     Event(String),
     /// The control has no such property.
     Property(String),
+    /// A `call` refused before it reached the backend; answered with a `result`.
+    Call {
+        /// The call's id.
+        id: u64,
+        /// The call's method.
+        method: String,
+        /// `EREFUSED`, or `ERELOAD` for a call from a retired epoch.
+        code: &'static str,
+        /// Why.
+        reason: String,
+    },
 }
 
 impl std::fmt::Display for Reject {
@@ -143,6 +186,7 @@ impl std::fmt::Display for Reject {
             Reject::Control(c) => write!(f, "unknown control {c}"),
             Reject::Event(e) => write!(f, "unknown event {e}"),
             Reject::Property(p) => write!(f, "unknown property {p}"),
+            Reject::Call { method, code, reason, .. } => write!(f, "{code}: call {method}: {reason}"),
         }
     }
 }
@@ -166,24 +210,122 @@ pub enum Inbound {
         /// carry the envelope's size; it is moved once, to the backend.
         envelope: Box<Envelope>,
     },
+    /// A HostApi call, checked against the permitted areas and the spec.
+    Call {
+        /// The call's id; the `result` carries it back.
+        id: u64,
+        /// The envelope to forward to the backend.
+        envelope: Box<Envelope>,
+    },
+}
+
+/// The argument counts of one HostApi function, from the host's spec.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Arity {
+    /// Arguments that must be given.
+    required: usize,
+    /// Most arguments; `None` with a rest argument.
+    most: Option<usize>,
+}
+
+/// The host's HostApi spec as `area -> function -> arity`, read once from
+/// `lunarstorm_host_desktop::spec()`, the same spec the Runtime's dispatcher checks.
+///
+/// # Returns
+/// The table.
+fn hostapi() -> &'static BTreeMap<String, BTreeMap<String, Arity>> {
+    static TABLE: std::sync::OnceLock<BTreeMap<String, BTreeMap<String, Arity>>> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| {
+        let spec = lunarstorm_host_desktop::spec();
+        let mut table = BTreeMap::new();
+        for area in spec["areas"].as_array().into_iter().flatten() {
+            let functions = area["functions"].as_array().into_iter().flatten().map(|function| {
+                let args = function["args"].as_array().map(Vec::as_slice).unwrap_or_default();
+                let flag = |arg: &Value, key: &str| arg[key].as_bool().unwrap_or(false);
+                let required = args.iter().filter(|arg| !flag(arg, "optional") && !flag(arg, "multiple")).count();
+                let most = if args.iter().any(|arg| flag(arg, "multiple")) { None } else { Some(args.len()) };
+                (function["name"].as_str().unwrap_or_default().to_owned(), Arity { required, most })
+            });
+            table.insert(area["name"].as_str().unwrap_or_default().to_owned(), functions.collect());
+        }
+        table
+    })
+}
+
+/// Whether the host offers a HostApi area.
+///
+/// # Arguments
+/// * `area` - the area's name.
+///
+/// # Returns
+/// `true` when the spec lists it.
+pub fn is_area(area: &str) -> bool {
+    hostapi().contains_key(area)
+}
+
+/// What a form's WebView shell gets in its boot data: each permitted area with its
+/// function names, from which it builds `window.lunarstorm.hostapi`.
+///
+/// # Arguments
+/// * `areas` - the app's permitted areas.
+///
+/// # Returns
+/// `{<area>: [<function>, ...]}`.
+pub fn hostapi_boot(areas: &[String]) -> Value {
+    let table = hostapi();
+    let entries = areas.iter().filter_map(|area| table.get(area).map(|functions| (area.clone(), Value::from(functions.keys().cloned().collect::<Vec<_>>()))));
+    Value::Object(entries.collect())
+}
+
+/// Checks a `call` against the permitted areas and the spec.
+///
+/// # Arguments
+/// * `envelope` - the call.
+/// * `areas` - the app's permitted areas.
+/// * `epoch` - current backend epoch.
+///
+/// # Returns
+/// The validated call.
+///
+/// # Errors
+/// [`Reject::Malformed`] without an `id`; otherwise [`Reject::Call`], to be
+/// answered with a `result`.
+fn validate_call(envelope: Envelope, areas: &[String], epoch: u64) -> Result<Inbound, Reject> {
+    let id = envelope.id.ok_or_else(|| Reject::Malformed("call without id".into()))?;
+    let refuse = |code: &'static str, reason: String| Reject::Call { id, method: envelope.method.clone(), code, reason };
+    if envelope.epoch != epoch {
+        return Err(refuse("ERELOAD", format!("stale epoch {}", envelope.epoch)));
+    }
+    let (area, function) = envelope.method.split_once('.').ok_or_else(|| refuse("EREFUSED", "method is not <area>.<function>".into()))?;
+    if !areas.iter().any(|permitted| permitted == area) {
+        return Err(refuse("EREFUSED", format!("area {area} is not permitted")));
+    }
+    let arity = hostapi().get(area).and_then(|functions| functions.get(function)).ok_or_else(|| refuse("EREFUSED", "no such function".into()))?;
+    let count = envelope.payload.get("args").and_then(Value::as_array).map(Vec::len).ok_or_else(|| refuse("EREFUSED", "payload.args is not an array".into()))?;
+    if count < arity.required || arity.most.is_some_and(|most| count > most) {
+        return Err(refuse("EREFUSED", format!("{count} arguments")));
+    }
+    Ok(Inbound::Call { id, envelope: Box::new(envelope) })
 }
 
 /// Parses and validates one message from a form's WebView.
 ///
-/// A WebView sends control events and session starts, nothing else (6, Security). Every
-/// control, event and property is checked against the form's table.
+/// A WebView sends control events, session starts and HostApi calls, nothing else
+/// (6, Security). Every control, event and property is checked against the form's
+/// table; every call against the permitted areas and the host's spec.
 ///
 /// # Arguments
 /// * `text` - raw message text from the WebView.
 /// * `form` - the form whose WebView sent it (from the host, not the message).
 /// * `epoch` - current backend epoch.
+/// * `areas` - the HostApi areas the app is permitted (`permissions.hostapi`).
 ///
 /// # Returns
 /// The validated message.
 ///
 /// # Errors
 /// The [`Reject`] reason.
-pub fn validate_inbound(text: &str, form: &FormConfig, epoch: u64) -> Result<Inbound, Reject> {
+pub fn validate_inbound(text: &str, form: &FormConfig, epoch: u64, areas: &[String]) -> Result<Inbound, Reject> {
     if text.len() > MAX_MESSAGE {
         return Err(Reject::TooLarge(text.len()));
     }
@@ -221,6 +363,7 @@ pub fn validate_inbound(text: &str, form: &FormConfig, epoch: u64) -> Result<Inb
             let (control, event) = (control.to_owned(), event.to_owned());
             Ok(Inbound::Event { control, event, props, envelope: Box::new(envelope) })
         }
+        Kind::Call => validate_call(envelope, areas, epoch),
         other => Err(Reject::Kind(other)),
     }
 }
@@ -367,7 +510,7 @@ mod tests {
     #[test]
     fn accepts_a_tabled_event_with_its_changed_props() {
         let text = event("MainForm", 3, "NameEdit.onChange", json!({"props": {"text": "abc"}}));
-        match validate_inbound(&text, &form(), 3).unwrap() {
+        match validate_inbound(&text, &form(), 3, &[]).unwrap() {
             Inbound::Event { control, event, props, .. } => {
                 assert_eq!((control.as_str(), event.as_str()), ("NameEdit", "onChange"));
                 assert_eq!(props.get("text"), Some(&json!("abc")));
@@ -379,25 +522,59 @@ mod tests {
     #[test]
     fn rejects_everything_outside_the_table() {
         let f = form();
-        assert_eq!(validate_inbound(&event("MainForm", 1, "Other.onChange", json!({})), &f, 1), Err(Reject::Control("Other".into())));
-        assert!(matches!(validate_inbound(&event("MainForm", 1, "NameEdit.onClick", json!({})), &f, 1), Err(Reject::Event(_))));
+        assert_eq!(validate_inbound(&event("MainForm", 1, "Other.onChange", json!({})), &f, 1, &[]), Err(Reject::Control("Other".into())));
+        assert!(matches!(validate_inbound(&event("MainForm", 1, "NameEdit.onClick", json!({})), &f, 1, &[]), Err(Reject::Event(_))));
         assert!(matches!(
-            validate_inbound(&event("MainForm", 1, "NameEdit.onChange", json!({"props": {"caption": "x"}})), &f, 1),
+            validate_inbound(&event("MainForm", 1, "NameEdit.onChange", json!({"props": {"caption": "x"}})), &f, 1, &[]),
             Err(Reject::Property(_))
         ));
-        assert_eq!(validate_inbound(&event("Other", 1, "NameEdit.onChange", json!({})), &f, 1), Err(Reject::Window("Other".into())));
-        assert_eq!(validate_inbound(&event("MainForm", 1, "NameEdit.onChange", json!({})), &f, 2), Err(Reject::Stale(1)));
-        assert!(matches!(validate_inbound("{", &f, 1), Err(Reject::Malformed(_))));
+        assert_eq!(validate_inbound(&event("Other", 1, "NameEdit.onChange", json!({})), &f, 1, &[]), Err(Reject::Window("Other".into())));
+        assert_eq!(validate_inbound(&event("MainForm", 1, "NameEdit.onChange", json!({})), &f, 2, &[]), Err(Reject::Stale(1)));
+        assert!(matches!(validate_inbound("{", &f, 1, &[]), Err(Reject::Malformed(_))));
         let update = Envelope::new(Kind::Update, "MainForm", 1, "update", json!({})).to_json();
-        assert_eq!(validate_inbound(&update, &f, 1), Err(Reject::Kind(Kind::Update)));
+        assert_eq!(validate_inbound(&update, &f, 1, &[]), Err(Reject::Kind(Kind::Update)));
         let big = "x".repeat(MAX_MESSAGE + 1);
-        assert_eq!(validate_inbound(&big, &f, 1), Err(Reject::TooLarge(MAX_MESSAGE + 1)));
+        assert_eq!(validate_inbound(&big, &f, 1, &[]), Err(Reject::TooLarge(MAX_MESSAGE + 1)));
+    }
+
+    /// # Arguments
+    /// * `epoch` - epoch.
+    /// * `method` - `<area>.<function>`.
+    /// * `args` - the arguments.
+    ///
+    /// # Returns
+    /// A `call` from `MainForm` with id 4, as JSON.
+    fn call(epoch: u64, method: &str, args: Value) -> String {
+        let mut envelope = Envelope::new(Kind::Call, "MainForm", epoch, method, json!({ "args": args }));
+        envelope.id = Some(4);
+        envelope.to_json()
+    }
+
+    #[test]
+    fn calls_are_checked_against_the_permitted_areas_and_the_spec() {
+        let (f, fs) = (form(), [String::from("fs")]);
+        assert!(matches!(validate_inbound(&call(1, "fs.readText", json!(["a.txt"])), &f, 1, &fs), Ok(Inbound::Call { id: 4, .. })));
+        let code = |text: String, areas: &[String], epoch: u64| match validate_inbound(&text, &f, epoch, areas) {
+            Err(Reject::Call { id: 4, code, .. }) => code,
+            other => panic!("unexpected {other:?}"),
+        };
+        assert_eq!(code(call(1, "fs.readText", json!(["a.txt"])), &[], 1), "EREFUSED", "area not permitted");
+        assert_eq!(code(call(1, "nope.x", json!([])), &fs, 1), "EREFUSED", "no such area");
+        assert_eq!(code(call(1, "fs.nope", json!([])), &fs, 1), "EREFUSED", "no such function");
+        assert_eq!(code(call(1, "fs.readText", json!([])), &fs, 1), "EREFUSED", "too few arguments");
+        assert_eq!(code(call(1, "fs.readText", json!(["a", "b"])), &fs, 1), "EREFUSED", "too many arguments");
+        assert_eq!(code(call(1, "fs.readText", json!("a")), &fs, 1), "EREFUSED", "args not an array");
+        assert_eq!(code(call(1, "fs.readText", json!(["a"])), &fs, 2), "ERELOAD", "stale epoch");
+        let anonymous = Envelope::new(Kind::Call, "MainForm", 1, "fs.readText", json!({"args": ["a"]})).to_json();
+        assert!(matches!(validate_inbound(&anonymous, &f, 1, &fs), Err(Reject::Malformed(_))));
+        assert_eq!(hostapi_boot(&fs), json!({"fs": ["list", "readText", "writeText"]}));
+        assert_eq!(hostapi_boot(&[]), json!({}));
     }
 
     #[test]
     fn hello_is_accepted_under_any_epoch() {
         let text = Envelope::new(Kind::Hello, "MainForm", 0, "session.start", json!({})).to_json();
-        assert_eq!(validate_inbound(&text, &form(), 9), Ok(Inbound::Hello));
+        assert_eq!(validate_inbound(&text, &form(), 9, &[]), Ok(Inbound::Hello));
     }
 
     #[test]

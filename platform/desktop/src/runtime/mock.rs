@@ -5,6 +5,10 @@
 //! [`AppRuntime`] contract requires and nothing else: it reports `Loaded` for each `Load`
 //! (the host mounts the main form only after that) and answers each `request` with an
 //! empty payload, as a backend without a handler for it does. It never sends updates.
+//!
+//! Defect fixed (decision D9): a HostApi `call` got no answer, so the page waited for
+//! the host's 30 s deadline (test `a_call_is_answered_with_eunavail`). Every runtime
+//! answers every `call`; the mock has no HostApi, so it answers `EUNAVAIL` at once.
 
 use serde_json::{json, Value};
 
@@ -44,6 +48,12 @@ impl MockRuntime {
                 let mut response = Envelope::new(Kind::Response, &envelope.window_id, envelope.epoch, &envelope.method, json!({}));
                 response.id = envelope.id;
                 (self.ctx.out)(RuntimeMessage::Envelope(response));
+            }
+            HostMessage::Envelope(envelope) if envelope.kind == Kind::Call => {
+                let error = json!({ "code": "EUNAVAIL", "message": "EUNAVAIL: the mock runtime has no HostApi" });
+                let mut result = Envelope::new(Kind::Result, &envelope.window_id, envelope.epoch, &envelope.method, json!({ "ok": false, "error": error }));
+                result.id = envelope.id;
+                (self.ctx.out)(RuntimeMessage::Envelope(result));
             }
             _ => {}
         }
@@ -153,6 +163,21 @@ mod tests {
         let RuntimeMessage::Envelope(response) = &seen[1] else { panic!("expected a response, got {:?}", seen[1]) };
         assert_eq!((response.kind, response.id, response.epoch), (Kind::Response, Some(7), 3));
         assert_eq!(response.method, "MainForm.onCloseQuery");
+    }
+
+    /// A HostApi `call` gets a failed `result` with its id at once, so the page's
+    /// promise settles instead of waiting for the host's deadline.
+    #[test]
+    fn a_call_is_answered_with_eunavail() {
+        let (rt, seen) = mock();
+        let mut call = Envelope::new(Kind::Call, "MainForm", 3, "fs.readText", json!({ "args": ["a.txt"] }));
+        call.id = Some(9);
+        rt.send(HostMessage::Envelope(call)).unwrap();
+
+        let seen = seen.lock().unwrap();
+        let Some(RuntimeMessage::Envelope(result)) = seen.first() else { panic!("the mock did not answer the call: {seen:?}") };
+        assert_eq!((result.kind, result.id, result.epoch, result.window_id.as_str()), (Kind::Result, Some(9), 3, "MainForm"));
+        assert_eq!(result.payload["error"]["code"], json!("EUNAVAIL"));
     }
 
     /// The log line carries the IPC data: method, window, payload.

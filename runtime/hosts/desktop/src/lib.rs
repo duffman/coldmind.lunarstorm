@@ -33,9 +33,26 @@
 //!   IPC, so this library uses neither the desktop process's types nor a JSON
 //!   crate. The `lunarstorm-desktop` binary (a tao event loop) is one shell.
 //! - The VM is bound here, in one alias ([`Engine`]).
+//! - **HostApi is installed with the areas a [`Program`] lists** ([`Fs`] so far).
+//!   The manifest is built per backend from `Program.areas`, so an area the app
+//!   is not permitted does not resolve. The glue's dispatcher answers WebView
+//!   `call` envelopes from those areas; the glue is loaded even when the backend
+//!   never imports it, so an app needs no backend code for the WebView's calls.
+
+mod fs;
+
+pub use fs::{Fs, MAX_TEXT};
+
+/// The HostApi areas this host offers.
+///
+/// Decision D10: one list feeds both [`spec`] and the Runtime's extensions, so
+/// the spec the platform checks calls against cannot drift from what is
+/// installed. Two hand-kept lists were rejected.
+pub type Areas = (Fs,);
 
 use lunarstorm_runtime::vm::{Call, Interrupt, Limits, Outcome, Scope, Thrown, Vm};
-use lunarstorm_runtime::{Access, Bindings, Host, Log, Poster, Runtime, Source, Stream, Wait};
+use lunar_extension_hostapi::HostApi;
+use lunarstorm_runtime::{Access, Bindings, Entry, Host, Log, Manifest, Poster, Runtime, Source, Stream, Wait};
 use lunarstorm_vm_quickjs::QuickJs;
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
@@ -129,12 +146,34 @@ pub struct Program {
     pub memory: Option<usize>,
     /// Longest one JS entry may run before it is interrupted.
     pub budget: Duration,
-    /// Filesystem roots the backend may read and write; nothing outside them.
+    /// Filesystem roots the backend's own `node:fs` may read and write; nothing
+    /// outside them.
     pub roots: Vec<PathBuf>,
+    /// Filesystem roots of the HostApi area `fs` (what the WebView reaches).
+    ///
+    /// Defect fixed here: the area and the backend shared `roots`, so granting the
+    /// WebView a folder (`permissions.fs`) also granted it to the backend's
+    /// `node:fs` (test `the_backend_gets_no_fs_roots_from_permissions_fs`).
+    /// Decision: two scopes; one shared scope was dropped because it widens every
+    /// existing backend without a manifest change.
+    pub area_roots: Vec<PathBuf>,
     /// The environment the backend sees as `process.env`.
     pub environment: Vec<(String, String)>,
     /// `process.argv[0]`: the application's id.
     pub name: String,
+    /// The HostApi areas the app is permitted, e.g. `["fs"]`. An unknown name
+    /// fails the load.
+    pub areas: Vec<String>,
+}
+
+/// The desktop host's whole API, every area it offers, as [`HostApi::spec`]
+/// describes it. The platform checks WebView calls against it before they reach
+/// the Runtime; the Runtime's dispatcher checks them again.
+///
+/// # Returns
+/// The spec.
+pub fn spec() -> serde_json::Value {
+    HostApi::<Engine, Areas>::new((Fs,)).spec()
 }
 
 /// The glue's hooks of the instance running on this thread.
@@ -162,10 +201,12 @@ struct DesktopHost<S> {
     epoch: u64,
     /// `process.argv[0]`.
     name: String,
-    /// Filesystem roots the backend may touch.
+    /// Filesystem roots the backend's `node:fs` may touch.
     roots: Vec<PathBuf>,
     /// `process.env`.
     environment: Vec<(String, String)>,
+    /// The Runtime manifest: HostApi with the permitted areas.
+    manifest: Manifest,
     /// Whether the entry module is being evaluated; an error then fails the load.
     loading: Cell<bool>,
     /// The first error raised while loading.
@@ -188,12 +229,21 @@ fn explain(description: &str) -> String {
 }
 
 impl<S: Shell> Host for DesktopHost<S> {
-    /// No extensions.
-    type Extensions<V: lunarstorm_runtime::vm::Vm> = ();
+    /// HostApi with the areas this host offers.
+    type Extensions<V: lunarstorm_runtime::vm::Vm> = (HostApi<V, Areas>,);
 
     /// # Returns
-    /// The empty set.
-    fn extensions<V: lunarstorm_runtime::vm::Vm>(&self) -> Self::Extensions<V> {}
+    /// A fresh set for one Runtime. `fs` has no scope of its own: its jobs run in
+    /// `desktopWork`, which holds the area roots.
+    fn extensions<V: lunarstorm_runtime::vm::Vm>(&self) -> Self::Extensions<V> {
+        (HostApi::new((Fs,)),)
+    }
+
+    /// # Returns
+    /// HostApi with the areas the program lists.
+    fn manifest(&self) -> &Manifest {
+        &self.manifest
+    }
 
     /// The watchdog reads the pulse to enforce the execution budget.
     const PULSE: bool = true;
@@ -244,7 +294,7 @@ impl<S: Shell> Host for DesktopHost<S> {
     /// Whether it may.
     fn allow(&self, access: Access<'_>) -> bool {
         match access {
-            Access::Read(path) | Access::Write(path) => self.roots.iter().any(|root| Path::new(path).starts_with(root)),
+            Access::Read(path) | Access::Write(path) => within(&self.roots, path),
             Access::Listen(_) | Access::Connect(..) => false,
         }
     }
@@ -289,6 +339,82 @@ impl<S: Shell> Host for DesktopHost<S> {
     }
 }
 
+/// Whether a path the backend names lies under one of its roots.
+///
+/// Defect fixed here: the check was `Path::new(path).starts_with(root)` on the
+/// text the script passed, and `starts_with` compares components without
+/// resolving them, so `<root>/../outside` and a symlink under a root pointing
+/// out of it both passed (tests `a_path_that_climbs_out_of_a_root_is_refused`,
+/// `a_symlink_inside_a_root_that_points_out_of_it_is_refused`).
+///
+/// Decision: resolve the path the way the OS will before comparing. The longest
+/// existing ancestor is canonicalised (symlinks and `..` resolved by the OS); the
+/// components below it do not exist yet, so they hold no links and are applied
+/// lexically. Lexical normalisation alone was rejected: it misses symlinks. The
+/// check and the open are separate system calls, so a link swapped in between
+/// can still race it; the host grants only directories the app owns.
+///
+/// # Arguments
+/// * `roots` - the permitted roots, already canonical ([`canonical_roots`]).
+/// * `path` - the path as the script wrote it; relative to the working directory.
+///
+/// # Returns
+/// Whether the resolved path is a root or lies under one.
+pub(crate) fn within(roots: &[PathBuf], path: &str) -> bool {
+    let path = Path::new(path);
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        match std::env::current_dir() {
+            Ok(directory) => directory.join(path),
+            Err(_) => return false,
+        }
+    };
+    let mut existing = absolute.as_path();
+    let mut rest = Vec::new();
+    let mut resolved = loop {
+        if let Ok(canonical) = std::fs::canonicalize(existing) {
+            break canonical;
+        }
+        // Defect fixed (D5): a dangling or looping symlink failed to canonicalise,
+        // so it was taken for a name not created yet and applied lexically; a write
+        // through it then created its target outside the root (test
+        // `a_broken_symlink_inside_a_root_is_refused`). Decision: a component that
+        // exists but cannot be resolved refuses the path, even when its target
+        // would lie inside a root. Following `read_link` was rejected: more code,
+        // and the target can be created later anyway.
+        if std::fs::symlink_metadata(existing).is_ok() {
+            return false;
+        }
+        let (Some(parent), Some(name)) = (existing.parent(), existing.components().next_back()) else { return false };
+        rest.push(name);
+        existing = parent;
+    };
+    for component in rest.into_iter().rev() {
+        match component {
+            std::path::Component::ParentDir => {
+                resolved.pop();
+            }
+            std::path::Component::Normal(name) => resolved.push(name),
+            _ => {}
+        }
+    }
+    roots.iter().any(|root| resolved.starts_with(root))
+}
+
+/// Canonicalises the permitted roots once per backend, so [`within`] compares
+/// resolved paths with resolved roots (`/tmp` is `/private/tmp` on macOS).
+///
+/// # Arguments
+/// * `roots` - the roots from the host configuration.
+///
+/// # Returns
+/// The roots that exist, canonical. A root that does not exist grants nothing:
+/// it could later be created as a link to anywhere.
+fn canonical_roots(roots: Vec<PathBuf>) -> Vec<PathBuf> {
+    roots.into_iter().filter_map(|root| std::fs::canonicalize(root).ok()).collect()
+}
+
 /// Reads a string argument of a native function.
 ///
 /// # Arguments
@@ -317,16 +443,19 @@ fn text(call: &Call<'_, Engine>, index: usize) -> Outcome<String> {
 /// | `desktopError(text)`                 | reports a handler error                |
 /// | `desktopRestore()`                   | the carried-over control values (JSON) |
 /// | `desktopHooks(dispatch, settle)`     | hands the host the glue's hooks        |
+/// | `desktopSpec()`                      | the host's API spec (JSON)             |
+/// | `desktopWork(id, method, args)`      | starts an area job on a worker thread  |
 ///
 /// # Arguments
 /// * `shell` - the desktop process.
 /// * `epoch` - the instance's epoch.
 /// * `restore` - the carried-over control values as JSON.
+/// * `work` - what `desktopWork` needs.
 ///
 /// # Returns
 /// The bindings to register before `start`.
-fn bindings<S: Shell>(shell: &Arc<S>, epoch: u64, restore: String) -> Bindings<Engine> {
-    let (send, native, error) = (shell.clone(), shell.clone(), shell.clone());
+fn bindings<S: Shell>(shell: &Arc<S>, epoch: u64, restore: String, work: Work) -> Bindings<Engine> {
+    let (send, native, error, worker) = (shell.clone(), shell.clone(), shell.clone(), shell.clone());
     Bindings::new()
         .function("desktopSend", move |call: &Call<'_, Engine>| {
             send.send(epoch, &text(call, 0)?);
@@ -343,6 +472,18 @@ fn bindings<S: Shell>(shell: &Arc<S>, epoch: u64, restore: String) -> Bindings<E
             Ok(call.scope().undefined())
         })
         .function("desktopRestore", move |call: &Call<'_, Engine>| call.scope().string(&restore))
+        .function("desktopSpec", |call: &Call<'_, Engine>| {
+            /// The spec's text, built once per process.
+            static TEXT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+            call.scope().string(TEXT.get_or_init(|| spec().to_string()))
+        })
+        .function("desktopWork", move |call: &Call<'_, Engine>| {
+            let scope = call.scope();
+            let id = call.args().first().and_then(|id| scope.as_number(id)).unwrap_or(0.0) as u64;
+            let (method, args) = (text(call, 1)?, text(call, 2)?);
+            work.start(&worker, epoch, id, &method, args);
+            Ok(scope.undefined())
+        })
         .function("desktopHooks", |call: &Call<'_, Engine>| {
             let scope = call.scope();
             if let [dispatch, settle, ..] = call.args() {
@@ -393,6 +534,68 @@ fn hook<'s, S: Shell>(
     if let Some(Err(Thrown)) = outcome {
         shell.error(epoch, &thrown(scope));
     }
+}
+
+/// What `desktopWork` needs: the way back to the loop, the `fs` area's scope and
+/// its workers.
+struct Work {
+    /// Posts results to this instance's loop; a result for a retired instance
+    /// is dropped with its loop.
+    poster: Poster<Engine>,
+    /// The `fs` area's roots, canonical.
+    roots: Vec<PathBuf>,
+    /// The areas the app is permitted.
+    areas: Vec<String>,
+    /// The instance's worker threads.
+    workers: fs::Workers,
+}
+
+impl Work {
+    /// Starts one area job; its result settles the glue's promise `id`.
+    ///
+    /// # Arguments
+    /// * `shell` - receives the error if the settle hook throws.
+    /// * `epoch` - the instance's epoch.
+    /// * `id` - the glue's call id.
+    /// * `method` - `<area>.<function>`.
+    /// * `args` - the arguments as a JSON array.
+    fn start<S: Shell>(&self, shell: &Arc<S>, epoch: u64, id: u64, method: &str, args: String) {
+        let refuse = |code: &str, message: &str| post_settle(&self.poster, shell.clone(), epoch, id, false, fs::failure(code, message));
+        // Backend code cannot import an area the app is not permitted; this keeps
+        // the native to the same list.
+        let Some(("fs", function)) = method.split_once('.').filter(|(area, _)| self.areas.iter().any(|a| a == area)) else {
+            return refuse("EPERM", &format!("{method} is not permitted"));
+        };
+        let (poster, roots, function, done) = (self.poster.clone(), self.roots.clone(), function.to_owned(), shell.clone());
+        let started = self.workers.start(move || {
+            let (ok, json) = match fs::run(&roots, &function, &args) {
+                Ok(json) => (true, json),
+                Err(json) => (false, json),
+            };
+            post_settle(&poster, done, epoch, id, ok, json);
+        });
+        if !started {
+            refuse("EAGAIN", "the fs queue is full");
+        }
+    }
+}
+
+/// Settles the glue's promise `call` on the loop `poster` belongs to.
+///
+/// # Arguments
+/// * `poster` - the instance's loop.
+/// * `shell` - receives the error if the hook throws.
+/// * `epoch` - the instance's epoch.
+/// * `call` - the call id.
+/// * `ok` - whether it succeeded.
+/// * `json` - the value, or the error, as JSON; empty for `undefined`.
+fn post_settle<S: Shell>(poster: &Poster<Engine>, shell: Arc<S>, epoch: u64, call: u64, ok: bool, json: String) {
+    poster.post(move |scope| {
+        hook(scope, &*shell, epoch, |hooks| {
+            let arguments = [scope.number(call as f64), scope.boolean(ok), scope.string(&json)?];
+            scope.call(&scope.local(&hooks.settle), &arguments).map(drop)
+        });
+    });
 }
 
 /// The live instance's epoch and the handle that posts to its loop.
@@ -486,26 +689,37 @@ struct Instance<S: Shell> {
 /// # Errors
 /// Why the backend did not load. Nothing of it is left running.
 fn start<S: Shell>(program: Program, shell: &Arc<S>, slot: &Slot) -> Result<Instance<S>, String> {
-    let Program { epoch, code, restore, memory, budget, roots, environment, name } = program;
+    let Program { epoch, code, restore, memory, budget, roots, area_roots, environment, name, areas } = program;
+    // Decision: HostApi is always in the manifest, with no areas when none is
+    // permitted, so the glue can import `lunarstorm:hostapi` unconditionally.
+    let hostapi = Entry { plugins: areas.clone(), config: None };
     let host = DesktopHost {
         shell: shell.clone(),
         epoch,
         name,
-        roots,
+        roots: canonical_roots(roots),
         environment,
+        manifest: Manifest { extensions: [(String::from(lunar_extension_hostapi::NAME), hostapi)].into() },
         loading: Cell::new(true),
         failure: RefCell::new(None),
     };
     let mut runtime = Runtime::<Engine, _>::new(host).map_err(|error| format!("cannot create the event loop: {error}"))?;
     runtime.limits(Limits { memory, ..Limits::default() });
-    runtime.register(bindings(shell, epoch, restore));
+    let work = Work { poster: runtime.poster(), roots: canonical_roots(area_roots), areas, workers: fs::Workers::default() };
+    runtime.register(bindings(shell, epoch, restore, work));
     runtime.start()?;
     // Events arrive as posted tasks, so the loop sleeps instead of going idle.
     runtime.hold(true);
     let interrupt = runtime.interrupt().ok_or("the runtime has no instance")?;
     let watchdog = Watchdog::start(runtime.pulse(), interrupt, budget);
 
-    let loaded = runtime.load(Source::Text { name: String::from("backend.js"), code: code.to_string() });
+    let mut loaded = runtime.load(Source::Text { name: String::from("backend.js"), code: code.to_string() });
+    // A backend that never imports `@desktop/bridge` or `@desktop/api` (or an app
+    // with none, which loads `export {}`) still gets the glue, whose dispatcher
+    // answers the WebView's `call`s.
+    if loaded.is_ok() && HOOKS.with(|hooks| hooks.borrow().is_none()) {
+        loaded = runtime.load(Source::Text { name: String::from("lunarstorm-desktop.js"), code: String::from("import '@desktop/bridge';\n") });
+    }
     runtime.host().loading.set(false);
     let failure = runtime.host().failure.borrow_mut().take();
     if let Some(error) = failure.or(loaded.err()) {
@@ -609,18 +823,12 @@ impl<S: Shell> Settler<S> {
         if *live != epoch {
             return;
         }
-        let shell = self.shell.clone();
-        poster.post(move |scope| {
-            hook(scope, &*shell, epoch, |hooks| {
-                let (ok, json) = match &result {
-                    Ok(json) => (true, scope.string(json)?),
-                    // The glue parses the error as JSON too, so it is quoted.
-                    Err(message) => (false, scope.string(&quote(message))?),
-                };
-                let arguments = [scope.number(call as f64), scope.boolean(ok), json];
-                scope.call(&scope.local(&hooks.settle), &arguments).map(drop)
-            });
-        });
+        let (ok, json) = match result {
+            Ok(json) => (true, json),
+            // The glue parses the error as JSON too, so it is quoted.
+            Err(message) => (false, quote(&message)),
+        };
+        post_settle(poster, self.shell.clone(), epoch, call, ok, json);
     }
 }
 
